@@ -41,10 +41,16 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.appearance) private var appearance = "dark"
 
     let onClose: () -> Void
+    let onOpenDiagnostics: () -> Void
 
-    init(engine: TorrentEngine, onClose: @escaping () -> Void) {
+    init(
+        engine: TorrentEngine,
+        onClose: @escaping () -> Void,
+        onOpenDiagnostics: @escaping () -> Void
+    ) {
         _engine = ObservedObject(wrappedValue: engine)
         self.onClose = onClose
+        self.onOpenDiagnostics = onOpenDiagnostics
     }
 
     var body: some View {
@@ -106,6 +112,8 @@ struct SettingsSheet: View {
                                 isOn: $upnpEnabled,
                                 palette: palette
                             )
+                            rowDivider(palette)
+                            diagnosticsRow(palette)
                         }
 
                         section("Comportamento", palette) {
@@ -295,6 +303,37 @@ struct SettingsSheet: View {
             )
         }
         .padding(.vertical, 8)
+    }
+
+    private func diagnosticsRow(_ palette: Palette) -> some View {
+        Button {
+            onOpenDiagnostics()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "network")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(palette.secondary)
+                    .frame(width: 18)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Diagnostica rete")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(palette.text)
+                    Text("Porta effettiva, mapping e test esterno")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(palette.tertiary)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(palette.tertiary)
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func toggleRow(

@@ -152,6 +152,18 @@ final class TorrentEngine: ObservableObject {
 
         isReady = session != nil
 
+        if let session {
+            let upnp = defaults.bool(forKey: PrefKey.upnpEnabled)
+            _ = vt_apply_settings(
+                session,
+                port,
+                downloadLimit,
+                uploadLimit,
+                dht ? 1 : 0,
+                upnp ? 1 : 0
+            )
+        }
+
         if session == nil {
             DispatchQueue.main.async { [weak self] in
                 self?.showToast(
@@ -483,6 +495,13 @@ final class TorrentEngine: ObservableObject {
             paused: list.filter { $0.paused }.count,
             dhtNodes: 284,
             port: 6881
+        )
+        stats.actualPort = 6881
+        stats.isListening = true
+        stats.portmap = PortMapSnapshot(
+            tcp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
+            udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
+            error: ""
         )
         downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
         uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)

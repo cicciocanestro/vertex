@@ -2,6 +2,11 @@ import SwiftUI
 
 struct StatusBarView: View {
     @ObservedObject var engine: TorrentEngine
+    var onOpenDiagnostics: () -> Void = {}
+
+    private var displayPort: Int {
+        engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
+    }
 
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
     @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = 0
@@ -66,10 +71,21 @@ struct StatusBarView: View {
 
             divider(palette)
 
-            Text("Porta \(engine.stats.port)")
-                .font(.system(size: 9.5, weight: .regular, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(palette.tertiary)
+            Button(action: onOpenDiagnostics) {
+                HStack(spacing: 4) {
+                    Image(systemName: "network")
+                        .font(.system(size: 8.5, weight: .semibold))
+                    Text("Porta \(displayPort)")
+                        .font(.system(size: 9.5, weight: .regular, design: .rounded))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(engine.stats.isListening ? palette.tertiary : Theme.coral)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Diagnostica rete")
         }
         .padding(.horizontal, 18)
         .frame(height: 38)

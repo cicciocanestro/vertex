@@ -5,6 +5,7 @@
 #include <libtorrent/announce_entry.hpp>
 #include <libtorrent/hex.hpp>
 #include <libtorrent/load_torrent.hpp>
+#include <libtorrent/portmap.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
@@ -158,6 +159,16 @@ struct vt_session
     int dht_metric_index = -1;
     int dht_nodes = 0;
     std::string last_error;
+    int actual_listen_port = 0;
+    bool listening = false;
+    bool upnp_enabled = true;
+    bool tcp_mapped = false;
+    int tcp_external_port = 0;
+    std::string tcp_map_transport;
+    bool udp_mapped = false;
+    int udp_external_port = 0;
+    std::string udp_map_transport;
+    std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     std::set<std::string> removed_ids;
     std::chrono::steady_clock::time_point last_stats;
@@ -293,6 +304,7 @@ vt_session* vt_session_create(const char* download_dir,
         session->default_save_path = download_dir ? download_dir : "";
         session->resume_dir = resume_dir ? resume_dir : "";
         session->listen_port = listen_port > 0 ? listen_port : 6881;
+        session->upnp_enabled = true;
 
         if (!session->default_save_path.empty())
             fs::create_directories(session->default_save_path);
@@ -305,7 +317,8 @@ vt_session* vt_session_create(const char* download_dir,
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |
                                                         lt::alert_category::storage |
-                                                        lt::alert_category::status)));
+                                                        lt::alert_category::status |
+                                                        lt::alert_category::port_mapping)));
         settings.set_str(lt::settings_pack::listen_interfaces,
                          "0.0.0.0:" + std::to_string(session->listen_port) +
                              ",[::]:" + std::to_string(session->listen_port));
@@ -492,6 +505,29 @@ void vt_session_poll(vt_session* session)
                     session->dht_nodes = int(counters[session->dht_metric_index]);
                 }
             }
+            else if (auto* mapped = lt::alert_cast<lt::portmap_alert>(alert))
+            {
+                std::string transport = mapped->map_transport == lt::portmap_transport::upnp
+                                            ? "UPnP"
+                                            : "NAT-PMP";
+                if (mapped->map_protocol == lt::portmap_protocol::tcp)
+                {
+                    session->tcp_mapped = true;
+                    session->tcp_external_port = mapped->external_port;
+                    session->tcp_map_transport = transport;
+                }
+                else if (mapped->map_protocol == lt::portmap_protocol::udp)
+                {
+                    session->udp_mapped = true;
+                    session->udp_external_port = mapped->external_port;
+                    session->udp_map_transport = transport;
+                }
+                session->portmap_error.clear();
+            }
+            else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
+            {
+                session->portmap_error = map_error->error.message();
+            }
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
             {
                 if (added->error)
@@ -559,6 +595,28 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"active\":" << active << ",";
         out << "\"paused_count\":" << paused << ",";
         out << "\"dht_nodes\":" << session->dht_nodes << ",";
+
+        try
+        {
+            session->actual_listen_port = int(session->session->listen_port());
+            session->listening = session->session->is_listening();
+        }
+        catch (...)
+        {
+            session->actual_listen_port = 0;
+            session->listening = false;
+        }
+
+        out << "\"listen_actual_port\":" << session->actual_listen_port << ",";
+        out << "\"listening\":" << (session->listening ? "true" : "false") << ",";
+        out << "\"portmap\":{";
+        out << "\"tcp\":{\"mapped\":" << (session->tcp_mapped ? "true" : "false")
+            << ",\"external_port\":" << session->tcp_external_port
+            << ",\"transport\":\"" << json_escape(session->tcp_map_transport) << "\"},";
+        out << "\"udp\":{\"mapped\":" << (session->udp_mapped ? "true" : "false")
+            << ",\"external_port\":" << session->udp_external_port
+            << ",\"transport\":\"" << json_escape(session->udp_map_transport) << "\"},";
+        out << "\"error\":\"" << json_escape(session->portmap_error) << "\"},";
         out << "\"port\":" << session->listen_port;
         out << "}";
 
@@ -919,9 +977,27 @@ int vt_apply_settings(vt_session* session,
         if (listen_port > 0 && listen_port != session->listen_port)
         {
             session->listen_port = listen_port;
+            session->tcp_mapped = false;
+            session->tcp_external_port = 0;
+            session->tcp_map_transport.clear();
+            session->udp_mapped = false;
+            session->udp_external_port = 0;
+            session->udp_map_transport.clear();
+            session->portmap_error.clear();
             settings.set_str(lt::settings_pack::listen_interfaces,
                              "0.0.0.0:" + std::to_string(listen_port) +
                                  ",[::]:" + std::to_string(listen_port));
+        }
+        if ((enable_upnp != 0) != session->upnp_enabled)
+        {
+            session->upnp_enabled = enable_upnp != 0;
+            session->tcp_mapped = false;
+            session->tcp_external_port = 0;
+            session->tcp_map_transport.clear();
+            session->udp_mapped = false;
+            session->udp_external_port = 0;
+            session->udp_map_transport.clear();
+            session->portmap_error.clear();
         }
         settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));
         settings.set_int(lt::settings_pack::upload_rate_limit, (std::max)(0, upload_limit_bytes));

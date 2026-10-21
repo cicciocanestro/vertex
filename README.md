@@ -16,6 +16,8 @@ e gestione completa di magnet link e file `.torrent`.
 - Ricerca istantanea, filtri (tutti, download, seed, completati, in pausa) e ordinamento.
 - Pannello dettagli con statistiche, file con priorità e stato dei tracker.
 - Limiti globali di velocità, porta di ascolto, DHT, UPnP/NAT-PMP.
+- Pannello **Diagnostica rete**: porta effettiva, IP locale, stato UPnP/NAT-PMP e test TCP di
+  raggiungibilità esterna.
 - Tema scuro, chiaro o di sistema, applicato immediatamente.
 - Ripresa automatica della sessione tramite resume data, con validazione dei percorsi.
 - Errori visibili con messaggio e percorso nel pannello dettagli.
@@ -129,6 +131,16 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 - In caso di errore, il messaggio reale e il percorso coinvolto sono visibili nella riga
   e nel pannello dettagli.
 
+### Diagnostica rete
+
+- Si apre dal numero di porta nella barra di stato, da **Impostazioni → Rete → Diagnostica
+  rete**, oppure con `⌘⇧D`.
+- Mostra porta effettiva, IP locale, stato delle mappature UPnP/NAT-PMP e nodi DHT.
+- **Testa porta** verifica la raggiungibilità TCP tramite check-host.net: l’IP pubblico
+  viene inviato al servizio solo quando avvii il test. Il traffico UDP/uTP non è verificato.
+- Se la porta risulta chiusa, abilita UPnP/NAT-PMP sul router o inoltra TCP e UDP verso
+  l’IP locale; verifica anche di non essere dietro CGNAT.
+
 ### Impostazioni
 
 - Cartella di download, limiti globali di download/upload, porta di ascolto,
@@ -152,6 +164,7 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 | Mostra nel Finder | `⌘⇧R` |
 | Copia link magnet | `⌘⇧C` |
 | Mostra / nascondi dettagli | `⌘I` |
+| Diagnostica rete | `⌘⇧D` |
 | Filtri | `⌘1` … `⌘5` |
 | Impostazioni | `⌘,` |
 
@@ -171,8 +184,10 @@ BitTorrent. L'app non è sandboxed e accede alle cartelle scelte e alla cartella
   e comandi.
 - `Sources/Vertex` — app SwiftUI:
   - `Engine/TorrentEngine.swift` — polling del motore e stato pubblicato;
+  - `Engine/PortReachabilityTester.swift` — test TCP esterno tramite check-host.net;
   - `Views/` — lista, righe, pannello dettagli, finestra di aggiunta, impostazioni,
-    barra di stato;
+    diagnostica rete, barra di stato;
+  - `Utilities/NetworkInfo.swift` — rilevamento dell’IP locale;
   - `Design/` — palette adattiva, componenti, animazioni;
   - `Models/` e `Utilities/` — modelli e formattazione italiana.
 - `Sources/Vertex/DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.

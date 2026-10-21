@@ -76,6 +76,24 @@ struct Torrent: Decodable, Identifiable, Equatable {
     }
 }
 
+struct PortMapInfo: Decodable, Equatable {
+    var mapped: Bool = false
+    var externalPort: Int = 0
+    var transport: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case mapped
+        case externalPort = "external_port"
+        case transport
+    }
+}
+
+struct PortMapSnapshot: Decodable, Equatable {
+    var tcp = PortMapInfo()
+    var udp = PortMapInfo()
+    var error: String = ""
+}
+
 struct SessionStats: Equatable {
     var downloadRate: Int64 = 0
     var uploadRate: Int64 = 0
@@ -85,6 +103,9 @@ struct SessionStats: Equatable {
     var paused: Int = 0
     var dhtNodes: Int = 0
     var port: Int = 0
+    var actualPort: Int = 0
+    var isListening: Bool = false
+    var portmap = PortMapSnapshot()
 }
 
 struct VertexSnapshot: Decodable {
@@ -97,6 +118,9 @@ struct VertexSnapshot: Decodable {
     let pausedCount: Int
     let dhtNodes: Int
     let port: Int
+    let listenActualPort: Int
+    let listening: Bool
+    let portmap: PortMapSnapshot
 
     enum CodingKeys: String, CodingKey {
         case torrents
@@ -108,6 +132,9 @@ struct VertexSnapshot: Decodable {
         case pausedCount = "paused_count"
         case dhtNodes = "dht_nodes"
         case port
+        case listenActualPort = "listen_actual_port"
+        case listening
+        case portmap
     }
 
     var stats: SessionStats {
@@ -119,7 +146,10 @@ struct VertexSnapshot: Decodable {
             active: active,
             paused: pausedCount,
             dhtNodes: dhtNodes,
-            port: port
+            port: port,
+            actualPort: listenActualPort,
+            isListening: listening,
+            portmap: portmap
         )
     }
 }

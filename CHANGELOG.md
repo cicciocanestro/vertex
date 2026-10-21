@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2] — 2026-10-22
+
+### Aggiunto
+- Pannello **Diagnostica rete** con porta effettiva, IP locale, stato UPnP/NAT-PMP e test TCP
+  di raggiungibilità esterna tramite check-host.net.
+- Accesso alla diagnostica dalla porta nella barra di stato, da Impostazioni → Rete e con `⌘⇧D`.
+- Avviso CGNAT e istruzioni per port forwarding / UPnP nel pannello.
+- Il bridge espone porta effettiva, stato di ascolto e mapping UPnP/NAT-PMP.
+
+### Modificato
+- L’impostazione UPnP/NAT-PMP salvata viene applicata all’avvio.
+- README e note di release aggiornati con la diagnostica di rete.
+
 ## [1.1] — 2026-10-21
 
 ### Aggiunto

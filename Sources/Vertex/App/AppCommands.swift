@@ -12,6 +12,7 @@ extension Notification.Name {
     static let vertexFind = Notification.Name("vertex.find")
     static let vertexToggleInspector = Notification.Name("vertex.toggleInspector")
     static let vertexSettings = Notification.Name("vertex.settings")
+    static let vertexDiagnostics = Notification.Name("vertex.diagnostics")
     static let vertexFilter = Notification.Name("vertex.filter")
 }
 
@@ -68,6 +69,11 @@ struct AppCommands: Commands {
                 post(.vertexToggleInspector)
             }
             .keyboardShortcut("i", modifiers: .command)
+
+            Button("Diagnostica rete…") {
+                post(.vertexDiagnostics)
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
 
             Divider()
 

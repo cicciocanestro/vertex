@@ -13,6 +13,7 @@ struct RootView: View {
     @StateObject private var showAddSheet = UIState(false)
     @StateObject private var addMode = UIState<AddTorrentMode>(.magnet)
     @StateObject private var showSettings = UIState(false)
+    @StateObject private var showDiagnostics = UIState(false)
     @StateObject private var dropTargeted = UIState(false)
     @StateObject private var pendingDeletion = UIState<Torrent?>(nil)
     @StateObject private var showDeleteConfirmation = UIState(false)
@@ -25,6 +26,7 @@ struct RootView: View {
             .animation(.easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(.snappy(duration: 0.22), value: showAddSheet.value)
             .animation(.snappy(duration: 0.22), value: showSettings.value)
+            .animation(.snappy(duration: 0.22), value: showDiagnostics.value)
             .alert(
                 "Rimuovere il torrent?",
                 isPresented: $showDeleteConfirmation.value,
@@ -76,6 +78,10 @@ struct RootView: View {
                     onFind: { searchFocused = true },
                     onToggleInspector: toggleInspector,
                     onSettings: { showSettings.value = true },
+                    onDiagnostics: {
+                        showSettings.value = false
+                        showDiagnostics.value = true
+                    },
                     onFilter: { raw in
                         guard let value = TorrentFilter(rawValue: raw) else { return }
                         withAnimation(.snappy(duration: 0.18)) {
@@ -110,6 +116,8 @@ struct RootView: View {
                     showAddSheet.value = true
                 case "settings":
                     showSettings.value = true
+                case "diagnostics":
+                    showDiagnostics.value = true
                 default:
                     break
                 }
@@ -129,11 +137,27 @@ struct RootView: View {
 
     @ViewBuilder
     private var modalLayer: some View {
-        if showSettings.value {
+        if showDiagnostics.value {
+            modalBackdrop {
+                NetworkDiagnosticsView(
+                    engine: engine,
+                    onClose: { showDiagnostics.value = false },
+                    onOpenSettings: {
+                        showDiagnostics.value = false
+                        showSettings.value = true
+                    }
+                )
+                .onExitCommand { showDiagnostics.value = false }
+            }
+        } else if showSettings.value {
             modalBackdrop {
                 SettingsSheet(
                     engine: engine,
-                    onClose: { showSettings.value = false }
+                    onClose: { showSettings.value = false },
+                    onOpenDiagnostics: {
+                        showSettings.value = false
+                        showDiagnostics.value = true
+                    }
                 )
                 .onExitCommand { showSettings.value = false }
             }
@@ -179,7 +203,10 @@ struct RootView: View {
             }
             .clipped()
 
-            StatusBarView(engine: engine)
+            StatusBarView(
+                engine: engine,
+                onOpenDiagnostics: { showDiagnostics.value = true }
+            )
         }
     }
 
@@ -372,7 +399,7 @@ struct RootView: View {
     }
 
     private func handleRootDrop(_ providers: [NSItemProvider]) -> Bool {
-        if showAddSheet.value || showSettings.value {
+        if showAddSheet.value || showSettings.value || showDiagnostics.value {
             return false
         }
 
@@ -434,6 +461,7 @@ private struct RootEventHandlers: ViewModifier {
     let onFind: () -> Void
     let onToggleInspector: () -> Void
     let onSettings: () -> Void
+    let onDiagnostics: () -> Void
     let onFilter: (String) -> Void
 
     func body(content: Content) -> some View {
@@ -448,6 +476,7 @@ private struct RootEventHandlers: ViewModifier {
             .onReceive(NotificationCenter.default.publisher(for: .vertexFind)) { _ in onFind() }
             .onReceive(NotificationCenter.default.publisher(for: .vertexToggleInspector)) { _ in onToggleInspector() }
             .onReceive(NotificationCenter.default.publisher(for: .vertexSettings)) { _ in onSettings() }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexDiagnostics)) { _ in onDiagnostics() }
             .onReceive(NotificationCenter.default.publisher(for: .vertexFilter)) { note in
                 if let raw = note.object as? String {
                     onFilter(raw)
