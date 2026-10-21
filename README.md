@@ -206,6 +206,10 @@ pausa, resume, priorità dei file e rimozione.
 - Non è presente lo spostamento dei dati di un torrent già aggiunto.
 - La DMG generata è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).
 
+## Changelog
+
+Le modifiche tra le versioni sono documentate in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Licenza
 
 Vertex è distribuito con **licenza MIT**: vedi [`LICENSE`](LICENSE).
