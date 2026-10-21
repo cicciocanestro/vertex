@@ -63,6 +63,17 @@ enum Preferences {
         return path
     }
 
+    /// Converts a KB/s preference into bytes/s for the C bridge, avoiding Int32 overflow.
+    static func limitBytes(fromKB kb: Int) -> Int32 {
+        let clampedKB = min(max(kb, 0), Int(Int32.max) / 1024)
+        return Int32(clampedKB * 1024)
+    }
+
+    /// Valid TCP/UDP port, falling back to the BitTorrent default.
+    static func validPort(_ value: Int) -> Int32 {
+        (1...65535).contains(value) ? Int32(value) : 6881
+    }
+
     static var downloadPath: String {
         resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
     }
@@ -90,7 +101,9 @@ final class TorrentEngine: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
     private var detailID: String?
-    private var completedIDs: Set<String> = []
+    private var unfinishedIDs: Set<String> = []
+    private var detailTick = 0
+    private var forceDetailRefresh = false
     private var hasLoadedSnapshot = false
     private var isShuttingDown = false
     private let decoder = JSONDecoder()
@@ -123,17 +136,17 @@ final class TorrentEngine: ObservableObject {
             withIntermediateDirectories: true
         )
 
-        let downloadLimit = defaults.integer(forKey: PrefKey.downloadLimitKB) * 1024
-        let uploadLimit = defaults.integer(forKey: PrefKey.uploadLimitKB) * 1024
-        let port = defaults.integer(forKey: PrefKey.listenPort)
+        let downloadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB))
+        let uploadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB))
+        let port = Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort))
         let dht = defaults.bool(forKey: PrefKey.dhtEnabled)
 
         session = vt_session_create(
             downloadPath,
             resumeDirectory.path,
-            Int32(port > 0 ? port : 6881),
-            Int32(downloadLimit),
-            Int32(uploadLimit),
+            port,
+            downloadLimit,
+            uploadLimit,
             dht ? 1 : 0
         )
 
@@ -276,6 +289,8 @@ final class TorrentEngine: ObservableObject {
 
     func select(_ id: String?) {
         detailID = id
+        detailTick = 0
+        detail = nil
         if let id {
             loadDetail(id)
         } else {
@@ -291,6 +306,7 @@ final class TorrentEngine: ObservableObject {
         if result != 0 {
             showToast(localizedError(takeLastError()), kind: .error)
         }
+        forceDetailRefresh = true
         poll()
     }
 
@@ -326,17 +342,17 @@ final class TorrentEngine: ObservableObject {
         }
         try? FileManager.default.createDirectory(atPath: path, withIntermediateDirectories: true)
 
-        let downloadLimit = defaults.integer(forKey: PrefKey.downloadLimitKB) * 1024
-        let uploadLimit = defaults.integer(forKey: PrefKey.uploadLimitKB) * 1024
-        let port = defaults.integer(forKey: PrefKey.listenPort)
+        let downloadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB))
+        let uploadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB))
+        let port = Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort))
         let dht = defaults.bool(forKey: PrefKey.dhtEnabled)
         let upnp = defaults.bool(forKey: PrefKey.upnpEnabled)
 
         _ = vt_apply_settings(
             session,
-            Int32(port > 0 ? port : 6881),
-            Int32(downloadLimit),
-            Int32(uploadLimit),
+            port,
+            downloadLimit,
+            uploadLimit,
             dht ? 1 : 0,
             upnp ? 1 : 0
         )
@@ -406,9 +422,12 @@ final class TorrentEngine: ObservableObject {
             return
         }
 
+        // Notify only for torrents we have seen actively unfinished (not while verifying),
+        // so resumed torrents settling after launch don't trigger a false "completed" toast.
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))
+        let unfinished = Set(snapshot.torrents.filter { !$0.finished && $0.phase != .checking }.map(\.id))
         if hasLoadedSnapshot {
-            let newlyFinished = finished.subtracting(completedIDs)
+            let newlyFinished = finished.intersection(unfinishedIDs)
             if !newlyFinished.isEmpty {
                 let names = snapshot.torrents
                     .filter { newlyFinished.contains($0.id) }
@@ -420,7 +439,7 @@ final class TorrentEngine: ObservableObject {
                 }
             }
         }
-        completedIDs = finished
+        unfinishedIDs = unfinished
         hasLoadedSnapshot = true
 
         torrents = snapshot.torrents
@@ -437,7 +456,11 @@ final class TorrentEngine: ObservableObject {
 
         if let id = detailID {
             if snapshot.torrents.contains(where: { $0.id == id }) {
-                loadDetail(id)
+                detailTick += 1
+                if forceDetailRefresh || detailTick % 3 == 0 {
+                    forceDetailRefresh = false
+                    loadDetail(id)
+                }
             } else {
                 detailID = nil
                 detail = nil
@@ -479,10 +502,12 @@ final class TorrentEngine: ObservableObject {
         guard let json = string(from: pointer),
               let data = json.data(using: .utf8),
               let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
-            detail = nil
             return
         }
-        detail = decoded
+        // Avoid republishing identical data: it re-renders the whole inspector.
+        if decoded != detail {
+            detail = decoded
+        }
     }
 
     // MARK: - Helpers
@@ -523,9 +548,6 @@ final class TorrentEngine: ObservableObject {
             return (nil, "La cartella di destinazione non è scrivibile.")
         }
 
-        if UserDefaults.standard.string(forKey: PrefKey.downloadPath) != path {
-            UserDefaults.standard.set(path, forKey: PrefKey.downloadPath)
-        }
         return (path, nil)
     }
 
@@ -545,7 +567,7 @@ final class TorrentEngine: ObservableObject {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.isEmpty { return "Operazione non riuscita." }
         let lower = value.lowercased()
-        if lower.contains("duplicate") { return "Questo torrent è già presente." }
+        if lower.contains("already exists") || lower.contains("duplicate") { return "Questo torrent è già presente." }
         if lower.contains("no such file") { return "File non trovato." }
         if lower.contains("permission") { return "Permesso negato." }
         if lower.contains("invalid") || lower.contains("parse") { return "Link o file non valido." }

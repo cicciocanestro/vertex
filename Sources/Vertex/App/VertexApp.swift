@@ -48,13 +48,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let paused = UserDefaults.standard.bool(forKey: PrefKey.startPaused)
         let sequential = UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
         Task { @MainActor in
-            for url in urls where url.pathExtension.lowercased() == "torrent" {
-                _ = TorrentEngine.shared.addTorrentFile(
-                    url,
-                    destination: nil,
-                    startPaused: paused,
-                    sequential: sequential
-                )
+            NSApp.activate(ignoringOtherApps: true)
+            if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
+                window.makeKeyAndOrderFront(nil)
+            }
+
+            for url in urls {
+                if url.scheme?.lowercased() == "magnet" {
+                    _ = TorrentEngine.shared.addMagnet(
+                        url.absoluteString,
+                        destination: nil,
+                        startPaused: paused,
+                        sequential: sequential
+                    )
+                } else if url.isFileURL, url.pathExtension.lowercased() == "torrent" {
+                    _ = TorrentEngine.shared.addTorrentFile(
+                        url,
+                        destination: nil,
+                        startPaused: paused,
+                        sequential: sequential
+                    )
+                }
             }
         }
     }

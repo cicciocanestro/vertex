@@ -10,7 +10,8 @@ e gestione completa di magnet link e file `.torrent`.
 
 - Motore **libtorrent 2.1**: DHT, PEX, LSD, UPnP/NAT-PMP, tracker HTTP/UDP, magnet link,
   torrent v1 e v2.
-- Aggiunta da link magnet, file `.torrent`, trascinamento, appunti o doppio clic nel Finder.
+- Aggiunta da link magnet, file `.torrent`, trascinamento, appunti, doppio clic nel Finder
+  o link magnet aperti dal browser (schema `magnet` registrato).
 - Download, seed, pausa/ripresa, verifica dei file e recupero dei metadati.
 - Ricerca istantanea, filtri (tutti, download, seed, completati, in pausa) e ordinamento.
 - Pannello dettagli con statistiche, file con priorità e stato dei tracker.
@@ -112,10 +113,12 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 - Pulsante **Aggiungi** nell'intestazione, oppure `⌘N` / `⌘O`.
 - Nella finestra di aggiunta puoi incollare un link magnet o scegliere/trascinare un
   file `.torrent`; il trascinamento funziona anche sul resto della finestra.
+- I link magnet aperti dal browser o dal Finder vengono gestiti dall'app come client
+  BitTorrent.
 - La cartella di destinazione viene validata: se viene indicato un file, viene usata la
   cartella che lo contiene; se non è scrivibile, l'app torna alla destinazione predefinita.
-- Puoi scegliere se avviare subito il download o tenerlo in pausa, e se usare il download
-  sequenziale.
+- Le opzioni della finestra di aggiunta (cartella, avvio in pausa, download sequenziale)
+  valgono **solo per quel torrent**. I valori predefiniti si configurano nelle Impostazioni.
 
 ### Gestione dei torrent
 
@@ -130,7 +133,8 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 
 - Cartella di download, limiti globali di download/upload, porta di ascolto,
   DHT, UPnP/NAT-PMP.
-- Avvio in pausa e download sequenziale predefiniti per i nuovi torrent.
+- Avvio in pausa e download sequenziale predefiniti per i nuovi torrent; le scelte fatte
+  nella finestra di aggiunta valgono solo per il singolo torrent.
 - Tema scuro, chiaro o di sistema.
 - La cartella di download vale per i nuovi torrent; i torrent già aggiunti mantengono
   il proprio percorso.

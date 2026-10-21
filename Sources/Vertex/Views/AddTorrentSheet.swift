@@ -20,9 +20,10 @@ struct AddTorrentSheet: View {
     @ObservedObject var engine: TorrentEngine
 
     @Environment(\.colorScheme) private var scheme
-    @AppStorage(PrefKey.downloadPath) private var downloadPath = ""
-    @AppStorage(PrefKey.startPaused) private var startPaused = false
-    @AppStorage(PrefKey.sequentialDefault) private var sequential = false
+    // Per-torrent choices: initialised from the saved defaults, never written back to them.
+    @StateObject private var downloadPath = UIState(Preferences.downloadPath)
+    @StateObject private var startPaused = UIState(UserDefaults.standard.bool(forKey: PrefKey.startPaused))
+    @StateObject private var sequential = UIState(UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault))
 
     @StateObject private var mode = UIState<AddTorrentMode>(.magnet)
     @StateObject private var magnet = UIState("")
@@ -98,10 +99,6 @@ struct AddTorrentSheet: View {
         }
         .animation(.easeOut(duration: 0.15), value: dropTargeted.value)
         .onAppear {
-            let resolved = Preferences.resolvedDownloadPath(downloadPath)
-            if resolved != downloadPath {
-                downloadPath = resolved
-            }
             if mode.value == .magnet {
                 DispatchQueue.main.async {
                     magnetFocused = true
@@ -322,13 +319,13 @@ struct AddTorrentSheet: View {
                 .foregroundStyle(Theme.mint)
 
             VStack(alignment: .leading, spacing: 2) {
-                SectionLabel(text: "Cartella di destinazione")
-                Text(downloadPath)
+                SectionLabel(text: "Cartella per questo torrent")
+                Text(downloadPath.value)
                     .font(.system(size: 10.3, weight: .medium))
                     .foregroundStyle(palette.text)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(downloadPath)
+                    .help(downloadPath.value)
             }
 
             Spacer(minLength: 8)
@@ -353,8 +350,8 @@ struct AddTorrentSheet: View {
 
     private func toggles(_ palette: Palette) -> some View {
         HStack(spacing: 22) {
-            Toggle("Avvia in pausa", isOn: $startPaused)
-            Toggle("Download sequenziale", isOn: $sequential)
+            Toggle("Avvia in pausa", isOn: $startPaused.value)
+            Toggle("Download sequenziale", isOn: $sequential.value)
             Spacer()
         }
         .toggleStyle(.switch)
@@ -401,17 +398,17 @@ struct AddTorrentSheet: View {
         case .magnet:
             failure = engine.addMagnet(
                 magnet.value,
-                destination: downloadPath,
-                startPaused: startPaused,
-                sequential: sequential
+                destination: downloadPath.value,
+                startPaused: startPaused.value,
+                sequential: sequential.value
             )
         case .file:
             guard let url = fileURL.value else { return }
             failure = engine.addTorrentFile(
                 url,
-                destination: downloadPath,
-                startPaused: startPaused,
-                sequential: sequential
+                destination: downloadPath.value,
+                startPaused: startPaused.value,
+                sequential: sequential.value
             )
         }
 
@@ -488,9 +485,9 @@ struct AddTorrentSheet: View {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Scegli"
-        panel.directoryURL = URL(fileURLWithPath: downloadPath)
+        panel.directoryURL = URL(fileURLWithPath: downloadPath.value)
         if panel.runModal() == .OK, let url = panel.url {
-            downloadPath = url.path
+            downloadPath.value = url.path
         }
     }
 
