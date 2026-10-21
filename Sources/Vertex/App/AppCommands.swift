@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension Notification.Name {
@@ -82,6 +83,12 @@ struct AppCommands: Commands {
                 .keyboardShortcut("5", modifiers: .command)
         }
 
+        CommandGroup(after: .appInfo) {
+            Button("Licenze open source") {
+                openLicenses()
+            }
+        }
+
         CommandGroup(replacing: .appSettings) {
             Button("Impostazioni…") {
                 post(.vertexSettings)
@@ -92,5 +99,12 @@ struct AppCommands: Commands {
 
     private func post(_ name: Notification.Name, object: Any? = nil) {
         NotificationCenter.default.post(name: name, object: object)
+    }
+
+    private func openLicenses() {
+        guard let folder = Bundle.main.resourceURL?.appendingPathComponent("Licenses") else {
+            return
+        }
+        NSWorkspace.shared.open(folder)
     }
 }

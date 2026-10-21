@@ -41,6 +41,10 @@ fi
 
 cp "Resources/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"
 
+if [ -d "Resources/Licenses" ]; then
+    cp -R "Resources/Licenses" "${APP_PATH}/Contents/Resources/Licenses"
+fi
+
 echo "→ Inclusione delle librerie…"
 cp -L "$LIBTORRENT_LIB" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
 cp -L "${OPENSSL_LIB}/libssl.4.dylib" "${FRAMEWORKS}/libssl.4.dylib"

@@ -15,7 +15,7 @@ enum DemoData {
         [
             Torrent(
                 id: "8f14e45fceea167a5a36dedd4bea2543a1b2c3d4",
-                name: "Dune.Parte.Due.2024.2160p.WEB-DL.ITA-ENG.x265-GROUP.mkv",
+                name: "Big.Buck.Bunny.4K.OPEN.MOVIE.mkv",
                 state: "downloading",
                 stateCode: 3,
                 progress: 0.427,
@@ -90,7 +90,7 @@ enum DemoData {
             ),
             Torrent(
                 id: "d3d9446802a44259755d38e6d163e820aabbccdd",
-                name: "Frankenstein.1931.Restored.1080p.BluRay.x264-GRP.mkv",
+                name: "Cosmos.Laundromat.2022.OPEN.MOVIE.mkv",
                 state: "downloading",
                 stateCode: 3,
                 progress: 0.634,
