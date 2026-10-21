@@ -1,0 +1,17 @@
+# Build output
+.build/
+.swiftpm/
+dist/
+
+# Generated icon
+Resources/AppIcon.icns
+Resources/AppIcon.iconset/
+
+# macOS / editors
+.DS_Store
+*.xcuserstate
+.vscode/
+.idea/
+
+# Command Code workspace data
+.commandcode/
