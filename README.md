@@ -37,6 +37,12 @@ Testato su Apple Silicon. Su Intel lo script rileva il prefisso Homebrew con
 
 ## Installazione
 
+Se è disponibile una release, scarica la DMG dalla sezione
+[**Releases**](https://github.com/cicciocanestro/vertex/releases), aprila e trascina
+**Vertex** nella cartella Applicazioni.
+
+In alternativa, compila dai sorgenti:
+
 ```bash
 git clone https://github.com/cicciocanestro/vertex.git
 cd vertex
@@ -72,6 +78,32 @@ prima `HOMEBREW_PREFIX`:
 export HOMEBREW_PREFIX="$(brew --prefix)"
 swift build -c release
 ```
+
+## Release DMG
+
+```bash
+./Scripts/make-dmg.sh            # ricompila e crea la DMG
+./Scripts/make-dmg.sh --no-build # usa dist/Vertex.app esistente
+```
+
+Produce in `dist/`:
+
+- `Vertex-<versione>-macOS<versione minima>-<architettura>.dmg`
+- `Vertex-...dmg.sha256`
+
+La DMG contiene `Vertex.app`, un collegamento ad **Applicazioni**, il file `Leggimi.txt`
+e l'icona del volume. Le licenze sono incluse nell'app e raggiungibili dal menu
+**Vertex → Licenze open source**. Lo script verifica la firma dell'app montata e genera
+il checksum SHA-256.
+
+L'architettura della DMG dipende dal Mac su cui viene creata: su Apple Silicon è
+`arm64`, su Intel è `x86_64`. Per una release universale servono librerie universali.
+
+La firma dell'app è **ad-hoc** perché l'ambiente di build non dispone di un certificato
+Developer ID. La DMG è quindi distribuibile, ma su un altro Mac potrebbero comparire gli
+avvisi Gatekeeper descritti nelle note. Per una distribuzione pubblica senza avvisi serve
+firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
+`notarytool` e `stapler` prima di creare la DMG.
 
 ## Utilizzo
 
@@ -141,6 +173,7 @@ BitTorrent. L'app non è sandboxed e accede alle cartelle scelte e alla cartella
   - `Models/` e `Utilities/` — modelli e formattazione italiana.
 - `Sources/Vertex/DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.
 - `Scripts/make-icon.swift` — genera l'icona `.icns` con CoreGraphics.
+- `Scripts/make-dmg.sh` — crea la DMG distribuibile con checksum SHA-256.
 - `Resources/Info.plist` — bundle, associazione `.torrent`, versione minima.
 - `Resources/Licenses/` — testi delle licenze incluse nel bundle.
 
@@ -167,6 +200,7 @@ pausa, resume, priorità dei file e rimozione.
   automatico di rapporto.
 - Il seed continua finché il torrent non viene messo in pausa.
 - Non è presente lo spostamento dei dati di un torrent già aggiunto.
+- La DMG generata è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).
 
 ## Licenza
 
