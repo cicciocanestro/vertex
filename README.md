@@ -168,6 +168,8 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 | Filtri | `⌘1` … `⌘5` |
 | Impostazioni | `⌘,` |
 
+Pausa/Riprendi e Rimuovi agiscono sul torrent selezionato; senza selezione mostrano un avviso.
+
 ## Dove salva i dati
 
 - Download predefinito: `~/Downloads/Vertex`

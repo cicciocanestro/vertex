@@ -68,10 +68,11 @@ install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libssl.4.dylib" 
 install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libcrypto.4.dylib" "@executable_path/../Frameworks/libcrypto.4.dylib" "$APP_BIN"
 
 echo "→ Firma ad-hoc…"
-codesign --force --sign - "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib" >/dev/null 2>&1 || true
-codesign --force --sign - "${FRAMEWORKS}/libssl.4.dylib" >/dev/null 2>&1 || true
-codesign --force --sign - "${FRAMEWORKS}/libcrypto.4.dylib" >/dev/null 2>&1 || true
-codesign --force --deep --sign - "$APP_PATH" >/dev/null 2>&1 || true
+codesign --force --sign - "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib" >/dev/null
+codesign --force --sign - "${FRAMEWORKS}/libssl.4.dylib" >/dev/null
+codesign --force --sign - "${FRAMEWORKS}/libcrypto.4.dylib" >/dev/null
+codesign --force --sign - "$APP_PATH" >/dev/null
+codesign --verify --deep --strict "$APP_PATH"
 
 if otool -L "$APP_BIN" | grep -q "${HOMEBREW_PREFIX}"; then
     echo "✗ Il bundle contiene ancora riferimenti a Homebrew."

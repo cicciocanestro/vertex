@@ -146,6 +146,11 @@ std::string state_string(lt::torrent_status::state_t state)
     }
 }
 
+std::string portmap_transport_string(lt::portmap_transport transport)
+{
+    return transport == lt::portmap_transport::upnp ? "UPnP" : "NAT-PMP";
+}
+
 bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params);
 void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status);
 
@@ -534,9 +539,7 @@ void vt_session_poll(vt_session* session)
             }
             else if (auto* mapped = lt::alert_cast<lt::portmap_alert>(alert))
             {
-                std::string transport = mapped->map_transport == lt::portmap_transport::upnp
-                                            ? "UPnP"
-                                            : "NAT-PMP";
+                std::string transport = portmap_transport_string(mapped->map_transport);
                 if (mapped->map_protocol == lt::portmap_protocol::tcp)
                 {
                     session->tcp_mapped = true;
@@ -555,16 +558,20 @@ void vt_session_poll(vt_session* session)
             }
             else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
             {
-                // portmap_error_alert does not carry the TCP/UDP protocol. Match the
-                // mapping index recorded from the successful portmap_alert instead.
-                if (session->tcp_mapped && map_error->mapping == session->tcp_mapping)
+                // portmap_error_alert does not carry the TCP/UDP protocol. Mapping indices
+                // are per transport (UPnP and NAT-PMP both start at 0), so match both the
+                // index and the transport recorded from the successful portmap_alert.
+                std::string const transport = portmap_transport_string(map_error->map_transport);
+                if (session->tcp_mapped && map_error->mapping == session->tcp_mapping
+                    && transport == session->tcp_map_transport)
                 {
                     session->tcp_mapped = false;
                     session->tcp_external_port = 0;
                     session->tcp_map_transport.clear();
                     session->tcp_mapping = lt::port_mapping_t{};
                 }
-                if (session->udp_mapped && map_error->mapping == session->udp_mapping)
+                if (session->udp_mapped && map_error->mapping == session->udp_mapping
+                    && transport == session->udp_map_transport)
                 {
                     session->udp_mapped = false;
                     session->udp_external_port = 0;
@@ -612,10 +619,12 @@ char* vt_snapshot_json(vt_session* session)
         {
             try
             {
-                // Only the fields used below: skip pieces, verified pieces and copy estimates.
+                // Only the fields used below: skip pieces and verified pieces, but keep
+                // accurate counters so progress/ETA don't jump by whole pieces.
                 auto status = handle.status(lt::torrent_handle::query_name
                                             | lt::torrent_handle::query_save_path
-                                            | lt::torrent_handle::query_torrent_file);
+                                            | lt::torrent_handle::query_torrent_file
+                                            | lt::torrent_handle::query_accurate_download_counters);
                 download_rate += status.download_payload_rate;
                 upload_rate += status.upload_payload_rate;
                 total_download += status.all_time_download;

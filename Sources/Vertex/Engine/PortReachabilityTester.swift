@@ -14,6 +14,11 @@ final class PortReachabilityTester: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var publicIP: String?
 
+    private static let userAgent: String = {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        return "Vertex/\(version)"
+    }()
+
     private var task: Task<Void, Never>?
 
     func start(port: Int) {
@@ -107,7 +112,7 @@ final class PortReachabilityTester: ObservableObject {
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
-        request.setValue("Vertex/1.1", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response)
@@ -136,7 +141,7 @@ final class PortReachabilityTester: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Vertex/1.1", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response)
@@ -159,7 +164,7 @@ final class PortReachabilityTester: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Vertex/1.1", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response)

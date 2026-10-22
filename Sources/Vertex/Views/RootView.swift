@@ -59,24 +59,35 @@ struct RootView: View {
                         showAddSheet.value = true
                     },
                     onPasteMagnet: pasteMagnet,
-                    onPauseResume: togglePauseSelected,
+                    onPauseResume: {
+                        guard !hasModalOverlay else { return }
+                        togglePauseSelected()
+                    },
                     onRemove: {
-                        if let torrent = selectedTorrent {
-                            requestDeletion(torrent)
+                        guard !hasModalOverlay else { return }
+                        guard let torrent = selectedTorrent else {
+                            engine.showToast("Seleziona un torrent", kind: .info)
+                            return
                         }
+                        requestDeletion(torrent)
                     },
                     onReveal: {
+                        guard !hasModalOverlay else { return }
                         if let torrent = selectedTorrent {
                             engine.reveal(torrent)
                         }
                     },
                     onCopyMagnet: {
+                        guard !hasModalOverlay else { return }
                         if let torrent = selectedTorrent {
                             engine.copyMagnet(for: torrent)
                         }
                     },
                     onFind: { searchFocused = true },
-                    onToggleInspector: toggleInspector,
+                    onToggleInspector: {
+                        guard !hasModalOverlay else { return }
+                        toggleInspector()
+                    },
                     onSettings: {
                         showDiagnostics.value = false
                         showSettings.value = true
@@ -292,6 +303,12 @@ struct RootView: View {
         return engine.torrents.first { $0.id == id }
     }
 
+    /// Settings, diagnostics and the add sheet are app-modal: torrent shortcuts must not
+    /// act on the list behind them.
+    private var hasModalOverlay: Bool {
+        showAddSheet.value || showSettings.value || showDiagnostics.value
+    }
+
     private var filteredTorrents: [Torrent] {
         var list = engine.torrents.filter { filter.value.matches($0) }
 
@@ -341,11 +358,11 @@ struct RootView: View {
     }
 
     private func togglePauseSelected() {
-        if let torrent = selectedTorrent {
-            engine.togglePause(torrent)
-        } else if let first = filteredTorrents.first {
-            engine.togglePause(first)
+        guard let torrent = selectedTorrent else {
+            engine.showToast("Seleziona un torrent", kind: .info)
+            return
         }
+        engine.togglePause(torrent)
     }
 
     private func toggleInspector() {

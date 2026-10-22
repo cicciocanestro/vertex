@@ -38,14 +38,18 @@ Il progetto è pubblico con licenza MIT:
 
 - Ultima release pubblica: v1.2.2 (commit 663f975), con DMG e checksum.
 - HANDOFF.txt è versionato nel repository dalla 1.2.2.
-- Versione app: 1.2.2 (CFBundleShortVersionString 1.2.2, CFBundleVersion 5).
-- DMG locale: dist/Vertex-1.2.2-macOS27.0-arm64.dmg
+- Versione app: 1.2.3 (CFBundleShortVersionString 1.2.3, CFBundleVersion 6) — committata
+  su main, non ancora rilasciata.
+- DMG locale v1.2.3: dist/Vertex-1.2.3-macOS27.0-arm64.dmg
+- SHA256 DMG v1.2.3:
+  45aae3867556738a5a74e59f1de42e74fadf5f17b9fa0453270b407447472a95
+- DMG v1.2.2 (release pubblica): dist/Vertex-1.2.2-macOS27.0-arm64.dmg
 - SHA256 DMG v1.2.2:
   9d666f6ffc13b928ec9a476b6dd6675a4de097c35d365af7becd5dbe4705218e
 - Firma: ad-hoc. NON notarizzata. Non esiste alcuna identità Developer ID sul Mac.
 - La release è arm64 e richiede macOS 27.0 perché le librerie Homebrew sono compilate
   con SDK 27.
-- Questo file HANDOFF.txt è aggiornato alla 1.2.2 (rilasciata).
+- Questo file HANDOFF.txt è aggiornato alla 1.2.3 (pronta con DMG, non rilasciata).
 
 
 3. AMBIENTE DI BUILD USATO
@@ -150,7 +154,7 @@ Sources/CTorrent/vertex_torrent.cpp
   Bridge C++/C verso libtorrent. Tutta la sessione e la serializzazione JSON.
 
 Sources/Vertex/App/
-  VertexApp.swift          @main, WindowGroup, AppDelegate, apertura URL.
+  VertexApp.swift          @main, finestra singola (Window), AppDelegate, apertura URL.
   AppDelegate              gestisce .torrent e magnet, quit e reopen.
   AppCommands.swift        menu, scorciatoie, notifiche interne.
   AppAppearance.swift      tema applicato a NSApp e a tutte le NSWindow.
@@ -238,6 +242,10 @@ Note importanti:
   cartella; se non esiste/ non è scrivibile, usa il default. Serve anche a recuperare
   resume data con save_path sbagliati (bug storico).
 - Il bridge espone listen_port effettiva, is_listening e stato mapping UPnP/NAT-PMP.
+  Gli errori di mapping si associano per indice E trasporto: UPnP e NAT-PMP numerano da 0,
+  quindi confrontare solo l'indice può azzerare il mapping dell'altro trasporto.
+- Lo snapshot richiede query_accurate_download_counters: senza il flag total_done e
+  total_wanted_done avanzano per pezzi interi e progresso/ETA procedono a scatti.
 
 Snapshot JSON (campi principali):
   torrents[]:
@@ -298,6 +306,8 @@ Dati:
 -----------------
 
 - AppAppearance applica il tema a NSApp e a tutte le NSWindow.
+- La finestra principale è una scena Window singola (non WindowGroup): aprire un magnet o
+  un .torrent con l'app già attiva non crea una seconda finestra.
 - preferredColorScheme NON è usato: il tema è gestito da AppKit.
 - L'app è disponible in chiaro, scuro o sistema; il cambio è immediato.
 - Le schermate Impostazioni e Diagnostica sono overlay custom (modalBackdrop), non sheet.
@@ -402,12 +412,12 @@ Non c'è alcun segreto nel repository. Non inserire chiavi .p8, password app-spe
 token GitHub o certificati nel repo.
 
 
-12. COME FARE UNA NUOVA RELEASE (es. 1.3)
+12. COME FARE UNA NUOVA RELEASE (es. 1.2.3)
 ------------------------------------------
 
 1. git pull; git status deve essere pulito.
 2. Aggiorna versione:
-     /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.3' Resources/Info.plist
+     /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.2.3' Resources/Info.plist
      /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 6' Resources/Info.plist
 3. Aggiorna CHANGELOG.md (nuova sezione in alto) e README se serve.
 4. ./build.sh
@@ -416,24 +426,24 @@ token GitHub o certificati nel repo.
      /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
        dist/Vertex.app/Contents/Info.plist
      codesign --verify --deep --strict dist/Vertex.app
-     (cd dist && shasum -a 256 -c Vertex-1.3-macOS27.0-arm64.dmg.sha256)
+     (cd dist && shasum -a 256 -c Vertex-1.2.3-macOS27.0-arm64.dmg.sha256)
 7. Commit e push:
      git add -A
-     git commit -m "Release 1.3: ..."
+     git commit -m "Release 1.2.3: ..."
      git push
    (nel repo attuale i commit precedenti includono il trailer
     Co-authored-by: CommandCodeBot <noreply@commandcode.ai>)
 8. Pubblica la release:
-     gh release create v1.3 \
-       dist/Vertex-1.3-macOS27.0-arm64.dmg \
-       dist/Vertex-1.3-macOS27.0-arm64.dmg.sha256 \
-       --target main --title "Vertex 1.3" --notes-file /tmp/note.md
+     gh release create v1.2.3 \
+       dist/Vertex-1.2.3-macOS27.0-arm64.dmg \
+       dist/Vertex-1.2.3-macOS27.0-arm64.dmg.sha256 \
+       --target main --title "Vertex 1.2.3" --notes-file /tmp/note.md
 9. Verifica download e checksum:
-     gh release download v1.3 --dir /tmp/verify
+     gh release download v1.2.3 --dir /tmp/verify
      (cd /tmp/verify && shasum -a 256 -c *.sha256)
 10. Verifica accesso pubblico:
      curl -s -o /dev/null -w '%{http_code}\n' \
-       https://github.com/cicciocanestro/vertex/releases/tag/v1.3
+       https://github.com/cicciocanestro/vertex/releases/tag/v1.2.3
 
 La release è pubblica perché il repository è pubblico. La visibilità si controlla con:
   gh repo view --json visibility,licenseInfo,url
@@ -460,7 +470,7 @@ Sequenza indicativa (da adattare al certificato e al profilo Keychain):
   codesign --force --timestamp --options runtime --sign "$IDENTITY" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
   ./Scripts/make-dmg.sh --no-build
-  DMG="dist/Vertex-1.3-macOS27.0-arm64.dmg"
+  DMG="dist/Vertex-1.2.3-macOS27.0-arm64.dmg"
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"
   xcrun notarytool submit "$DMG" --keychain-profile "VertexNotary" --wait
   xcrun stapler staple "$DMG"
@@ -522,6 +532,7 @@ security find-identity -v -p codesigning
 ---------------
 
 - Il progetto è già pubblico, con licenza MIT e release v1.2.2 pubblica (DMG e checksum).
+  La 1.2.3 è committata su main ed è pronta con la DMG, ma non ancora pubblicata.
 - La documentazione utente è in README.md; il changelog in CHANGELOG.md.
 - La UI e i messaggi sono in italiano: mantenere la lingua e lo stile.
 - La build è autosufficiente: libtorrent/OpenSSL sono nel bundle, ma la macchina di build

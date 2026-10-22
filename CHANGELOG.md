@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.3] — 2026-10-22
+
+### Corretto
+- Diagnostica rete: un errore di mapping su un trasporto non azzera più anche il mapping
+  dell’altro. Gli indici UPnP e NAT-PMP ripartono entrambi da 0, quindi ora si confronta
+  anche il trasporto oltre all’indice.
+- Barra di avanzamento ed ETA non procedono più a scatti con pezzi grandi: lo snapshot
+  richiede di nuovo `query_accurate_download_counters`.
+- Aprire un link magnet o un file `.torrent` con l’app già attiva non crea più una seconda
+  finestra: la scena principale è una `Window` singola invece di una `WindowGroup`.
+- `⌘P` e `⌘⌫` non agiscono più sul primo torrent quando non c’è selezione, non agiscono
+  dietro Impostazioni/Diagnostica/Aggiungi e mostrano un avviso se manca la selezione.
+- `build.sh` non ignora più gli errori di `codesign`, firma le dylib e l’app senza `--deep`
+  e verifica il bundle.
+- Il test di raggiungibilità invia `Vertex/<versione>` come User-Agent, non più `Vertex/1.1`.
+
 ## [1.2.2] — 2026-10-22
 
 ### Corretto

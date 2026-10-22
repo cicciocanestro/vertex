@@ -10,7 +10,7 @@ struct VertexApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("Vertex", id: "main") {
             RootView()
                 .frame(minWidth: 980, minHeight: 760)
                 .background(WindowConfigurator())
