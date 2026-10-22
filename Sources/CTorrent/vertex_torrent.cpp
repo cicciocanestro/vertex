@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -146,7 +147,7 @@ std::string state_string(lt::torrent_status::state_t state)
 }
 
 bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params);
-void append_torrent_json(std::ostringstream& out, lt::torrent_handle const& handle);
+void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status);
 
 } // namespace
 
@@ -172,7 +173,8 @@ struct vt_session
     lt::port_mapping_t udp_mapping{};
     std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
-    std::set<std::string> removed_ids;
+    // Bounded FIFO: such alerts only arrive shortly after the removal.
+    std::deque<std::string> removed_ids;
     std::chrono::steady_clock::time_point last_stats;
     std::chrono::steady_clock::time_point last_resume_save;
 };
@@ -194,6 +196,30 @@ lt::torrent_handle find_handle(vt_session* session, std::string const& id)
         }
     }
     return {};
+}
+
+constexpr std::size_t removed_ids_limit = 256;
+
+bool is_removed(vt_session const* session, std::string const& id)
+{
+    return std::find(session->removed_ids.begin(), session->removed_ids.end(), id)
+        != session->removed_ids.end();
+}
+
+void mark_removed(vt_session* session, std::string const& id)
+{
+    if (is_removed(session, id))
+        return;
+    session->removed_ids.push_back(id);
+    while (session->removed_ids.size() > removed_ids_limit)
+        session->removed_ids.pop_front();
+}
+
+void unmark_removed(vt_session* session, std::string const& id)
+{
+    session->removed_ids.erase(
+        std::remove(session->removed_ids.begin(), session->removed_ids.end(), id),
+        session->removed_ids.end());
 }
 
 bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params)
@@ -232,10 +258,8 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
     }
 }
 
-void append_torrent_json(std::ostringstream& out, lt::torrent_handle const& handle)
+void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status)
 {
-    auto status = handle.status();
-
     auto info = status.torrent_file.lock();
     std::int64_t size = info ? info->total_size() : status.total;
     if (size <= 0)
@@ -405,9 +429,9 @@ void vt_session_destroy(vt_session* session)
                 if (!handle.is_valid())
                     continue;
 
-                auto status = handle.status();
+                auto status = handle.status(lt::status_flags_t{});
                 auto id = torrent_id(status);
-                handle.save_resume_data();
+                handle.save_resume_data(lt::torrent_handle::save_info_dict);
                 requested_ids.insert(id);
             }
             catch (...)
@@ -429,7 +453,7 @@ void vt_session_destroy(vt_session* session)
                     if (requested_ids.erase(id) == 0)
                         continue;
 
-                    if (session->removed_ids.count(id) == 0 && saved->handle.is_valid())
+                    if (!is_removed(session, id) && saved->handle.is_valid())
                         write_resume_impl(session->resume_dir, saved->params);
                     --pending;
                 }
@@ -437,7 +461,8 @@ void vt_session_destroy(vt_session* session)
                 {
                     try
                     {
-                        auto id = torrent_id(failed->handle.status());
+                        auto id = torrent_id(
+                            failed->handle.status(lt::status_flags_t{}));
                         if (requested_ids.erase(id) > 0)
                             --pending;
                     }
@@ -479,7 +504,7 @@ void vt_session_poll(vt_session* session)
                 try
                 {
                     if (handle.need_save_resume_data())
-                        handle.save_resume_data();
+                        handle.save_resume_data(lt::torrent_handle::save_info_dict);
                 }
                 catch (...)
                 {
@@ -495,7 +520,7 @@ void vt_session_poll(vt_session* session)
             if (auto* saved = lt::alert_cast<lt::save_resume_data_alert>(alert))
             {
                 auto const id = to_hex(saved->params.info_hashes.get_best());
-                if (session->removed_ids.count(id) == 0 && saved->handle.is_valid())
+                if (!is_removed(session, id) && saved->handle.is_valid())
                     write_resume_impl(session->resume_dir, saved->params);
             }
             else if (auto* stats = lt::alert_cast<lt::session_stats_alert>(alert))
@@ -587,7 +612,10 @@ char* vt_snapshot_json(vt_session* session)
         {
             try
             {
-                auto status = handle.status();
+                // Only the fields used below: skip pieces, verified pieces and copy estimates.
+                auto status = handle.status(lt::torrent_handle::query_name
+                                            | lt::torrent_handle::query_save_path
+                                            | lt::torrent_handle::query_torrent_file);
                 download_rate += status.download_payload_rate;
                 upload_rate += status.upload_payload_rate;
                 total_download += status.all_time_download;
@@ -601,7 +629,7 @@ char* vt_snapshot_json(vt_session* session)
                 if (!first)
                     out << ",";
                 first = false;
-                append_torrent_json(out, handle);
+                append_torrent_json(out, status);
             }
             catch (...)
             {
@@ -729,7 +757,10 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
             }
         }
 
-        out << "],\"metadata\":" << (handle.is_valid() && handle.status().has_metadata ? "true" : "false");
+        out << "],\"metadata\":"
+            << (handle.is_valid() && handle.status(lt::status_flags_t{}).has_metadata
+                    ? "true"
+                    : "false");
         out << "}";
 
         auto text = out.str();
@@ -806,7 +837,7 @@ int vt_add_magnet(vt_session* session,
             session->last_error = add_ec.message();
             return -1;
         }
-        session->removed_ids.erase(added_id);
+        unmark_removed(session, added_id);
         return 0;
     }
     catch (std::exception const& e)
@@ -858,7 +889,7 @@ int vt_add_torrent_file(vt_session* session,
             session->last_error = add_ec.message();
             return -1;
         }
-        session->removed_ids.erase(added_id);
+        unmark_removed(session, added_id);
         return 0;
     }
     catch (std::exception const& e)
@@ -895,7 +926,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
         else if (command == "resume")
         {
             // A torrent stopped by an error stays stopped until the error is cleared.
-            if (handle.status().errc)
+            if (handle.status(lt::status_flags_t{}).errc)
                 handle.clear_error();
             handle.resume();
         }
@@ -913,7 +944,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
         }
         else if (command == "remove")
         {
-            session->removed_ids.insert(std::string(torrent_id_value));
+            mark_removed(session, torrent_id_value);
             session->session->remove_torrent(handle);
             if (!session->resume_dir.empty())
             {
@@ -924,7 +955,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
         }
         else if (command == "remove_files")
         {
-            session->removed_ids.insert(std::string(torrent_id_value));
+            mark_removed(session, torrent_id_value);
             session->session->remove_torrent(handle, lt::session::delete_files);
             if (!session->resume_dir.empty())
             {

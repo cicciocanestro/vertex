@@ -77,7 +77,10 @@ struct RootView: View {
                     },
                     onFind: { searchFocused = true },
                     onToggleInspector: toggleInspector,
-                    onSettings: { showSettings.value = true },
+                    onSettings: {
+                        showDiagnostics.value = false
+                        showSettings.value = true
+                    },
                     onDiagnostics: {
                         showSettings.value = false
                         showDiagnostics.value = true
@@ -129,9 +132,9 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             AmbientBackground()
             mainColumn
-            toastLayer
             dropLayer
             modalLayer
+            toastLayer
         }
     }
 
@@ -249,7 +252,7 @@ struct RootView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 52)
             .transition(.move(edge: .bottom).combined(with: .opacity))
-            .zIndex(1)
+            .zIndex(4)
         }
     }
 
@@ -410,14 +413,7 @@ struct RootView: View {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 handled = true
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    var url: URL?
-                    if let data = item as? Data {
-                        url = URL(dataRepresentation: data, relativeTo: nil)
-                    } else if let value = item as? URL {
-                        url = value
-                    }
-
+                provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url, url.pathExtension.lowercased() == "torrent" else { return }
                     Task { @MainActor in
                         _ = TorrentEngine.shared.addTorrentFile(

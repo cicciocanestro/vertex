@@ -174,8 +174,9 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 - Stato e resume data: `~/Library/Application Support/Vertex/resume`
 - Preferenze: `UserDefaults` (`app.vertex.torrent`)
 
-Non è presente alcuna telemetria: le uniche connessioni di rete sono quelle del motore
-BitTorrent. L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download.
+Non è presente alcuna telemetria. Le uniche connessioni di rete sono quelle del motore
+BitTorrent e, solo quando avvii il test porta, quelle verso api.ipify.org e check-host.net.
+L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download.
 
 ## Architettura
 

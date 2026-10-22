@@ -427,14 +427,7 @@ struct AddTorrentSheet: View {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 handled = true
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    var url: URL?
-                    if let data = item as? Data {
-                        url = URL(dataRepresentation: data, relativeTo: nil)
-                    } else if let value = item as? URL {
-                        url = value
-                    }
-
+                provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url, url.pathExtension.lowercased() == "torrent" else { return }
                     DispatchQueue.main.async {
                         fileURL.value = url

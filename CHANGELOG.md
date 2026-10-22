@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.2] — 2026-10-22
+
+### Corretto
+- La sessione riprende i metadati dopo il riavvio: il resume data include ora l’info dict
+  (`save_info_dict`). Prima i torrent aggiunti da file tornavano senza metadati (dimensione 0,
+  nessun file) fino a un nuovo recupero; i torrent in pausa restavano senza metadati.
+- I messaggi temporanei (toast) restano visibili sopra i pannelli Impostazioni e Diagnostica.
+- Impostazioni (⌘,) si apre correttamente anche con il pannello Diagnostica aperto.
+
+### Modificato
+- Polling più leggero: lo stato dei torrent viene richiesto una sola volta per poll e solo
+  per i campi usati, senza pieces/verified pieces né stime di copie distribuite.
+- La lista dei torrent rimossi in attesa di alert tardivi è limitata (FIFO da 256 voci).
+- `make-dmg.sh` smonta la DMG e rimuove lo staging anche in caso di errore.
+- Drag & drop aggiornato a `loadObject(ofClass:)`: nessun warning di deprecazione su macOS 27.
+
 ## [1.2.1] — 2026-10-22
 
 ### Corretto

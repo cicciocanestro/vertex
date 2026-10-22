@@ -29,6 +29,16 @@ DMG_SHA="$DMG.sha256"
 VOLUME="Vertex ${VERSION}"
 STAGE="dist/.dmg-stage"
 
+MOUNT=""
+cleanup() {
+    if [ -n "$MOUNT" ]; then
+        hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+        rmdir "$MOUNT" 2>/dev/null || true
+    fi
+    rm -rf "$STAGE"
+}
+trap cleanup EXIT
+
 echo "→ Preparazione della DMG ($ARCH_LABEL, macOS $MIN_OS)…"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
@@ -89,6 +99,7 @@ test -d "$MOUNT/Vertex.app/Contents/Resources/Licenses"
 test -f "$MOUNT/Leggimi.txt"
 hdiutil detach "$MOUNT" >/dev/null
 rmdir "$MOUNT"
+MOUNT=""
 
 rm -rf "$STAGE"
 
