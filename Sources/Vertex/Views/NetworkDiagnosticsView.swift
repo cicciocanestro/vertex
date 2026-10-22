@@ -13,6 +13,12 @@ struct NetworkDiagnosticsView: View {
         engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
     }
 
+    /// Port to probe from outside: the NAT-mapped external TCP port if any, otherwise the listen port.
+    private var testPort: Int {
+        let mapping = engine.stats.portmap.tcp
+        return mapping.mapped && mapping.externalPort > 0 ? mapping.externalPort : port
+    }
+
     private var localIP: String {
         LocalNetwork.primaryIPv4Address() ?? "—"
     }
@@ -41,7 +47,7 @@ struct NetworkDiagnosticsView: View {
         .frame(width: 620, height: 650)
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
-        .onChange(of: port) { _, _ in tester.reset() }
+        .onChange(of: testPort) { _, _ in tester.reset() }
     }
 
     private func header(_ palette: Palette) -> some View {
@@ -258,7 +264,7 @@ struct NetworkDiagnosticsView: View {
 
                 if let publicIP = tester.publicIP {
                     HStack(spacing: 8) {
-                        Text("\(publicIP):\(port)")
+                        Text("\(publicIP):\(testPort)")
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(palette.text)
                             .textSelection(.enabled)
@@ -269,7 +275,7 @@ struct NetworkDiagnosticsView: View {
 
                         Button {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString("\(publicIP):\(port)", forType: .string)
+                            NSPasteboard.general.setString("\(publicIP):\(testPort)", forType: .string)
                             engine.showToast("Indirizzo copiato", kind: .info)
                         } label: {
                             Label("Copia", systemImage: "doc.on.doc")
@@ -286,10 +292,10 @@ struct NetworkDiagnosticsView: View {
 
                 HStack(spacing: 8) {
                     Button(testButtonTitle) {
-                        tester.start(port: port)
+                        tester.start(port: testPort)
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(port <= 0 || isTesting)
+                    .disabled(testPort <= 0 || isTesting)
 
                     if case .idle = tester.state {
                         Text("Test TCP tramite check-host.net")

@@ -165,9 +165,11 @@ struct vt_session
     bool tcp_mapped = false;
     int tcp_external_port = 0;
     std::string tcp_map_transport;
+    lt::port_mapping_t tcp_mapping{};
     bool udp_mapped = false;
     int udp_external_port = 0;
     std::string udp_map_transport;
+    lt::port_mapping_t udp_mapping{};
     std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     std::set<std::string> removed_ids;
@@ -515,17 +517,35 @@ void vt_session_poll(vt_session* session)
                     session->tcp_mapped = true;
                     session->tcp_external_port = mapped->external_port;
                     session->tcp_map_transport = transport;
+                    session->tcp_mapping = mapped->mapping;
                 }
                 else if (mapped->map_protocol == lt::portmap_protocol::udp)
                 {
                     session->udp_mapped = true;
                     session->udp_external_port = mapped->external_port;
                     session->udp_map_transport = transport;
+                    session->udp_mapping = mapped->mapping;
                 }
                 session->portmap_error.clear();
             }
             else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
             {
+                // portmap_error_alert does not carry the TCP/UDP protocol. Match the
+                // mapping index recorded from the successful portmap_alert instead.
+                if (session->tcp_mapped && map_error->mapping == session->tcp_mapping)
+                {
+                    session->tcp_mapped = false;
+                    session->tcp_external_port = 0;
+                    session->tcp_map_transport.clear();
+                    session->tcp_mapping = lt::port_mapping_t{};
+                }
+                if (session->udp_mapped && map_error->mapping == session->udp_mapping)
+                {
+                    session->udp_mapped = false;
+                    session->udp_external_port = 0;
+                    session->udp_map_transport.clear();
+                    session->udp_mapping = lt::port_mapping_t{};
+                }
                 session->portmap_error = map_error->error.message();
             }
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
@@ -980,9 +1000,11 @@ int vt_apply_settings(vt_session* session,
             session->tcp_mapped = false;
             session->tcp_external_port = 0;
             session->tcp_map_transport.clear();
+            session->tcp_mapping = lt::port_mapping_t{};
             session->udp_mapped = false;
             session->udp_external_port = 0;
             session->udp_map_transport.clear();
+            session->udp_mapping = lt::port_mapping_t{};
             session->portmap_error.clear();
             settings.set_str(lt::settings_pack::listen_interfaces,
                              "0.0.0.0:" + std::to_string(listen_port) +
@@ -994,9 +1016,11 @@ int vt_apply_settings(vt_session* session,
             session->tcp_mapped = false;
             session->tcp_external_port = 0;
             session->tcp_map_transport.clear();
+            session->tcp_mapping = lt::port_mapping_t{};
             session->udp_mapped = false;
             session->udp_external_port = 0;
             session->udp_map_transport.clear();
+            session->udp_mapping = lt::port_mapping_t{};
             session->portmap_error.clear();
         }
         settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));

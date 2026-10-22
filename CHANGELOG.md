@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1] — 2026-10-22
+
+### Corretto
+- Diagnostica rete: l’endpoint visualizzato e copiato usa la porta esterna mappata quando
+  disponibile, non solo la porta locale.
+- Mapping UPnP/NAT-PMP: un errore su un mapping non azzera più anche l’altro protocollo;
+  il matching avviene tramite l’indice del mapping.
+- Rilevamento IP locale più robusto: escluse interfacce virtuali/tunnel e link-local,
+  intervallo RFC 1918 corretto.
+- Completamento: i torrent in verifica non vengono più conteggiati come attivi per il
+  toast, anche quando sono in pausa.
+
 ## [1.2] — 2026-10-22
 
 ### Aggiunto

@@ -437,7 +437,11 @@ final class TorrentEngine: ObservableObject {
         // Notify only for torrents we have seen actively unfinished (not while verifying),
         // so resumed torrents settling after launch don't trigger a false "completed" toast.
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))
-        let unfinished = Set(snapshot.torrents.filter { !$0.finished && $0.phase != .checking }.map(\.id))
+        // stateCode 1 = checking files, 7 = checking resume data. `phase` can't be used here
+        // because it reports .paused before .checking.
+        let unfinished = Set(snapshot.torrents.filter {
+            !$0.finished && $0.stateCode != 1 && $0.stateCode != 7
+        }.map(\.id))
         if hasLoadedSnapshot {
             let newlyFinished = finished.intersection(unfinishedIDs)
             if !newlyFinished.isEmpty {
