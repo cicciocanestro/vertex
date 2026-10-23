@@ -53,7 +53,7 @@ final class PortReachabilityTester: ObservableObject {
             let check = try await startExternalCheck(ip: ip, port: port)
             let expectedNodes = Set(check.nodes.keys)
             guard !expectedNodes.isEmpty else {
-                throw TestError("Il servizio di test non ha restituito nodi.")
+                throw TestError(L("Il servizio di test non ha restituito nodi."))
             }
 
             var lastOpen = 0
@@ -97,7 +97,7 @@ final class PortReachabilityTester: ObservableObject {
                     ? .open(openNodes: lastOpen, totalNodes: lastCompleted)
                     : .closed(totalNodes: lastCompleted)
             } else {
-                state = .failed("Il servizio di test non ha risposto in tempo.")
+                state = .failed(L("Il servizio di test non ha risposto in tempo."))
             }
         } catch {
             if Task.isCancelled { return }
@@ -107,7 +107,7 @@ final class PortReachabilityTester: ObservableObject {
 
     private func fetchPublicIP() async throws -> String {
         guard let url = URL(string: "https://api.ipify.org?format=json") else {
-            throw TestError("Indirizzo del servizio IP pubblico non valido.")
+            throw TestError(L("Indirizzo del servizio IP pubblico non valido."))
         }
 
         var request = URLRequest(url: url)
@@ -123,7 +123,7 @@ final class PortReachabilityTester: ObservableObject {
 
         let decoded = try JSONDecoder().decode(IPResponse.self, from: data)
         guard !decoded.ip.isEmpty else {
-            throw TestError("IP pubblico non disponibile.")
+            throw TestError(L("IP pubblico non disponibile."))
         }
         return decoded.ip
     }
@@ -135,7 +135,7 @@ final class PortReachabilityTester: ObservableObject {
             URLQueryItem(name: "max_nodes", value: "3")
         ]
         guard let url = components?.url else {
-            throw TestError("Impossibile preparare il test esterno.")
+            throw TestError(L("Impossibile preparare il test esterno."))
         }
 
         var request = URLRequest(url: url)
@@ -150,7 +150,7 @@ final class PortReachabilityTester: ObservableObject {
               (root["ok"] as? Int) == 1,
               let requestID = root["request_id"] as? String,
               let nodes = root["nodes"] as? [String: Any] else {
-            throw TestError("Il servizio di test ha restituito una risposta non valida.")
+            throw TestError(L("Il servizio di test ha restituito una risposta non valida."))
         }
 
         return ExternalCheck(requestID: requestID, nodes: nodes)
@@ -158,7 +158,7 @@ final class PortReachabilityTester: ObservableObject {
 
     private func fetchCheckResult(requestID: String) async throws -> [String: Any] {
         guard let url = URL(string: "https://check-host.net/check-result/\(requestID)") else {
-            throw TestError("Risposta del test non valida.")
+            throw TestError(L("Risposta del test non valida."))
         }
 
         var request = URLRequest(url: url)
@@ -170,7 +170,7 @@ final class PortReachabilityTester: ObservableObject {
         try validate(response)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw TestError("Risposta del test non valida.")
+            throw TestError(L("Risposta del test non valida."))
         }
         return root
     }
@@ -178,7 +178,7 @@ final class PortReachabilityTester: ObservableObject {
     private func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse,
               (200..<300).contains(http.statusCode) else {
-            throw TestError("Il servizio di test non è raggiungibile.")
+            throw TestError(L("Il servizio di test non è raggiungibile."))
         }
     }
 

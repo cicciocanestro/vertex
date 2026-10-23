@@ -1,0 +1,223 @@
+/* Vertex — English localization.
+   The source strings are Italian; this table is used when the system language
+   is not Italian. Keep the format specifiers (%ld, %@) intact. */
+
+/* Models */
+"Download" = "Download";
+"Metadati" = "Metadata";
+"Verifica" = "Checking";
+"In seed" = "Seeding";
+"Completato" = "Completed";
+"In pausa" = "Paused";
+"Tutti" = "All";
+"Seed" = "Seeding";
+"Completati" = "Completed";
+"Recenti" = "Recent";
+"Nome" = "Name";
+"Dimensione" = "Size";
+"Progresso" = "Progress";
+"Velocità" = "Speed";
+"Attivo" = "Active";
+"Errore" = "Error";
+"In attesa" = "Waiting";
+
+/* Formatters */
+"g" = "d";
+
+/* Header, search and menus */
+"Cerca torrent…" = "Search torrents…";
+"Aggiungi" = "Add";
+"Aggiungi un torrent" = "Add a torrent";
+"Scegli" = "Choose";
+"Indirizzo copiato" = "Address copied";
+"Impostazioni" = "Settings";
+"Impostazioni…" = "Settings…";
+"Aggiungi file .torrent…" = "Add .torrent file…";
+"Aggiungi link magnet…" = "Add magnet link…";
+"Incolla magnet dagli appunti" = "Paste magnet from clipboard";
+"Pausa / Riprendi" = "Pause / Resume";
+"Mostra nel Finder" = "Show in Finder";
+"Copia link magnet" = "Copy magnet link";
+"Rimuovi…" = "Remove…";
+"Cerca" = "Find";
+"Mostra / nascondi dettagli" = "Show / hide details";
+"Diagnostica rete…" = "Network diagnostics…";
+"Licenze open source" = "Open source licenses";
+"Vista" = "View";
+"Torrent" = "Torrent";
+
+/* Shared sections */
+"Stato" = "Status";
+"Porta" = "Port";
+"IP locale" = "Local IP";
+"Nodi DHT" = "DHT nodes";
+"Mapping UPnP / NAT-PMP" = "UPnP / NAT-PMP mapping";
+"Raggiungibilità esterna" = "External reachability";
+"Se la porta risulta chiusa" = "If the port appears closed";
+"Cartelle" = "Folders";
+"Prestazioni" = "Performance";
+"Rete" = "Network";
+"Comportamento" = "Behavior";
+"Aspetto" = "Appearance";
+"Cartella per questo torrent" = "Folder for this torrent";
+"Scaricati" = "Downloaded";
+"Caricati" = "Uploaded";
+"Rapporto" = "Ratio";
+"Peer / Seed" = "Peers / Seeds";
+"Tempo rimasto" = "Time remaining";
+"Dettagli" = "Details";
+
+/* Torrent actions */
+"Riprendi" = "Resume";
+"Pausa" = "Pause";
+"Rimuovi" = "Remove";
+"Rimuovi e cancella i file…" = "Remove and delete files…";
+"Annuncia ai tracker" = "Reannounce to trackers";
+"Disattiva download sequenziale" = "Disable sequential download";
+"Download sequenziale" = "Sequential download";
+
+/* Torrent row meta */
+"%@ di %@" = "%@ of %@";
+"Recupero metadati" = "Fetching metadata";
+"Verifica in corso" = "Checking";
+"ETA %@" = "ETA %@";
+"%ld peer" = "Peers: %ld";
+"rapporto %@" = "ratio %@";
+
+/* Status bar */
+"DHT disattivato" = "DHT disabled";
+"DHT · connessione" = "DHT · connecting";
+"DHT · %ld nodi" = "DHT · %ld node(s)";
+"%ld attivi" = "Active: %ld";
+"%ld torrent" = "Torrents: %ld";
+"Porta %ld" = "Port %ld";
+"Diagnostica rete" = "Network diagnostics";
+
+/* Empty state and search results */
+"Nessun torrent" = "No torrents";
+"Aggiungi un file .torrent o incolla un link magnet per iniziare." = "Add a .torrent file or paste a magnet link to get started.";
+"Aggiungi torrent" = "Add torrent";
+"Incolla magnet" = "Paste magnet";
+"Trascina qui i file .torrent" = "Drop .torrent files here";
+"Nessun risultato" = "No results";
+"Nessun torrent in questo filtro." = "No torrents in this filter.";
+"Nessun torrent corrisponde a “%@”." = "No torrents match “%@”.";
+"Azzera filtri" = "Clear filters";
+"Rilascia per aggiungere" = "Drop to add";
+".torrent o link magnet" = ".torrent or magnet link";
+
+/* Add torrent sheet */
+"Un link magnet o un file .torrent" = "A magnet link or a .torrent file";
+"Incolla" = "Paste";
+"Oppure trascina qui un file .torrent" = "Or drop a .torrent file here";
+"Svuota il campo" = "Clear field";
+"Trascina qui un file .torrent" = "Drop a .torrent file here";
+"Scegli file…" = "Choose file…";
+"Cambia file…" = "Change file…";
+"Cartella…" = "Folder…";
+"Avvia in pausa" = "Start paused";
+"Annulla" = "Cancel";
+"Rilascia il file .torrent" = "Drop the .torrent file";
+"Chiudi" = "Close";
+"Cartella di download" = "Download folder";
+"Scegli…" = "Choose…";
+
+/* Settings */
+"Preferenze dell'app e della rete" = "App and network preferences";
+"Limite download" = "Download limit";
+"0 significa illimitato" = "0 means unlimited";
+"Limite upload" = "Upload limit";
+"Porta di ascolto" = "Listening port";
+"Usata per le connessioni in ingresso" = "Used for incoming connections";
+"DHT e Peer Exchange" = "DHT and Peer Exchange";
+"Trova peer senza tracker centralizzati" = "Find peers without centralized trackers";
+"Apri automaticamente la porta sul router" = "Open the port on the router automatically";
+"Avvia i nuovi torrent in pausa" = "Start new torrents paused";
+"Potrai riprenderli quando vuoi" = "You can resume them whenever you want";
+"Scarica i file in ordine, utile per lo streaming" = "Download files in order, useful for streaming";
+"Porta effettiva, mapping e test esterno" = "Actual port, mapping and external test";
+"Sistema" = "System";
+"Scuro" = "Dark";
+"Chiaro" = "Light";
+"Le modifiche di rete vengono applicate immediatamente." = "Network changes are applied immediately.";
+"Fine" = "Done";
+"UPnP / NAT-PMP" = "UPnP / NAT-PMP";
+
+/* Inspector */
+"Errore del torrent" = "Torrent error";
+"In attesa dei metadati…" = "Waiting for metadata…";
+"Nessun file disponibile" = "No files available";
+"Nessun tracker disponibile" = "No trackers available";
+"Non scaricare questo file" = "Don't download this file";
+"Scarica questo file" = "Download this file";
+
+/* Network diagnostics */
+"Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna" = "Port, UPnP/NAT-PMP mapping and external reachability";
+"In ascolto" = "Listening";
+"Non in ascolto" = "Not listening";
+"socket TCP/UDP attivo" = "TCP/UDP socket active";
+"in attesa del socket" = "waiting for the socket";
+"configurata %ld" = "configured %ld";
+"TCP e UDP" = "TCP and UDP";
+"interfaccia di rete principale" = "main network interface";
+"rete DHT attiva" = "DHT network active";
+"in connessione" = "connecting";
+"porta esterna %ld" = "external port %ld";
+"non mappata" = "not mapped";
+"Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato." = "No mapping detected. The router may have UPnP/NAT-PMP disabled.";
+"Test TCP tramite check-host.net" = "TCP test via check-host.net";
+"Copia" = "Copy";
+"Testa porta" = "Test port";
+"Riprova" = "Retry";
+"Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test." = "Check whether the TCP port is reachable from the Internet. Your public IP is sent to check-host.net only when you start the test.";
+"Test in corso: attendo la risposta dei nodi esterni…" = "Test running: waiting for external nodes…";
+"Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico." = "Port reachable (%ld of %ld external nodes). The NAT/router forwards traffic correctly.";
+"Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router." = "No external node reached the port (%ld checked). Check port forwarding, UPnP and the router firewall.";
+"Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@." = "Enable UPnP/NAT-PMP on the router, or forward TCP and UDP %ld to %@.";
+"Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT." = "Check that the router's WAN IP matches the public IP: if they differ, you may be behind CGNAT.";
+"Il test copre solo il TCP; il traffico UDP/uTP non è verificato." = "The test only covers TCP; UDP/uTP traffic is not checked.";
+"Impostazioni rete" = "Network settings";
+
+/* Port reachability tester errors */
+"Il servizio di test non ha restituito nodi." = "The test service returned no nodes.";
+"Il servizio di test non ha risposto in tempo." = "The test service did not respond in time.";
+"Indirizzo del servizio IP pubblico non valido." = "Invalid public IP service address.";
+"IP pubblico non disponibile." = "Public IP unavailable.";
+"Impossibile preparare il test esterno." = "Unable to prepare the external test.";
+"Il servizio di test ha restituito una risposta non valida." = "The test service returned an invalid response.";
+"Risposta del test non valida." = "Invalid test response.";
+"Il servizio di test non è raggiungibile." = "The test service is unreachable.";
+
+/* Removal alert and app toasts */
+"Rimuovere il torrent?" = "Remove torrent?";
+"Rimuovi solo dalla lista" = "Remove from list only";
+"Rimuovi e cancella i file" = "Remove and delete files";
+"“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent." = "“%@”\nDownloaded files stay on disk if you choose to remove only the torrent.";
+"Nessun link magnet negli appunti" = "No magnet link in the clipboard";
+"Seleziona un torrent" = "Select a torrent";
+
+/* Engine and errors */
+"Impossibile avviare il motore BitTorrent" = "Unable to start the BitTorrent engine";
+"Controlla che libtorrent-rasterbar sia installata." = "Check that libtorrent-rasterbar is installed.";
+"Motore non disponibile." = "Engine unavailable.";
+"Il link magnet non è valido." = "The magnet link is not valid.";
+"Cartella di destinazione non valida." = "Invalid destination folder.";
+"Torrent aggiunto" = "Torrent added";
+"Annuncio inviato ai tracker" = "Announce sent to trackers";
+"Torrent e file rimossi" = "Torrent and files removed";
+"Torrent rimosso" = "Torrent removed";
+"Link magnet copiato" = "Magnet link copied";
+"Download completato" = "Download completed";
+"%ld download completati" = "%ld downloads completed";
+"Operazione non riuscita." = "Operation failed.";
+"Questo torrent è già presente." = "This torrent is already present.";
+"File non trovato." = "File not found.";
+"Permesso negato." = "Permission denied.";
+"Link o file non valido." = "Invalid link or file.";
+"Errore sconosciuto." = "Unknown error.";
+"Errore sconosciuto" = "Unknown error";
+"Torrent non trovato" = "Torrent not found";
+"Comando non supportato" = "Unsupported command";
+"Impossibile creare la cartella di destinazione." = "Unable to create the destination folder.";
+"La destinazione non è una cartella." = "The destination is not a folder.";
+"La cartella di destinazione non è scrivibile." = "The destination folder is not writable.";

@@ -89,8 +89,8 @@ struct NetworkDiagnosticsView: View {
         ) {
             statusCard(
                 title: "Stato",
-                value: engine.stats.isListening ? "In ascolto" : "Non in ascolto",
-                detail: engine.stats.isListening ? "socket TCP/UDP attivo" : "in attesa del socket",
+                value: L(engine.stats.isListening ? "In ascolto" : "Non in ascolto"),
+                detail: L(engine.stats.isListening ? "socket TCP/UDP attivo" : "in attesa del socket"),
                 color: engine.stats.isListening ? Theme.green : Theme.coral,
                 palette: palette
             )
@@ -99,22 +99,22 @@ struct NetworkDiagnosticsView: View {
                 title: "Porta",
                 value: port > 0 ? "\(port)" : "—",
                 detail: engine.stats.actualPort > 0 && engine.stats.actualPort != engine.stats.port
-                    ? "configurata \(engine.stats.port)"
-                    : "TCP e UDP",
+                    ? LF("configurata %ld", engine.stats.port)
+                    : L("TCP e UDP"),
                 palette: palette
             )
 
             statusCard(
                 title: "IP locale",
                 value: localIP,
-                detail: "interfaccia di rete principale",
+                detail: L("interfaccia di rete principale"),
                 palette: palette
             )
 
             statusCard(
                 title: "Nodi DHT",
                 value: "\(engine.stats.dhtNodes)",
-                detail: engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione",
+                detail: L(engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione"),
                 color: engine.stats.dhtNodes > 0 ? Theme.blue : Theme.amber,
                 palette: palette
             )
@@ -218,7 +218,7 @@ struct NetworkDiagnosticsView: View {
             Spacer()
 
             if info.mapped {
-                Text("porta esterna \(info.externalPort)")
+                Text(LF("porta esterna %ld", info.externalPort))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(palette.secondary)
@@ -276,7 +276,7 @@ struct NetworkDiagnosticsView: View {
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString("\(publicIP):\(testPort)", forType: .string)
-                            engine.showToast("Indirizzo copiato", kind: .info)
+                            engine.showToast(L("Indirizzo copiato"), kind: .info)
                         } label: {
                             Label("Copia", systemImage: "doc.on.doc")
                         }
@@ -325,22 +325,22 @@ struct NetworkDiagnosticsView: View {
     private var testButtonTitle: String {
         switch tester.state {
         case .idle, .running:
-            return "Testa porta"
+            return L("Testa porta")
         default:
-            return "Riprova"
+            return L("Riprova")
         }
     }
 
     private var testStateText: String {
         switch tester.state {
         case .idle:
-            return "Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test."
+            return L("Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test.")
         case .running:
-            return "Test in corso: attendo la risposta dei nodi esterni…"
+            return L("Test in corso: attendo la risposta dei nodi esterni…")
         case .open(let open, let total):
-            return "Porta raggiungibile da \(open) nodi esterni su \(total). Il NAT/router inoltra correttamente il traffico."
+            return LF("Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico.", open, total)
         case .closed(let total):
-            return "Nessuno dei \(total) nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router."
+            return LF("Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.", total)
         case .failed(let message):
             return message
         }
@@ -372,9 +372,9 @@ struct NetworkDiagnosticsView: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionLabel(text: "Se la porta risulta chiusa")
 
-            instruction("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP \(port) verso \(localIP).", palette)
-            instruction("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT.", palette)
-            instruction("Il test copre solo il TCP; il traffico UDP/uTP non è verificato.", palette)
+            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", port, localIP), palette)
+            instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
+            instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }
     }
 

@@ -10,12 +10,12 @@ enum TorrentPhase {
 
     var label: String {
         switch self {
-        case .downloading: return "Download"
-        case .metadata: return "Metadati"
-        case .checking: return "Verifica"
-        case .seeding: return "In seed"
-        case .completed: return "Completato"
-        case .paused: return "In pausa"
+        case .downloading: return L("Download")
+        case .metadata: return L("Metadati")
+        case .checking: return L("Verifica")
+        case .seeding: return L("In seed")
+        case .completed: return L("Completato")
+        case .paused: return L("In pausa")
         }
     }
 }
@@ -176,9 +176,9 @@ struct TorrentTracker: Decodable, Identifiable, Equatable {
     var id: String { url }
 
     var statusLabel: String {
-        if verified { return "Attivo" }
-        if fails > 0 { return "Errore" }
-        return "In attesa"
+        if verified { return L("Attivo") }
+        if fails > 0 { return L("Errore") }
+        return L("In attesa")
     }
 }
 
@@ -199,11 +199,11 @@ enum TorrentFilter: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .all: return "Tutti"
-        case .downloading: return "Download"
-        case .seeding: return "Seed"
-        case .completed: return "Completati"
-        case .paused: return "In pausa"
+        case .all: return L("Tutti")
+        case .downloading: return L("Download")
+        case .seeding: return L("Seed")
+        case .completed: return L("Completati")
+        case .paused: return L("In pausa")
         }
     }
 
@@ -229,11 +229,11 @@ enum TorrentSort: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .recent: return "Recenti"
-        case .name: return "Nome"
-        case .size: return "Dimensione"
-        case .progress: return "Progresso"
-        case .speed: return "Velocità"
+        case .recent: return L("Recenti")
+        case .name: return L("Nome")
+        case .size: return L("Dimensione")
+        case .progress: return L("Progresso")
+        case .speed: return L("Velocità")
         }
     }
 

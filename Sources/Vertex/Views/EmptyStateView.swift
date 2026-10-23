@@ -84,8 +84,8 @@ struct NoResultsView: View {
                 .foregroundStyle(palette.text)
 
             Text(query.isEmpty
-                 ? "Nessun torrent in questo filtro."
-                 : "Nessun torrent corrisponde a “\(query)”.")
+                 ? L("Nessun torrent in questo filtro.")
+                 : LF("Nessun torrent corrisponde a “%@”.", query))
                 .font(.system(size: 11.5))
                 .foregroundStyle(palette.secondary)
 

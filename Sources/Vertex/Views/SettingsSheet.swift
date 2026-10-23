@@ -10,9 +10,9 @@ private enum AppearanceOption: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .system: return "Sistema"
-        case .dark: return "Scuro"
-        case .light: return "Chiaro"
+        case .system: return L("Sistema")
+        case .dark: return L("Scuro")
+        case .light: return L("Chiaro")
         }
     }
 
@@ -267,10 +267,10 @@ struct SettingsSheet: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
+                Text(L(title))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(palette.text)
-                Text(subtitle)
+                Text(L(subtitle))
                     .font(.system(size: 9.5))
                     .foregroundStyle(palette.tertiary)
             }
@@ -278,7 +278,7 @@ struct SettingsSheet: View {
             Spacer(minLength: 8)
 
             HStack(spacing: 4) {
-                TextField("", value: value, format: .number)
+                TextField("", value: value, format: .number.grouping(.never))
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
@@ -350,10 +350,10 @@ struct SettingsSheet: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
+                Text(L(title))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(palette.text)
-                Text(subtitle)
+                Text(L(subtitle))
                     .font(.system(size: 9.5))
                     .foregroundStyle(palette.tertiary)
             }
@@ -443,7 +443,7 @@ struct SettingsSheet: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Scegli"
+        panel.prompt = L("Scegli")
         panel.directoryURL = URL(fileURLWithPath: downloadPath)
         if panel.runModal() == .OK, let url = panel.url {
             downloadPath = url.path

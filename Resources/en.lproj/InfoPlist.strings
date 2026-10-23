@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "Vertex";
+"CFBundleTypeName" = "Torrent file";
+"UTTypeDescription" = "Torrent file";
+"NSHumanReadableCopyright" = "Vertex — native macOS BitTorrent client.";

@@ -300,7 +300,7 @@ struct InspectorView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(file.isWanted ? "Non scaricare questo file" : "Scarica questo file")
+            .help(L(file.isWanted ? "Non scaricare questo file" : "Scarica questo file"))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(fileName(file.path))
@@ -395,7 +395,7 @@ struct InspectorView: View {
         HStack(spacing: 8) {
             Image(systemName: "hourglass")
                 .font(.system(size: 10, weight: .medium))
-            Text(text)
+            Text(L(text))
                 .font(.system(size: 10.5))
         }
         .foregroundStyle(palette.tertiary)

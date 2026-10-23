@@ -167,9 +167,9 @@ final class TorrentEngine: ObservableObject {
         if session == nil {
             DispatchQueue.main.async { [weak self] in
                 self?.showToast(
-                    "Impossibile avviare il motore BitTorrent",
+                    L("Impossibile avviare il motore BitTorrent"),
                     kind: .error,
-                    detail: "Controlla che libtorrent-rasterbar sia installata."
+                    detail: L("Controlla che libtorrent-rasterbar sia installata.")
                 )
             }
         } else {
@@ -189,17 +189,17 @@ final class TorrentEngine: ObservableObject {
         startPaused: Bool,
         sequential: Bool
     ) -> String? {
-        guard let session else { return "Motore non disponibile." }
+        guard let session else { return L("Motore non disponibile.") }
         let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.lowercased().hasPrefix("magnet:") else {
-            let message = "Il link magnet non è valido."
+            let message = L("Il link magnet non è valido.")
             showToast(message, kind: .error)
             return message
         }
 
         let prepared = preparedDestination(destination)
         guard let path = prepared.path else {
-            let message = prepared.error ?? "Cartella di destinazione non valida."
+            let message = prepared.error ?? L("Cartella di destinazione non valida.")
             showToast(message, kind: .error)
             return message
         }
@@ -222,7 +222,7 @@ final class TorrentEngine: ObservableObject {
             return message
         }
 
-        showToast("Torrent aggiunto", kind: .success)
+        showToast(L("Torrent aggiunto"), kind: .success)
         poll()
         return nil
     }
@@ -233,10 +233,10 @@ final class TorrentEngine: ObservableObject {
         startPaused: Bool,
         sequential: Bool
     ) -> String? {
-        guard let session else { return "Motore non disponibile." }
+        guard let session else { return L("Motore non disponibile.") }
         let prepared = preparedDestination(destination)
         guard let path = prepared.path else {
-            let message = prepared.error ?? "Cartella di destinazione non valida."
+            let message = prepared.error ?? L("Cartella di destinazione non valida.")
             showToast(message, kind: .error)
             return message
         }
@@ -259,7 +259,7 @@ final class TorrentEngine: ObservableObject {
             return message
         }
 
-        showToast("Torrent aggiunto", kind: .success, detail: url.deletingPathExtension().lastPathComponent)
+        showToast(L("Torrent aggiunto"), kind: .success, detail: url.deletingPathExtension().lastPathComponent)
         poll()
         return nil
     }
@@ -278,7 +278,7 @@ final class TorrentEngine: ObservableObject {
 
     func reannounce(_ torrent: Torrent) {
         if control("reannounce", id: torrent.id) {
-            showToast("Annuncio inviato ai tracker", kind: .info)
+            showToast(L("Annuncio inviato ai tracker"), kind: .info)
         }
     }
 
@@ -292,7 +292,7 @@ final class TorrentEngine: ObservableObject {
                 select(nil)
             }
             showToast(
-                deleteFiles ? "Torrent e file rimossi" : "Torrent rimosso",
+                L(deleteFiles ? "Torrent e file rimossi" : "Torrent rimosso"),
                 kind: .info,
                 detail: torrent.name
             )
@@ -333,7 +333,7 @@ final class TorrentEngine: ObservableObject {
         guard !uri.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(uri, forType: .string)
-        showToast("Link magnet copiato", kind: .info)
+        showToast(L("Link magnet copiato"), kind: .info)
     }
 
     func reveal(_ torrent: Torrent) {
@@ -449,9 +449,9 @@ final class TorrentEngine: ObservableObject {
                     .filter { newlyFinished.contains($0.id) }
                     .map(\.name)
                 if names.count == 1 {
-                    showToast("Download completato", kind: .success, detail: names[0])
+                    showToast(L("Download completato"), kind: .success, detail: names[0])
                 } else {
-                    showToast("\(names.count) download completati", kind: .success)
+                    showToast(LF("%ld download completati", names.count), kind: .success)
                 }
             }
         }
@@ -559,25 +559,25 @@ final class TorrentEngine: ObservableObject {
         do {
             try fileManager.createDirectory(atPath: path, withIntermediateDirectories: true)
         } catch {
-            return (nil, "Impossibile creare la cartella di destinazione.")
+            return (nil, L("Impossibile creare la cartella di destinazione."))
         }
 
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
-            return (nil, "La destinazione non è una cartella.")
+            return (nil, L("La destinazione non è una cartella."))
         }
         guard fileManager.isWritableFile(atPath: path) else {
-            return (nil, "La cartella di destinazione non è scrivibile.")
+            return (nil, L("La cartella di destinazione non è scrivibile."))
         }
 
         return (path, nil)
     }
 
     private func takeLastError() -> String {
-        guard let session else { return "Errore sconosciuto." }
+        guard let session else { return L("Errore sconosciuto.") }
         let pointer = vt_last_error(session)
-        return string(from: pointer) ?? "Errore sconosciuto."
+        return string(from: pointer) ?? L("Errore sconosciuto.")
     }
 
     private func string(from pointer: UnsafeMutablePointer<CChar>?) -> String? {
@@ -588,12 +588,17 @@ final class TorrentEngine: ObservableObject {
 
     private func localizedError(_ raw: String) -> String {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.isEmpty { return "Operazione non riuscita." }
+        if value.isEmpty { return L("Operazione non riuscita.") }
         let lower = value.lowercased()
-        if lower.contains("already exists") || lower.contains("duplicate") { return "Questo torrent è già presente." }
-        if lower.contains("no such file") { return "File non trovato." }
-        if lower.contains("permission") { return "Permesso negato." }
-        if lower.contains("invalid") || lower.contains("parse") { return "Link o file non valido." }
-        return value
+        if lower.contains("already exists") || lower.contains("duplicate") { return L("Questo torrent è già presente.") }
+        if lower.contains("no such file") { return L("File non trovato.") }
+        if lower.contains("permission") { return L("Permesso negato.") }
+        if lower.contains("invalid") || lower.contains("parse") { return L("Link o file non valido.") }
+        switch value {
+        case "Torrent non trovato": return L("Torrent non trovato")
+        case "Comando non supportato": return L("Comando non supportato")
+        case "Errore sconosciuto": return L("Errore sconosciuto")
+        default: return value
+        }
     }
 }

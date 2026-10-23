@@ -143,7 +143,7 @@ struct TorrentRow: View {
         }
         .animation(.snappy(duration: 0.18), value: selected)
         .contextMenu {
-            Button(torrent.paused ? "Riprendi" : "Pausa") {
+            Button(L(torrent.paused ? "Riprendi" : "Pausa")) {
                 engine.togglePause(torrent)
             }
 
@@ -161,7 +161,7 @@ struct TorrentRow: View {
                 engine.reveal(torrent)
             }
 
-            Button(torrent.sequential ? "Disattiva download sequenziale" : "Download sequenziale") {
+            Button(L(torrent.sequential ? "Disattiva download sequenziale" : "Download sequenziale")) {
                 engine.toggleSequential(torrent)
             }
 
@@ -184,31 +184,31 @@ struct TorrentRow: View {
             if torrent.finished {
                 parts.append(Fmt.bytes(torrent.size))
             } else {
-                parts.append("\(Fmt.bytes(torrent.downloaded)) di \(Fmt.bytes(torrent.size))")
+                parts.append(LF("%@ di %@", Fmt.bytes(torrent.downloaded), Fmt.bytes(torrent.size)))
             }
         }
 
         switch torrent.phase {
         case .paused:
-            parts.append("In pausa")
+            parts.append(L("In pausa"))
         case .metadata:
-            parts.append("Recupero metadati")
+            parts.append(L("Recupero metadati"))
         case .checking:
-            parts.append("Verifica in corso")
+            parts.append(L("Verifica in corso"))
         case .downloading:
             if torrent.downloadRate > 0 {
-                parts.append("ETA \(Fmt.eta(torrent.eta))")
+                parts.append(LF("ETA %@", Fmt.eta(torrent.eta)))
             }
-            parts.append("\(torrent.peers) peer")
+            parts.append(LF("%ld peer", torrent.peers))
         case .seeding:
-            parts.append("In seed")
-            parts.append("rapporto \(Fmt.ratio(torrent.ratio))")
+            parts.append(L("In seed"))
+            parts.append(LF("rapporto %@", Fmt.ratio(torrent.ratio)))
         case .completed:
-            parts.append("Completato")
+            parts.append(L("Completato"))
         }
 
         if torrent.hasError {
-            parts.append("Errore")
+            parts.append(L("Errore"))
         }
 
         return parts.joined(separator: "  ·  ")

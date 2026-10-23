@@ -68,6 +68,30 @@ Note
 - libtorrent, OpenSSL e le rispettive licenze sono incluse nell'app.
 - Licenze: menu Vertex > Licenze open source.
 - Progetto: https://github.com/cicciocanestro/vertex
+- Interfaccia: italiano se il sistema è in italiano, altrimenti inglese.
+
+Vertex ${VERSION} — BitTorrent client for macOS
+================================================
+
+Requirements
+------------
+- macOS ${MIN_OS} or later
+- Architecture: ${ARCH_LABEL}
+
+Installation
+------------
+1. Drag Vertex into the Applications folder.
+2. On first launch, if macOS blocks the app:
+   - right-click Vertex and choose "Open", or
+   - go to System Settings > Privacy & Security and choose "Open Anyway".
+
+Notes
+-----
+- The app is ad-hoc signed and not notarized by Apple.
+- libtorrent, OpenSSL and their licenses are bundled with the app.
+- Licenses: Vertex menu > Open source licenses.
+- Project: https://github.com/cicciocanestro/vertex
+- Interface: Italian when the system language is Italian, English otherwise.
 EOF
 
 if [ -f "Resources/AppIcon.icns" ]; then

@@ -29,7 +29,7 @@ enum Fmt {
 
     static func eta(_ seconds: Int64) -> String {
         guard seconds >= 0 else { return "—" }
-        if seconds == 0 { return "Completato" }
+        if seconds == 0 { return L("Completato") }
         if seconds < 60 { return "\(seconds)s" }
         if seconds < 3600 {
             let minutes = seconds / 60
@@ -42,7 +42,8 @@ enum Fmt {
         }
         let days = seconds / 86_400
         let hours = (seconds % 86_400) / 3600
-        return hours > 0 ? "\(days)g \(hours)h" : "\(days)g"
+        let dayUnit = L("g")
+        return hours > 0 ? "\(days)\(dayUnit) \(hours)h" : "\(days)\(dayUnit)"
     }
 
     static func percent(_ fraction: Double) -> String {

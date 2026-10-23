@@ -42,7 +42,7 @@ struct RootView: View {
                 }
                 Button("Annulla", role: .cancel) {}
             } message: { torrent in
-                Text("“\(torrent.name)”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.")
+                Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", torrent.name))
             }
             .sheet(isPresented: $showAddSheet.value) {
                 AddTorrentSheet(
@@ -66,7 +66,7 @@ struct RootView: View {
                     onRemove: {
                         guard !hasModalOverlay else { return }
                         guard let torrent = selectedTorrent else {
-                            engine.showToast("Seleziona un torrent", kind: .info)
+                            engine.showToast(L("Seleziona un torrent"), kind: .info)
                             return
                         }
                         requestDeletion(torrent)
@@ -359,7 +359,7 @@ struct RootView: View {
 
     private func togglePauseSelected() {
         guard let torrent = selectedTorrent else {
-            engine.showToast("Seleziona un torrent", kind: .info)
+            engine.showToast(L("Seleziona un torrent"), kind: .info)
             return
         }
         engine.togglePause(torrent)
@@ -378,7 +378,7 @@ struct RootView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let clipboard, clipboard.lowercased().hasPrefix("magnet:") else {
-            engine.showToast("Nessun link magnet negli appunti", kind: .info)
+            engine.showToast(L("Nessun link magnet negli appunti"), kind: .info)
             addMode.value = .magnet
             showAddSheet.value = true
             return
@@ -399,7 +399,7 @@ struct RootView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.prompt = "Aggiungi"
+        panel.prompt = L("Aggiungi")
         if let type = UTType(filenameExtension: "torrent") {
             panel.allowedContentTypes = [type]
         }

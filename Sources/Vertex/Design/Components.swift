@@ -167,7 +167,7 @@ struct IconButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hover.value = $0 }
-        .help(help)
+        .help(L(help))
     }
 }
 
@@ -184,7 +184,7 @@ struct FilterChip: View {
         let palette = Palette(scheme: scheme)
         Button(action: action) {
             HStack(spacing: 6) {
-                Text(title)
+                Text(L(title))
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(size: 9.5, weight: .semibold, design: .rounded))
@@ -366,7 +366,7 @@ struct SectionLabel: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        Text(text.uppercased())
+        Text(L(text).uppercased())
             .font(.system(size: 9.5, weight: .semibold))
             .tracking(0.9)
             .foregroundStyle(Palette(scheme: scheme).tertiary)

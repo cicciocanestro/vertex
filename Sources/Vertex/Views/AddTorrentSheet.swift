@@ -459,7 +459,7 @@ struct AddTorrentSheet: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Scegli"
+        panel.prompt = L("Scegli")
         if let type = UTType(filenameExtension: "torrent") {
             panel.allowedContentTypes = [type]
         }
@@ -477,7 +477,7 @@ struct AddTorrentSheet: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Scegli"
+        panel.prompt = L("Scegli")
         panel.directoryURL = URL(fileURLWithPath: downloadPath.value)
         if panel.runModal() == .OK, let url = panel.url {
             downloadPath.value = url.path

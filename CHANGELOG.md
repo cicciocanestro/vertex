@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0] — 2026-10-23
+
+### Aggiunto
+- Interfaccia bilingue: italiano se il sistema è in italiano, inglese per qualsiasi altra
+  lingua (con fallback sull’inglese). Sono localizzati testi della UI, messaggi del motore,
+  errori, formati e nomi dei documenti tramite `Localizable.strings` e `InfoPlist.strings`.
+- Documentazione: README in inglese (`README.md`, predefinito su GitHub) e in italiano
+  (`README.it.md`), con link per cambiare lingua.
+
+### Corretto
+- Porte e conteggi non usano più il separatore delle migliaia; il campo numerico delle
+  Impostazioni non mostra raggruppamenti.
+
 ## [1.2.3] — 2026-10-22
 
 ### Corretto

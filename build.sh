@@ -45,6 +45,11 @@ if [ -d "Resources/Licenses" ]; then
     cp -R "Resources/Licenses" "${APP_PATH}/Contents/Resources/Licenses"
 fi
 
+for lproj in Resources/*.lproj; do
+    [ -d "$lproj" ] || continue
+    cp -R "$lproj" "${APP_PATH}/Contents/Resources/"
+done
+
 echo "→ Inclusione delle librerie…"
 cp -L "$LIBTORRENT_LIB" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
 cp -L "${OPENSSL_LIB}/libssl.4.dylib" "${FRAMEWORKS}/libssl.4.dylib"

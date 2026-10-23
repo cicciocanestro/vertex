@@ -58,14 +58,14 @@ struct StatusBarView: View {
                 .foregroundStyle(palette.tertiary)
             }
 
-            Text("\(engine.stats.active) attivi")
+            Text(LF("%ld attivi", engine.stats.active))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.secondary)
 
             Text("·")
                 .foregroundStyle(palette.tertiary)
 
-            Text("\(engine.torrents.count) torrent")
+            Text(LF("%ld torrent", engine.torrents.count))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.secondary)
 
@@ -75,7 +75,7 @@ struct StatusBarView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "network")
                         .font(.system(size: 8.5, weight: .semibold))
-                    Text("Porta \(displayPort)")
+                    Text(LF("Porta %ld", displayPort))
                         .font(.system(size: 9.5, weight: .regular, design: .rounded))
                         .monospacedDigit()
                 }
@@ -99,9 +99,9 @@ struct StatusBarView: View {
     }
 
     private var dhtLabel: String {
-        if !dhtEnabled { return "DHT disattivato" }
-        if engine.stats.dhtNodes > 0 { return "DHT · \(engine.stats.dhtNodes) nodi" }
-        return "DHT · connessione"
+        if !dhtEnabled { return L("DHT disattivato") }
+        if engine.stats.dhtNodes > 0 { return LF("DHT · %ld nodi", engine.stats.dhtNodes) }
+        return L("DHT · connessione")
     }
 
     private func divider(_ palette: Palette) -> some View {
