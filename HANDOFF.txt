@@ -28,26 +28,24 @@ Vertex è un client BitTorrent nativo per macOS:
 Il progetto è pubblico con licenza MIT:
 - Repository: https://github.com/cicciocanestro/vertex
 - Release: https://github.com/cicciocanestro/vertex/releases
-- Ultima release: v1.2.3
-- Commit di riferimento: ac9b417 (release 1.2.3); git log -1 può includere commit di sola
+- Ultima release: v1.3.0
+- Commit di riferimento: 9254fe8 (release 1.3.0); git log -1 può includere commit di sola
   documentazione successivi alla release.
 
 
 2. STATO ATTUALE
 ----------------
 
-- Ultima release pubblica: v1.2.3 (commit ac9b417), con DMG e checksum.
+- Ultima release pubblica: v1.3.0 (commit 9254fe8), con DMG e checksum.
 - HANDOFF.txt è versionato nel repository dalla 1.2.2.
-- Versione app: 1.3.0 (CFBundleShortVersionString 1.3.0, CFBundleVersion 7) — nel working
-  tree, non ancora committata né rilasciata.
-- DMG locale v1.2.3: dist/Vertex-1.2.3-macOS27.0-arm64.dmg
-- SHA256 DMG v1.2.3:
-  45aae3867556738a5a74e59f1de42e74fadf5f17b9fa0453270b407447472a95
-- DMG v1.3.0: da creare con ./build.sh && ./Scripts/make-dmg.sh --no-build.
+- Versione app: 1.3.0 (CFBundleShortVersionString 1.3.0, CFBundleVersion 7).
+- DMG locale v1.3.0: dist/Vertex-1.3.0-macOS27.0-arm64.dmg
+- SHA256 DMG v1.3.0:
+  c3cffff4058e299297d85fb1ab86d0f7c91452cada8f3b9a45c99779832c4345
 - Firma: ad-hoc. NON notarizzata. Non esiste alcuna identità Developer ID sul Mac.
 - La release è arm64 e richiede macOS 27.0 perché le librerie Homebrew sono compilate
   con SDK 27.
-- Questo file HANDOFF.txt è aggiornato alla 1.3.0 (in preparazione).
+- Questo file HANDOFF.txt è aggiornato alla 1.3.0 (rilasciata).
 
 
 3. AMBIENTE DI BUILD USATO
@@ -426,13 +424,13 @@ Non c'è alcun segreto nel repository. Non inserire chiavi .p8, password app-spe
 token GitHub o certificati nel repo.
 
 
-12. COME FARE UNA NUOVA RELEASE (es. 1.3.0)
+12. COME FARE UNA NUOVA RELEASE (es. 1.3.1)
 ------------------------------------------
 
 1. git pull; git status deve essere pulito.
 2. Aggiorna versione:
-     /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.3.0' Resources/Info.plist
-     /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 7' Resources/Info.plist
+     /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.3.1' Resources/Info.plist
+     /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 8' Resources/Info.plist
 3. Aggiorna CHANGELOG.md (nuova sezione in alto) e README se serve.
 4. ./build.sh
 5. ./Scripts/make-dmg.sh --no-build
@@ -440,24 +438,24 @@ token GitHub o certificati nel repo.
      /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
        dist/Vertex.app/Contents/Info.plist
      codesign --verify --deep --strict dist/Vertex.app
-     (cd dist && shasum -a 256 -c Vertex-1.3.0-macOS27.0-arm64.dmg.sha256)
+     (cd dist && shasum -a 256 -c Vertex-1.3.1-macOS27.0-arm64.dmg.sha256)
 7. Commit e push:
      git add -A
-     git commit -m "Release 1.3.0: ..."
+     git commit -m "Release 1.3.1: ..."
      git push
    (nel repo attuale i commit precedenti includono il trailer
     Co-authored-by: CommandCodeBot <noreply@commandcode.ai>)
 8. Pubblica la release:
-     gh release create v1.3.0 \
-       dist/Vertex-1.3.0-macOS27.0-arm64.dmg \
-       dist/Vertex-1.3.0-macOS27.0-arm64.dmg.sha256 \
-       --target main --title "Vertex 1.3.0" --notes-file /tmp/note.md
+     gh release create v1.3.1 \
+       dist/Vertex-1.3.1-macOS27.0-arm64.dmg \
+       dist/Vertex-1.3.1-macOS27.0-arm64.dmg.sha256 \
+       --target main --title "Vertex 1.3.1" --notes-file /tmp/note.md
 9. Verifica download e checksum:
-     gh release download v1.3.0 --dir /tmp/verify
+     gh release download v1.3.1 --dir /tmp/verify
      (cd /tmp/verify && shasum -a 256 -c *.sha256)
 10. Verifica accesso pubblico:
      curl -s -o /dev/null -w '%{http_code}\n' \
-       https://github.com/cicciocanestro/vertex/releases/tag/v1.3.0
+       https://github.com/cicciocanestro/vertex/releases/tag/v1.3.1
 
 La release è pubblica perché il repository è pubblico. La visibilità si controlla con:
   gh repo view --json visibility,licenseInfo,url
@@ -484,7 +482,7 @@ Sequenza indicativa (da adattare al certificato e al profilo Keychain):
   codesign --force --timestamp --options runtime --sign "$IDENTITY" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
   ./Scripts/make-dmg.sh --no-build
-  DMG="dist/Vertex-1.3.0-macOS27.0-arm64.dmg"
+  DMG="dist/Vertex-1.3.1-macOS27.0-arm64.dmg"
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"
   xcrun notarytool submit "$DMG" --keychain-profile "VertexNotary" --wait
   xcrun stapler staple "$DMG"
@@ -530,7 +528,7 @@ git push
 
 ./Scripts/make-dmg.sh --no-build
 gh release list --limit 5
-gh release view v1.2.3 --json url,tagName,isDraft,isPrerelease
+gh release view v1.3.0 --json url,tagName,isDraft,isPrerelease
 
 lsof -nP -iTCP:6881 -sTCP:LISTEN
 lsof -nP -iUDP:6881
@@ -545,8 +543,7 @@ security find-identity -v -p codesigning
 16. NOTE FINALI
 ---------------
 
-- Il progetto è già pubblico, con licenza MIT e release v1.2.3 pubblica (DMG e checksum).
-  La 1.3.0 (interfaccia bilingue) è nel working tree, non ancora committata né rilasciata.
+- Il progetto è già pubblico, con licenza MIT e release v1.3.0 pubblica (DMG e checksum).
 - La documentazione utente è in README.md (inglese) e README.it.md (italiano); il changelog
   in CHANGELOG.md.
 - La UI segue la lingua di sistema: italiano se italiano, altrimenti inglese. Aggiornare
@@ -565,3 +562,4 @@ security find-identity -v -p codesigning
   e0c99e2 release 1.2.1: fix diagnostica, mapping per indice e rilevamento IP locale
   663f975 release 1.2.2: resume con info dict, overlay/toast, pulizie interne
   ac9b417 release 1.2.3: mapping per trasporto, accurate counters, finestra singola
+  9254fe8 release 1.3.0: interfaccia bilingue e README EN/IT
