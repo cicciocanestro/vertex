@@ -38,16 +38,18 @@ Il progetto è pubblico con licenza MIT:
 
 - Ultima release pubblica: v1.3.0 (commit 9254fe8), con DMG e checksum.
 - HANDOFF.txt è versionato nel repository dalla 1.2.2.
-- Versione app: 1.3.1 (CFBundleShortVersionString 1.3.1, CFBundleVersion 8) — nel working
-  tree, non ancora committata né rilasciata.
-- DMG locale v1.3.0: dist/Vertex-1.3.0-macOS27.0-arm64.dmg
+- Versione app: 1.3.1 (CFBundleShortVersionString 1.3.1, CFBundleVersion 8) — committata
+  su main, con DMG pronta; non ancora pubblicata.
+- DMG locale v1.3.1: dist/Vertex-1.3.1-macOS27.0-arm64.dmg
+- SHA256 DMG v1.3.1:
+  8318c13e57908433216beafc59284e40364c995fa2a854aebebabc6b1a1b4401
+- DMG v1.3.0 (release pubblica): dist/Vertex-1.3.0-macOS27.0-arm64.dmg
 - SHA256 DMG v1.3.0:
   c3cffff4058e299297d85fb1ab86d0f7c91452cada8f3b9a45c99779832c4345
-- DMG v1.3.1: da creare con ./build.sh && ./Scripts/make-dmg.sh --no-build.
 - Firma: ad-hoc. NON notarizzata. Non esiste alcuna identità Developer ID sul Mac.
 - La release è arm64 e richiede macOS 27.0 perché le librerie Homebrew sono compilate
   con SDK 27.
-- Questo file HANDOFF.txt è aggiornato alla 1.3.1 (in preparazione).
+- Questo file HANDOFF.txt è aggiornato alla 1.3.1 (pronta con DMG, non pubblicata).
 
 
 3. AMBIENTE DI BUILD USATO
@@ -553,7 +555,8 @@ security find-identity -v -p codesigning
 ---------------
 
 - Il progetto è già pubblico, con licenza MIT e release v1.3.0 pubblica (DMG e checksum).
-  La 1.3.1 (fix avvio in pausa) è nel working tree, non ancora committata né rilasciata.
+  La 1.3.1 (fix avvio in pausa + versione visibile) è committata e ha la DMG pronta,
+  non ancora pubblicata.
 - La documentazione utente è in README.md (inglese) e README.it.md (italiano); il changelog
   in CHANGELOG.md.
 - La UI segue la lingua di sistema: italiano se italiano, altrimenti inglese. Aggiornare
@@ -573,3 +576,4 @@ security find-identity -v -p codesigning
   663f975 release 1.2.2: resume con info dict, overlay/toast, pulizie interne
   ac9b417 release 1.2.3: mapping per trasporto, accurate counters, finestra singola
   9254fe8 release 1.3.0: interfaccia bilingue e README EN/IT
+  ae2b404 release 1.3.1: avvio non in pausa e versione visibile
