@@ -32,6 +32,9 @@
 "Indirizzo copiato" = "Address copied";
 "Impostazioni" = "Settings";
 "Impostazioni…" = "Settings…";
+"Informazioni" = "About";
+"Informazioni su Vertex" = "About Vertex";
+"Versione %@ (build %@)" = "Version %@ (build %@)";
 "Aggiungi file .torrent…" = "Add .torrent file…";
 "Aggiungi link magnet…" = "Add magnet link…";
 "Incolla magnet dagli appunti" = "Paste magnet from clipboard";

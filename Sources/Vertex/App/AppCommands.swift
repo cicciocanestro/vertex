@@ -89,7 +89,11 @@ struct AppCommands: Commands {
                 .keyboardShortcut("5", modifiers: .command)
         }
 
-        CommandGroup(after: .appInfo) {
+        CommandGroup(replacing: .appInfo) {
+            Button("Informazioni su Vertex") {
+                NSApp.orderFrontStandardAboutPanel(nil)
+            }
+
             Button("Licenze open source") {
                 openLicenses()
             }

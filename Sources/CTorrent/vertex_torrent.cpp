@@ -833,8 +833,11 @@ int vt_add_magnet(vt_session* session,
             session->default_save_path);
         params.flags |= lt::torrent_flags::duplicate_is_error;
         params.flags &= ~lt::torrent_flags::auto_managed;
+        // add_torrent_params::default_flags includes `paused`: clear it unless requested.
         if (paused)
             params.flags |= lt::torrent_flags::paused;
+        else
+            params.flags &= ~lt::torrent_flags::paused;
         if (sequential)
             params.flags |= lt::torrent_flags::sequential_download;
 
@@ -885,8 +888,11 @@ int vt_add_torrent_file(vt_session* session,
             session->default_save_path);
         params.flags |= lt::torrent_flags::duplicate_is_error;
         params.flags &= ~lt::torrent_flags::auto_managed;
+        // add_torrent_params::default_flags includes `paused`: clear it unless requested.
         if (paused)
             params.flags |= lt::torrent_flags::paused;
+        else
+            params.flags &= ~lt::torrent_flags::paused;
         if (sequential)
             params.flags |= lt::torrent_flags::sequential_download;
 

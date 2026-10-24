@@ -14,6 +14,7 @@ and full support for magnet links and `.torrent` files.
   v1 and v2 torrents.
 - **Italian or English interface**: Italian when the system language is Italian, English for
   any other language.
+- App version and build are shown in the header and in Settings → About.
 - Add from magnet links, `.torrent` files, drag and drop, clipboard, double-click in Finder
   or magnet links opened from a browser (registered `magnet` scheme).
 - Download, seed, pause/resume, file verification and metadata retrieval.

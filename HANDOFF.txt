@@ -38,14 +38,16 @@ Il progetto è pubblico con licenza MIT:
 
 - Ultima release pubblica: v1.3.0 (commit 9254fe8), con DMG e checksum.
 - HANDOFF.txt è versionato nel repository dalla 1.2.2.
-- Versione app: 1.3.0 (CFBundleShortVersionString 1.3.0, CFBundleVersion 7).
+- Versione app: 1.3.1 (CFBundleShortVersionString 1.3.1, CFBundleVersion 8) — nel working
+  tree, non ancora committata né rilasciata.
 - DMG locale v1.3.0: dist/Vertex-1.3.0-macOS27.0-arm64.dmg
 - SHA256 DMG v1.3.0:
   c3cffff4058e299297d85fb1ab86d0f7c91452cada8f3b9a45c99779832c4345
+- DMG v1.3.1: da creare con ./build.sh && ./Scripts/make-dmg.sh --no-build.
 - Firma: ad-hoc. NON notarizzata. Non esiste alcuna identità Developer ID sul Mac.
 - La release è arm64 e richiede macOS 27.0 perché le librerie Homebrew sono compilate
   con SDK 27.
-- Questo file HANDOFF.txt è aggiornato alla 1.3.0 (rilasciata).
+- Questo file HANDOFF.txt è aggiornato alla 1.3.1 (in preparazione).
 
 
 3. AMBIENTE DI BUILD USATO
@@ -178,6 +180,9 @@ Sources/Vertex/Utilities/Localization.swift
   Helper L()/LF() per le stringhe dinamiche; i testi statici SwiftUI usano le chiavi
   italiane e sono localizzati automaticamente.
 
+Sources/Vertex/Utilities/AppInfo.swift
+  Versione e build lette da Bundle.main (CFBundleShortVersionString/CFBundleVersion).
+
 Sources/Vertex/Utilities/NetworkInfo.swift
   Rilevamento dell'IPv4 locale via getifaddrs.
 
@@ -235,7 +240,9 @@ Note importanti:
 - Il bridge non lancia eccezioni verso Swift: tutto è in try/catch e imposta last_error.
 - Il polling va chiamato dal main thread di Swift ogni ~0.8 s.
 - La sessione libtorrent usa auto_managed disabilitato per controllare pausa/ripresa
-  dell'utente.
+  dell'utente. In vt_add_magnet/vt_add_torrent_file il flag paused viene impostato o
+  azzerato in modo esplicito: add_torrent_params::default_flags include paused, quindi un
+  semplice OR lascerebbe i nuovi torrent in pausa.
 - Il salvataggio resume avviene ogni 20 s e in vt_session_destroy.
   Il resume è salvato con lt::torrent_handle::save_info_dict: contiene l'info dict.
   Non togliere il flag: senza di esso al riavvio i torrent aggiunti da file perdono i
@@ -313,6 +320,8 @@ Dati:
 - AppAppearance applica il tema a NSApp e a tutte le NSWindow.
 - La finestra principale è una scena Window singola (non WindowGroup): aprire un magnet o
   un .torrent con l'app già attiva non crea una seconda finestra.
+- La versione dell'app è mostrata nell'header (vX.Y.Z), nel sottotitolo e nella sezione
+  Informazioni delle Impostazioni (versione e build) e nel pannello Informazioni su Vertex.
 - Lingua: italiano se la lingua di sistema è italiana, altrimenti inglese. Le localizzazioni
   sono en.lproj/it.lproj con CFBundleDevelopmentRegion=en; un sistema non italiano ricade
   sull'inglese. Numeri e date seguono le impostazioni regionali del sistema (Locale.current).
@@ -544,6 +553,7 @@ security find-identity -v -p codesigning
 ---------------
 
 - Il progetto è già pubblico, con licenza MIT e release v1.3.0 pubblica (DMG e checksum).
+  La 1.3.1 (fix avvio in pausa) è nel working tree, non ancora committata né rilasciata.
 - La documentazione utente è in README.md (inglese) e README.it.md (italiano); il changelog
   in CHANGELOG.md.
 - La UI segue la lingua di sistema: italiano se italiano, altrimenti inglese. Aggiornare

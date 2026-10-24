@@ -23,6 +23,9 @@ struct HeaderBar: View {
                     .font(.system(size: 7.5, weight: .semibold))
                     .tracking(1.6)
                     .foregroundStyle(palette.tertiary)
+                Text("v\(AppInfo.version)")
+                    .font(.system(size: 8.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(palette.secondary)
             }
 
             Spacer(minLength: 20)

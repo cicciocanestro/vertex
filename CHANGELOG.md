@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.1] — 2026-10-24
+
+### Aggiunto
+- La versione dell’app (versione e build) è visibile nell’intestazione, in Impostazioni →
+  Informazioni e nel pannello Informazioni su Vertex.
+
+### Corretto
+- I nuovi torrent non partono più in pausa quando l’opzione “Avvia in pausa” è disattivata:
+  `add_torrent_params::default_flags` di libtorrent include `paused`; ora il bridge lo
+  azzera esplicitamente quando la pausa non è richiesta.
+
 ## [1.3.0] — 2026-10-23
 
 ### Aggiunto

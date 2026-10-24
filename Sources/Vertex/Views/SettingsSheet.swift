@@ -138,6 +138,10 @@ struct SettingsSheet: View {
                             appearancePicker(palette)
                                 .padding(.vertical, 9)
                         }
+
+                        section("Informazioni", palette) {
+                            versionRow(palette)
+                        }
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 4)
@@ -183,7 +187,7 @@ struct SettingsSheet: View {
                 Text("Impostazioni")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundStyle(palette.text)
-                Text("Preferenze dell'app e della rete")
+                Text(L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)")
                     .font(.system(size: 10.5))
                     .foregroundStyle(palette.secondary)
             }
@@ -410,6 +414,27 @@ struct SettingsSheet: View {
             .fill(palette.stroke)
             .frame(height: 1)
             .padding(.leading, 28)
+    }
+
+    private func versionRow(_ palette: Palette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Vertex")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(palette.text)
+                Text(LF("Versione %@ (build %@)", AppInfo.version, AppInfo.build))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(palette.tertiary)
+            }
+
+            Spacer(minLength: 8)
+        }
+        .padding(.vertical, 8)
     }
 
     private func footer(_ palette: Palette) -> some View {

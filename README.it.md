@@ -14,6 +14,7 @@ e gestione completa di magnet link e file `.torrent`.
   torrent v1 e v2.
 - Interfaccia in **italiano o inglese**: italiano se il sistema è in italiano, inglese per
   qualsiasi altra lingua.
+- Versione e build dell'app visibili nell'intestazione e in Impostazioni → Informazioni.
 - Aggiunta da link magnet, file `.torrent`, trascinamento, appunti, doppio clic nel Finder
   o link magnet aperti dal browser (schema `magnet` registrato).
 - Download, seed, pausa/ripresa, verifica dei file e recupero dei metadati.
