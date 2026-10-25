@@ -9,7 +9,7 @@ Vertex include nel bundle applicativo le seguenti librerie di terze parti.
 - Sito: https://www.libtorrent.org/
 - Testo completo: [`Resources/Licenses/libtorrent-BSD-3-Clause.txt`](Resources/Licenses/libtorrent-BSD-3-Clause.txt)
 
-## OpenSSL 4.0.x
+## OpenSSL 3.5.x
 
 - Licenza: Apache License 2.0
 - Copyright: © The OpenSSL Project Authors

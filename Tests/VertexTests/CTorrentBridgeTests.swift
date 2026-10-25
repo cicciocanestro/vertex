@@ -1,5 +1,6 @@
 import Foundation
 import CTorrent
+import VertexKit
 
 enum CTorrentBridgeTests {
     static func runAll() {
@@ -46,6 +47,11 @@ enum CTorrentBridgeTests {
                 try TestRunner.assertTrue(jsonString.contains("download_rate"), "Lo snapshot deve contenere download_rate")
                 try TestRunner.assertTrue(jsonString.contains("torrents"), "Lo snapshot deve contenere l'array torrents")
                 try TestRunner.assertTrue(jsonString.contains("listening"), "Lo snapshot deve contenere il flag listening")
+
+                let snapshotData = Data(jsonString.utf8)
+                let decoded = try JSONDecoder().decode(VertexSnapshot.self, from: snapshotData)
+                try TestRunner.assertEqual(decoded.torrents.count, 0, "La sessione di test non deve avere torrent")
+                try TestRunner.assertTrue(decoded.port > 0, "Lo snapshot deve esporre la porta di ascolto")
             }
 
             // Test add invalid magnet - should gracefully fail without crashing

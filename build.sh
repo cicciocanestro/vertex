@@ -2,25 +2,52 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
+ROOT="$PWD"
 
-CONFIG="${1:-release}"
+CONFIG="release"
+REBUILD_DEPS=0
+
+for arg in "$@"; do
+    case "$arg" in
+        release|debug|test)
+            CONFIG="$arg"
+            ;;
+        --rebuild-deps)
+            REBUILD_DEPS=1
+            ;;
+        -h|--help)
+            echo "Uso: $0 [release|debug|test] [--rebuild-deps]"
+            exit 0
+            ;;
+        *)
+            echo "✗ Opzione sconosciuta: $arg" >&2
+            exit 2
+            ;;
+    esac
+done
+
+# Keep Package.swift and the bundle script on the same dependency prefix.
+if [ -z "${VERTEX_DEPS_PREFIX:-}" ]; then
+    VERTEX_DEPS_PREFIX="$ROOT/.build/vertex-deps"
+else
+    case "$VERTEX_DEPS_PREFIX" in
+        /*) ;;
+        *) VERTEX_DEPS_PREFIX="$ROOT/$VERTEX_DEPS_PREFIX" ;;
+    esac
+fi
+export VERTEX_DEPS_PREFIX
+DEPS_PREFIX="$VERTEX_DEPS_PREFIX"
+
 APP_NAME="Vertex"
 APP_PATH="dist/${APP_NAME}.app"
 APP_BIN="${APP_PATH}/Contents/MacOS/${APP_NAME}"
 FRAMEWORKS="${APP_PATH}/Contents/Frameworks"
+TARGET_MIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)
 
-if command -v brew >/dev/null 2>&1; then
-    export HOMEBREW_PREFIX="$(brew --prefix)"
+if [ "$REBUILD_DEPS" -eq 1 ]; then
+    "$ROOT/Scripts/build-deps.sh" --force
 else
-    export HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-fi
-
-LIBTORRENT_LIB="${HOMEBREW_PREFIX}/opt/libtorrent-rasterbar/lib/libtorrent-rasterbar.2.1.dylib"
-OPENSSL_LIB="${HOMEBREW_PREFIX}/opt/openssl@4/lib"
-
-if [ ! -f "$LIBTORRENT_LIB" ]; then
-    echo "✗ libtorrent-rasterbar non trovata. Installa con: brew install libtorrent-rasterbar"
-    exit 1
+    "$ROOT/Scripts/build-deps.sh"
 fi
 
 if [ "$CONFIG" = "test" ]; then
@@ -56,39 +83,109 @@ for lproj in Resources/*.lproj; do
     cp -R "$lproj" "${APP_PATH}/Contents/Resources/"
 done
 
+# Copy the complete transitive closure of engine dylibs. This intentionally
+# does not hard-code libssl/libcrypto/libtorrent versions: the versions come
+# from Scripts/deps.env and are discovered from the actual Mach-O dependencies.
 echo "→ Inclusione delle librerie…"
-cp -L "$LIBTORRENT_LIB" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
-cp -L "${OPENSSL_LIB}/libssl.4.dylib" "${FRAMEWORKS}/libssl.4.dylib"
-cp -L "${OPENSSL_LIB}/libcrypto.4.dylib" "${FRAMEWORKS}/libcrypto.4.dylib"
+copy_dylib_closure() {
+    local -a queue=("$APP_BIN")
+    local copied=" "
+    local current dependency candidate base
 
-# Make the bundle independent from the Homebrew prefix.
-install_name_tool -id "@rpath/libtorrent-rasterbar.2.1.dylib" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
-install_name_tool -id "@rpath/libssl.4.dylib" "${FRAMEWORKS}/libssl.4.dylib"
-install_name_tool -id "@rpath/libcrypto.4.dylib" "${FRAMEWORKS}/libcrypto.4.dylib"
+    while [ "${#queue[@]}" -gt 0 ]; do
+        current="${queue[0]}"
+        queue=("${queue[@]:1}")
 
-install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libssl.4.dylib" "@loader_path/libssl.4.dylib" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
-install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libcrypto.4.dylib" "@loader_path/libcrypto.4.dylib" "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib"
+        while IFS= read -r dependency; do
+            [ -n "$dependency" ] || continue
 
-CRYPTO_REF=$(otool -L "${FRAMEWORKS}/libssl.4.dylib" | awk '/libcrypto\.4\.dylib/ {print $1; exit}')
-if [ -n "${CRYPTO_REF:-}" ] && [ "$CRYPTO_REF" != "@loader_path/libcrypto.4.dylib" ]; then
-    install_name_tool -change "$CRYPTO_REF" "@loader_path/libcrypto.4.dylib" "${FRAMEWORKS}/libssl.4.dylib"
-fi
+            case "$dependency" in
+                "$DEPS_PREFIX"/*)
+                    ;;
+                @rpath/*|@loader_path/*)
+                    candidate="$DEPS_PREFIX/lib/$(basename "$dependency")"
+                    [ -f "$candidate" ] || continue
+                    dependency="$candidate"
+                    ;;
+                *)
+                    continue
+                    ;;
+            esac
 
-install_name_tool -change "${HOMEBREW_PREFIX}/opt/libtorrent-rasterbar/lib/libtorrent-rasterbar.2.1.dylib" "@executable_path/../Frameworks/libtorrent-rasterbar.2.1.dylib" "$APP_BIN"
-install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libssl.4.dylib" "@executable_path/../Frameworks/libssl.4.dylib" "$APP_BIN"
-install_name_tool -change "${HOMEBREW_PREFIX}/opt/openssl@4/lib/libcrypto.4.dylib" "@executable_path/../Frameworks/libcrypto.4.dylib" "$APP_BIN"
+            base="$(basename "$dependency")"
+            case "$copied" in
+                *" $base "*)
+                    continue
+                    ;;
+            esac
+
+            cp -L "$dependency" "${FRAMEWORKS}/${base}"
+            copied="${copied}${base} "
+            queue+=("${FRAMEWORKS}/${base}")
+        done < <(otool -L "$current" | tail -n +2 | awk '{print $1}')
+    done
+}
+
+remove_rpaths() {
+    local file="$1"
+    local rpath
+
+    while IFS= read -r rpath; do
+        [ -n "$rpath" ] || continue
+        case "$rpath" in
+            /usr/lib/swift)
+                continue
+                ;;
+        esac
+        install_name_tool -delete_rpath "$rpath" "$file" 2>/dev/null || true
+    done < <(otool -l "$file" | awk '/LC_RPATH/{found=1} found && /path/{print $2; found=0}')
+}
+
+rewrite_dependencies() {
+    local file="$1"
+    local prefix="$2"
+    local dependency base
+
+    while IFS= read -r dependency; do
+        [ -n "$dependency" ] || continue
+        case "$dependency" in
+            "$DEPS_PREFIX"/*)
+                base="$(basename "$dependency")"
+                install_name_tool -change "$dependency" "${prefix}/${base}" "$file"
+                ;;
+            @rpath/*)
+                base="$(basename "$dependency")"
+                if [ -f "${FRAMEWORKS}/${base}" ]; then
+                    install_name_tool -change "$dependency" "${prefix}/${base}" "$file"
+                fi
+                ;;
+        esac
+    done < <(otool -L "$file" | tail -n +2 | awk '{print $1}')
+}
+
+copy_dylib_closure
+
+for dylib in "${FRAMEWORKS}"/*.dylib; do
+    [ -e "$dylib" ] || continue
+    base="$(basename "$dylib")"
+    install_name_tool -id "@loader_path/${base}" "$dylib"
+    rewrite_dependencies "$dylib" "@loader_path"
+    remove_rpaths "$dylib"
+done
+
+rewrite_dependencies "$APP_BIN" "@executable_path/../Frameworks"
+remove_rpaths "$APP_BIN"
 
 echo "→ Firma ad-hoc…"
-codesign --force --sign - "${FRAMEWORKS}/libtorrent-rasterbar.2.1.dylib" >/dev/null
-codesign --force --sign - "${FRAMEWORKS}/libssl.4.dylib" >/dev/null
-codesign --force --sign - "${FRAMEWORKS}/libcrypto.4.dylib" >/dev/null
+for dylib in "${FRAMEWORKS}"/*.dylib; do
+    [ -e "$dylib" ] || continue
+    codesign --force --sign - "$dylib" >/dev/null
+done
 codesign --force --sign - "$APP_PATH" >/dev/null
 codesign --verify --deep --strict "$APP_PATH"
 
-if otool -L "$APP_BIN" | grep -q "${HOMEBREW_PREFIX}"; then
-    echo "✗ Il bundle contiene ancora riferimenti a Homebrew."
-    exit 1
-fi
+echo "→ Verifica bundle autosufficiente…"
+"$ROOT/Scripts/verify-bundle.sh" "$APP_PATH" "$TARGET_MIN"
 
 echo "✓ App creata: $APP_PATH"
 echo "  Avvio: open \"$APP_PATH\""

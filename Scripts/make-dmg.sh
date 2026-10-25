@@ -18,6 +18,10 @@ INFO="$APP/Contents/Info.plist"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")
 MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO")
 ARCHS=$(lipo -archs "$BIN")
+
+echo "→ Verifica del bundle prima della DMG…"
+./Scripts/verify-bundle.sh "$APP" "$MIN_OS"
+
 if [[ "$ARCHS" == *" "* ]]; then
     ARCH_LABEL="universal"
 else
@@ -117,7 +121,7 @@ hdiutil verify "$DMG" >/dev/null
 echo "→ Verifica del contenuto montato…"
 MOUNT=$(mktemp -d /tmp/vertex-dmg.XXXXXX)
 hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT" >/dev/null
-codesign --verify --deep --strict "$MOUNT/Vertex.app"
+./Scripts/verify-bundle.sh "$MOUNT/Vertex.app" "$MIN_OS"
 test -L "$MOUNT/Applications"
 test -d "$MOUNT/Vertex.app/Contents/Resources/Licenses"
 test -f "$MOUNT/Leggimi.txt"

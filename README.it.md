@@ -30,16 +30,21 @@ e gestione completa di magnet link e file `.torrent`.
 
 ## Requisiti
 
-- **macOS 14.0** (Sonoma) o successivo su Apple Silicon (arm64).
+- **macOS 15.0** (Sequoia) o successivo su Apple Silicon (arm64).
 - **Xcode Command Line Tools** con Swift 6.x (testato con Swift 6.4). Non serve Xcode completo.
-- **Homebrew** e le dipendenze del motore:
+- **CMake 3.20+** per compilare le dipendenze del motore. Su macOS si installa con
+  `brew install cmake`; non serve alcuna libreria Homebrew a runtime.
 
-```bash
-brew install libtorrent-rasterbar boost openssl@4
-```
+Le dipendenze (`libtorrent`, OpenSSL e gli header Boost) sono **versioni fissate**
+in `Scripts/deps.env` e vengono compilate dai sorgenti con deployment target
+macOS 15.0. Non vengono usate le bottiglie Homebrew: la build è quindi
+riproducibile e il bundle finale non dipende da percorsi esterni.
 
-Testato su Apple Silicon. Su Intel lo script rileva il prefisso Homebrew con
-`brew --prefix`; l'app non è stata testata su Intel.
+Al primo `./build.sh` la compilazione delle dipendenze può richiedere alcuni minuti;
+le build successive riutilizzano `.build/vertex-deps`.
+
+Testato su Apple Silicon. La build è `arm64`; per una release universale servono
+dipendenze compilate per entrambe le architetture e l'app non è stata testata su Intel.
 
 ## Installazione
 
@@ -52,13 +57,12 @@ In alternativa, compila dai sorgenti:
 ```bash
 git clone https://github.com/cicciocanestro/vertex.git
 cd vertex
-brew install libtorrent-rasterbar boost openssl@4
 ./build.sh
 open dist/Vertex.app
 ```
 
-`build.sh` genera anche l'icona se manca, copia le licenze nel bundle e verifica che
-l'app non dipenda più da Homebrew.
+`build.sh` compila le dipendenze fissate, genera l'icona se manca, copia le licenze
+nel bundle, riscrive i percorsi delle dylib e verifica che l'app sia autosufficiente.
 
 ## Compilazione
 
@@ -71,19 +75,28 @@ open dist/Vertex.app
 
 Lo script:
 
-1. compila il pacchetto Swift;
-2. crea `dist/Vertex.app`;
-3. genera l'icona se manca;
-4. copia `libtorrent`, OpenSSL e le licenze dentro il bundle;
-5. riscrive i percorsi delle dylib e applica una firma ad-hoc;
-6. verifica che il bundle non dipenda più da Homebrew.
+1. compila le dipendenze fissate in `Scripts/deps.env` (se non già presenti);
+2. compila il pacchetto Swift;
+3. crea `dist/Vertex.app`;
+4. genera l'icona se manca;
+5. copia `libtorrent`, OpenSSL e le licenze dentro il bundle;
+6. riscrive i percorsi delle dylib e applica una firma ad-hoc;
+7. verifica che il bundle non contenga dipendenze esterne e che il `minos` dei
+   binari non superi quello dichiarato in `Info.plist`.
 
-Se esegui `swift build` senza `build.sh` e Homebrew non è in `/opt/homebrew`, esporta
-prima `HOMEBREW_PREFIX`:
+Se esegui `swift build` senza `build.sh`, compila prima le dipendenze e passa il
+prefix:
 
 ```bash
-export HOMEBREW_PREFIX="$(brew --prefix)"
+./Scripts/build-deps.sh
+export VERTEX_DEPS_PREFIX="$PWD/.build/vertex-deps"
 swift build -c release
+```
+
+Per forzare la ricompilazione delle dipendenze:
+
+```bash
+./build.sh release --rebuild-deps
 ```
 
 ## Release DMG
@@ -100,11 +113,16 @@ Produce in `dist/`:
 
 La DMG contiene `Vertex.app`, un collegamento ad **Applicazioni**, il file `Leggimi.txt`
 e l'icona del volume. Le licenze sono incluse nell'app e raggiungibili dal menu
-**Vertex → Licenze open source**. Lo script verifica la firma dell'app montata e genera
-il checksum SHA-256.
+**Vertex → Licenze open source**. Lo script verifica firma, dipendenze, `minos` e
+architettura sia prima di creare la DMG sia dopo averla montata, poi genera il
+checksum SHA-256.
 
-L'architettura della DMG dipende dal Mac su cui viene creata: su Apple Silicon è
-`arm64`, su Intel è `x86_64`. Per una release universale servono librerie universali.
+La build è `arm64` su Apple Silicon. Per una release universale servono dipendenze
+compilate per entrambe le architetture; la build Intel non è testata.
+
+La pubblicazione è gestita dalla CI: i push su `main` producono un artefatto di build,
+mentre solo i tag `v*` creano una GitHub Release. Il tag deve corrispondere alla
+versione in `Info.plist`; gli asset pubblicati non vengono sovrascritti.
 
 La firma dell'app è **ad-hoc** perché l'ambiente di build non dispone di un certificato
 Developer ID. La DMG è quindi distribuibile, ma su un altro Mac potrebbero comparire gli
@@ -201,7 +219,10 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
   - `DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.
 - `Sources/Vertex` — punto di ingresso dell'app SwiftUI (`@main`, AppDelegate, apertura URL e finestra).
 - `Tests/VertexTests` — suite di test automatica (`VertexTestRunner`).
-- `.github/workflows/ci.yml` — workflow di CI/CD GitHub Actions su runner Apple Silicon.
+- `.github/workflows/ci.yml` — workflow di CI/CD: build e test su push/PR, release solo su tag.
+- `Scripts/deps.env` — versioni e checksum SHA-256 delle dipendenze del motore.
+- `Scripts/build-deps.sh` — compila libtorrent, OpenSSL e gli header Boost con target macOS 15.
+- `Scripts/verify-bundle.sh` — verifica autosufficienza, `minos`, architettura e firma del bundle.
 - `Scripts/make-icon.swift` — genera l'icona `.icns` con CoreGraphics.
 - `Scripts/make-dmg.sh` — crea la DMG distribuibile con checksum SHA-256.
 - `Resources/Info.plist` — bundle, associazione `.torrent`, versione minima.
@@ -213,16 +234,17 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 ```bash
 ./build.sh debug
 ./build.sh test
+./Scripts/build-deps.sh --force   # ricompila le dipendenze fissate
 ```
 
-Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le preferenze e il ciclo vitale del bridge C++. Il workflow di CI/CD viene eseguito automaticamente su GitHub Actions ad ogni push e pull request (`.github/workflows/ci.yml`).
+Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le preferenze e il ciclo vitale del bridge C++. Il workflow di CI/CD viene eseguito automaticamente su GitHub Actions ad ogni push e pull request (`.github/workflows/ci.yml`); i tag `v*` pubblicano la release.
 
 Nelle build DEBUG sono disponibili dati demo e la cattura automatica della finestra
 (`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`).
 
 ## Limitazioni
 
-- macOS 14.0 o successivo su Apple Silicon (arm64); per Intel serve ricompilare librerie universali.
+- macOS 15.0 o successivo su Apple Silicon (arm64); per Intel serve una build universale con dipendenze compilate per entrambe le architetture.
 - Firma ad-hoc, non notarizzata: su un altro Mac potrebbe essere necessario scegliere
   “Apri comunque” dal menu contestuale del Finder. Per la distribuzione conviene firmare
   con Developer ID e notarizzare.

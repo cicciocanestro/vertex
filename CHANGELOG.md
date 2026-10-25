@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.3.3] — 2026-10-25
+
+### Aggiunto
+- Build riproducibile delle dipendenze del motore: `Scripts/deps.env` fissa
+  libtorrent 2.1.2, OpenSSL 3.5.9 e Boost 1.92.0 con checksum SHA-256.
+- `Scripts/build-deps.sh` compila le dipendenze dai sorgenti con deployment target
+  macOS 15.0 e le installa in `.build/vertex-deps`; non usa più le bottiglie Homebrew.
+- `Scripts/verify-bundle.sh` verifica che il bundle sia autosufficiente: nessuna
+  dipendenza Homebrew o percorso di build, presenza di ogni dylib inclusa, `minos`
+  coerente con `Info.plist`, architettura uniforme e firma valida. Viene eseguito
+  da `build.sh`, `make-dmg.sh` e dalla CI.
+- Il test del bridge decodifica uno snapshot JSON reale con `VertexSnapshot`, oltre
+  a verificare il ciclo di vita della sessione libtorrent.
+- Workflow CI/CD guidato dai tag: i push su `main` producono un artefatto verificato,
+  mentre solo i tag `v*` creano una GitHub Release. Gli asset pubblicati non vengono
+  sovrascritti.
+
+### Modificato
+- Requisito minimo portato a **macOS 15.0** in `Package.swift`, `Info.plist`, README,
+  CI e script di packaging.
+- `build.sh` copia l'intera chiusura delle dylib del motore e riscrive i percorsi in
+  modo generico, senza versioni hardcoded di OpenSSL.
+- `make-dmg.sh` verifica il bundle sia prima di creare la DMG sia dopo averla montata.
+- Runner CI aggiornato a `macos-15`, con cache delle dipendenze fissate.
+- `THIRD_PARTY_NOTICES.md` e le licenze aggiornati a OpenSSL 3.5.x.
+
+### Corretto
+- Il DMG macOS 14 della 1.3.2 poteva dipendere da OpenSSL 3 di Homebrew, oppure
+  contenere dylib compilate per macOS 27. La nuova verifica blocca entrambi i casi.
+
 ## [1.3.2] — 2026-10-25
 
 ### Aggiunto
