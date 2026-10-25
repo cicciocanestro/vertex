@@ -1,7 +1,7 @@
 import AppKit
 
-enum AppAppearance {
-    static func apply() {
+package enum AppAppearance {
+    package static func apply() {
         let value = UserDefaults.standard.string(forKey: PrefKey.appearance) ?? "dark"
         let appearance: NSAppearance?
         switch value {

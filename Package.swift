@@ -9,9 +9,10 @@ let openssl = "\(homebrew)/opt/openssl@4"
 
 let package = Package(
     name: "Vertex",
-    platforms: [.macOS("27.0")],
+    platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Vertex", targets: ["Vertex"])
+        .executable(name: "Vertex", targets: ["Vertex"]),
+        .library(name: "VertexKit", targets: ["VertexKit"])
     ],
     targets: [
         .target(
@@ -36,10 +37,20 @@ let package = Package(
                 .linkedLibrary("crypto")
             ]
         ),
+        .target(
+            name: "VertexKit",
+            dependencies: ["CTorrent"],
+            path: "Sources/VertexKit"
+        ),
         .executableTarget(
             name: "Vertex",
-            dependencies: ["CTorrent"],
+            dependencies: ["VertexKit"],
             path: "Sources/Vertex"
+        ),
+        .executableTarget(
+            name: "VertexTestRunner",
+            dependencies: ["VertexKit", "CTorrent"],
+            path: "Tests/VertexTests"
         )
     ],
     cxxLanguageStandard: .cxx17

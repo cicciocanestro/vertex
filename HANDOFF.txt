@@ -87,6 +87,10 @@ Build release + app bundle:
 Build debug:
   ./build.sh debug
 
+Esecuzione suite di test automatica:
+  ./build.sh test
+  (oppure: swift run VertexTestRunner)
+
 Avvio:
   open dist/Vertex.app
 
@@ -102,14 +106,15 @@ libtorrent 2.1 e openssl@4 sono hardcoded nel manifest e in build.sh: se Homebre
 le versioni delle dylib, aggiornare i nomi dei file.
 
 Cosa fa build.sh:
-1. swift build -c release/debug;
-2. crea dist/Vertex.app;
-3. copia Info.plist e icona (generata da Scripts/make-icon.swift se manca);
-4. copia Resources/Licenses nel bundle;
-5. copia libtorrent-rasterbar 2.1 e libssl/libcrypto 4 in Contents/Frameworks;
-6. riscrive gli install name a @executable_path/../Frameworks e @loader_path;
-7. firma ad-hoc le dylib e l'app;
-8. verifica che l'eseguibile non contenga più percorsi /opt/homebrew.
+1. se invocato con 'test', esegue la suite con 'swift run VertexTestRunner';
+2. swift build -c release/debug;
+3. crea dist/Vertex.app;
+4. copia Info.plist e icona (generata da Scripts/make-icon.swift se manca);
+5. copia Resources/Licenses nel bundle;
+6. copia libtorrent-rasterbar 2.1 e libssl/libcrypto 4 in Contents/Frameworks;
+7. riscrive gli install name a @executable_path/../Frameworks e @loader_path;
+8. firma ad-hoc le dylib e l'app;
+9. verifica che l'eseguibile non contenga più percorsi /opt/homebrew.
 
 Creazione DMG:
   ./Scripts/make-dmg.sh              # ricompila e crea la DMG
@@ -126,11 +131,16 @@ creare la DMG: build.sh rifirma in ad-hoc. Usa ./Scripts/make-dmg.sh --no-build.
 -------------------------
 
 Package.swift
-  SwiftPM. Target CTorrent (C++) + eseguibile Vertex. Platform macOS 27.0.
+  SwiftPM. Target CTorrent (C++), libreria interna VertexKit (UI, Models, Engine),
+  eseguibile Vertex (@main) e test runner VertexTestRunner. Platform macOS 14.0+.
   Linka libtorrent-rasterbar, ssl, crypto. cxxLanguageStandard .cxx17.
 
+.github/workflows/ci.yml
+  Workflow GitHub Actions eseguito su push e PR su main su runner macos-14 (arm64):
+  installa dipendenze Homebrew, compila, esegue ./build.sh test e valida il bundle.
+
 build.sh
-  Build release/debug, bundle autosufficiente, firma ad-hoc.
+  Build release/debug/test, bundle autosufficiente, firma ad-hoc.
 
 Scripts/make-icon.swift
   Genera l'icona con CoreGraphics/ImageIO e iconutil.
@@ -154,55 +164,17 @@ Sources/CTorrent/include/vertex_torrent.h
 Sources/CTorrent/vertex_torrent.cpp
   Bridge C++/C verso libtorrent. Tutta la sessione e la serializzazione JSON.
 
-Sources/Vertex/App/
-  VertexApp.swift          @main, finestra singola (Window), AppDelegate, apertura URL.
-  AppDelegate              gestisce .torrent e magnet, quit e reopen.
-  AppCommands.swift        menu, scorciatoie, notifiche interne.
-  AppAppearance.swift      tema applicato a NSApp e a tutte le NSWindow.
+Sources/VertexKit/
+  Libreria interna contenente modelli, engine, viste, temi e utilità.
+  Simboli condivisi con il target Vertex esportati con modificatore 'package'.
 
-Sources/Vertex/Engine/TorrentEngine.swift
-  Singleton @MainActor ObservableObject; polling ogni 0.8 s; aggiunta/rimozione;
-  impostazioni; dettaglio; resume; toast; statistiche; demo mode.
+Sources/Vertex/App/VertexApp.swift
+  Eseguibile snello con @main, AppDelegate, apertura URL e configurazione finestra.
 
-Sources/Vertex/Engine/PortReachabilityTester.swift
-  Test TCP esterno: api.ipify.org per l'IP pubblico, check-host.net per la porta.
-
-Sources/Vertex/Models/Models.swift
-  Torrent, SessionStats, VertexSnapshot, PortMapInfo, PortMapSnapshot,
-  TorrentDetail, filtri, ordinamento, toast.
-
-Sources/Vertex/Utilities/Formatters.swift
-  Formattazione di byte, velocità, ETA, percentuali, date.
-
-Sources/Vertex/Utilities/Localization.swift
-  Helper L()/LF() per le stringhe dinamiche; i testi statici SwiftUI usano le chiavi
-  italiane e sono localizzati automaticamente.
-
-Sources/Vertex/Utilities/AppInfo.swift
-  Versione e build lette da Bundle.main (CFBundleShortVersionString/CFBundleVersion).
-
-Sources/Vertex/Utilities/NetworkInfo.swift
-  Rilevamento dell'IPv4 locale via getifaddrs.
-
-Sources/Vertex/Design/
-  Theme.swift       palette adattiva, ambient background, logo, WindowConfigurator.
-  Components.swift  ProgressRing, stili pulsanti, IconButton, FilterChip, Sparkline,
-                    ToastView, SpeedText.
-  UIState.swift     sostituto di @State.
-
-Sources/Vertex/Views/
-  RootView.swift               layout, filtri, modali, drop, notifiche, demo hooks.
-  HeaderBar.swift              logo, ricerca, Aggiungi, impostazioni.
-  TorrentRow.swift             riga torrent, controlli, context menu.
-  InspectorView.swift          dettaglio, statistiche, file, tracker.
-  AddTorrentSheet.swift        sheet nativo per magnet/file, drop, destinazione.
-  SettingsSheet.swift          overlay impostazioni.
-  StatusBarView.swift          velocità, DHT, porta cliccabile per diagnostica.
-  NetworkDiagnosticsView.swift pannello diagnostica.
-  EmptyStateView.swift         stato vuoto e drop overlay.
-
-Sources/Vertex/DebugSupport.swift
-  Dati demo e cattura schermo, SOLO build DEBUG.
+Tests/VertexTests/
+  Suite di test automatica versionata (FormattersTests, PreferencesTests,
+  ModelsTests, CTorrentBridgeTests, TestSupport, main.swift). Eseguita da
+  VertexTestRunner o ./build.sh test.
 
 docs/screenshot.jpg
   Screenshot usato nel README.
@@ -416,9 +388,9 @@ Le regole ACL del router (Enel DX3301-T1) non sostituiscono il port forwarding/N
   altre lingue.
 - Client volutamente minimale: niente RSS, ricerca torrent, scheduler, limite di rapporto,
   spostamento dati di torrent esistenti.
-- Nessuna suite di test automatica nel repo. È stato usato un harness C++ esterno non
-  versionato per testare add/pausa/resume/priorità/rimozione e un test mirato per la corsa
-  resume/rimozione alla chiusura.
+- Suite di test automatica presente nel repo: VertexTestRunner (eseguibile con ./build.sh test
+  o swift run VertexTestRunner), che testa formattatori, modelli/JSON snapshot, preferenze e
+  ciclo vitale del bridge C++. Workflow CI attivo su GitHub Actions (.github/workflows/ci.yml).
 - Portmap error non distingue TCP/UDP: viene mostrato come errore generico.
 - Il dettaglio può mantenere dati precedenti se una fetch fallisce (select() li azzera).
 - make-dmg.sh usa hdiutil, che su macOS 27 stampa warning di deprecazione ma funziona.
@@ -510,6 +482,7 @@ parametrizzato, altrimenti ad ogni build si torna alla firma ad-hoc.
 [ ] Leggere README.md (o README.it.md), CHANGELOG.md e questo file.
 [ ] git status e git log; non lavorare su modifiche non committate altrui.
 [ ] Verificare l'ambiente: macOS 27, CLT, Homebrew, libtorrent 2.1, openssl@4.
+[ ] Eseguire i test automatici con ./build.sh test.
 [ ] ./build.sh e avviare dist/Vertex.app.
 [ ] Aprire Diagnostica rete (Cmd-Shift-D) e controllare porta/mapping/test.
 [ ] Non introdurre @State: usare UIState + @StateObject.
@@ -525,6 +498,7 @@ parametrizzato, altrimenti ad ogni build si torna alla firma ad-hoc.
 ------------------
 
 cd /Users/<utente>/Desktop/vertex
+./build.sh test
 ./build.sh
 open dist/Vertex.app
 

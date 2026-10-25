@@ -2,20 +2,20 @@ import AppKit
 import CTorrent
 import Foundation
 
-enum PrefKey {
-    static let downloadPath = "downloadPath"
-    static let downloadLimitKB = "downloadLimitKB"
-    static let uploadLimitKB = "uploadLimitKB"
-    static let listenPort = "listenPort"
-    static let dhtEnabled = "dhtEnabled"
-    static let upnpEnabled = "upnpEnabled"
-    static let startPaused = "startPaused"
-    static let sequentialDefault = "sequentialDefault"
-    static let appearance = "appearance"
+package enum PrefKey {
+    package static let downloadPath = "downloadPath"
+    package static let downloadLimitKB = "downloadLimitKB"
+    package static let uploadLimitKB = "uploadLimitKB"
+    package static let listenPort = "listenPort"
+    package static let dhtEnabled = "dhtEnabled"
+    package static let upnpEnabled = "upnpEnabled"
+    package static let startPaused = "startPaused"
+    package static let sequentialDefault = "sequentialDefault"
+    package static let appearance = "appearance"
 }
 
-enum Preferences {
-    static var suggestedDownloadPath: String {
+package enum Preferences {
+    package static var suggestedDownloadPath: String {
         if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
             return downloads.appendingPathComponent("Vertex", isDirectory: true).path
         }
@@ -24,7 +24,7 @@ enum Preferences {
             .path
     }
 
-    static func registerDefaults() {
+    package static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
             PrefKey.downloadPath: suggestedDownloadPath,
             PrefKey.downloadLimitKB: 0,
@@ -38,7 +38,7 @@ enum Preferences {
         ])
     }
 
-    static func resolvedDownloadPath(_ raw: String?) -> String {
+    package static func resolvedDownloadPath(_ raw: String?) -> String {
         let fallback = suggestedDownloadPath
         var path = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if path.isEmpty {
@@ -64,21 +64,21 @@ enum Preferences {
     }
 
     /// Converts a KB/s preference into bytes/s for the C bridge, avoiding Int32 overflow.
-    static func limitBytes(fromKB kb: Int) -> Int32 {
+    package static func limitBytes(fromKB kb: Int) -> Int32 {
         let clampedKB = min(max(kb, 0), Int(Int32.max) / 1024)
         return Int32(clampedKB * 1024)
     }
 
     /// Valid TCP/UDP port, falling back to the BitTorrent default.
-    static func validPort(_ value: Int) -> Int32 {
+    package static func validPort(_ value: Int) -> Int32 {
         (1...65535).contains(value) ? Int32(value) : 6881
     }
 
-    static var downloadPath: String {
+    package static var downloadPath: String {
         resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
     }
 
-    static var resumeDirectory: URL {
+    package static var resumeDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Vertex/resume", isDirectory: true)
@@ -86,8 +86,8 @@ enum Preferences {
 }
 
 @MainActor
-final class TorrentEngine: ObservableObject {
-    static let shared = TorrentEngine()
+package final class TorrentEngine: ObservableObject {
+    package static let shared = TorrentEngine()
 
     @Published private(set) var torrents: [Torrent] = []
     @Published private(set) var stats = SessionStats()
@@ -183,7 +183,7 @@ final class TorrentEngine: ObservableObject {
 
     // MARK: - Public API
 
-    func addMagnet(
+    package func addMagnet(
         _ uri: String,
         destination: String?,
         startPaused: Bool,
@@ -227,7 +227,7 @@ final class TorrentEngine: ObservableObject {
         return nil
     }
 
-    func addTorrentFile(
+    package func addTorrentFile(
         _ url: URL,
         destination: String?,
         startPaused: Bool,
@@ -389,7 +389,7 @@ final class TorrentEngine: ObservableObject {
         }
     }
 
-    func shutdown() {
+    package func shutdown() {
         guard !isShuttingDown else { return }
         isShuttingDown = true
         pollTask?.cancel()

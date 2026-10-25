@@ -2,7 +2,9 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct RootView: View {
+package struct RootView: View {
+    package init() {}
+
     @ObservedObject private var engine = TorrentEngine.shared
     @Environment(\.colorScheme) private var scheme
 
@@ -20,7 +22,7 @@ struct RootView: View {
 
     @FocusState private var searchFocused: Bool
 
-    var body: some View {
+    package var body: some View {
         layout
             .animation(.snappy(duration: 0.22), value: selectedID.value)
             .animation(.easeOut(duration: 0.18), value: engine.toast?.id)

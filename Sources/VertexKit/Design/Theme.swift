@@ -176,8 +176,10 @@ struct LogoMark: View {
     }
 }
 
-struct WindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
+package struct WindowConfigurator: NSViewRepresentable {
+    package init() {}
+
+    package func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
             guard let window = view.window else { return }
@@ -190,5 +192,5 @@ struct WindowConfigurator: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    package func updateNSView(_ nsView: NSView, context: Context) {}
 }

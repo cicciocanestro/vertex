@@ -16,8 +16,10 @@ extension Notification.Name {
     static let vertexFilter = Notification.Name("vertex.filter")
 }
 
-struct AppCommands: Commands {
-    var body: some Commands {
+package struct AppCommands: Commands {
+    package init() {}
+
+    package var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Aggiungi file .torrent…") {
                 post(.vertexAddFile)

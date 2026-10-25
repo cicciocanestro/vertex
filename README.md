@@ -66,6 +66,7 @@ verifies that the app no longer depends on Homebrew.
 ```bash
 ./build.sh          # release build
 ./build.sh debug    # debug build
+./build.sh test     # run automated test suite
 open dist/Vertex.app
 ```
 
@@ -201,11 +202,13 @@ The app is not sandboxed and accesses the chosen folders and the download folder
 
 ```bash
 ./build.sh debug
+./build.sh test
 ```
 
+An automated test suite (`VertexTestRunner`, run via `./build.sh test`) covers formatters, snapshot JSON deserialization, model filtering/sorting, preferences and C++ bridge lifecycle. CI runs on GitHub Actions on every push and pull request (`.github/workflows/ci.yml`).
+
 DEBUG builds provide demo data and automatic window capture (`VERTEX_DEMO=1`,
-`VERTEX_SNAPSHOT=/path/image.png`). There is no automated test suite: the C++ bridge was
-verified with a dedicated harness for adding, pause, resume, file priorities and removal.
+`VERTEX_SNAPSHOT=/path/image.png`).
 
 ## Limitations
 

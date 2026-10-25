@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VertexKit
 
 @main
 struct VertexApp: App {

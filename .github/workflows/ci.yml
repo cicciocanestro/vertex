@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test (macOS Apple Silicon)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies via Homebrew
+        run: |
+          brew install libtorrent-rasterbar boost openssl@4
+
+      - name: Build (Release)
+        run: |
+          swift build -c release
+
+      - name: Run Test Suite
+        run: |
+          ./build.sh test
+
+      - name: Build Application Bundle
+        run: |
+          ./build.sh release
+
+      - name: Verify Bundle Integrity & Signature
+        run: |
+          codesign --verify --deep --strict dist/Vertex.app
+          otool -L dist/Vertex.app/Contents/MacOS/Vertex

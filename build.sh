@@ -23,6 +23,12 @@ if [ ! -f "$LIBTORRENT_LIB" ]; then
     exit 1
 fi
 
+if [ "$CONFIG" = "test" ]; then
+    echo "→ Esecuzione test suite…"
+    swift run VertexTestRunner
+    exit 0
+fi
+
 echo "→ Compilazione ($CONFIG)…"
 swift build -c "$CONFIG"
 BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/${APP_NAME}"

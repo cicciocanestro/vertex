@@ -1,9 +1,9 @@
 import Foundation
 
-enum Fmt {
+package enum Fmt {
     private static let units = ["B", "KB", "MB", "GB", "TB", "PB"]
 
-    static func bytes(_ value: Int64) -> String {
+    package static func bytes(_ value: Int64) -> String {
         let magnitude = Double(abs(value))
         if magnitude < 1000 {
             return "\(value) B"
@@ -23,11 +23,11 @@ enum Fmt {
         return "\(sign)\(number) \(units[unitIndex])"
     }
 
-    static func rate(_ bytesPerSecond: Int64) -> String {
+    package static func rate(_ bytesPerSecond: Int64) -> String {
         "\(bytes(bytesPerSecond))/s"
     }
 
-    static func eta(_ seconds: Int64) -> String {
+    package static func eta(_ seconds: Int64) -> String {
         guard seconds >= 0 else { return "—" }
         if seconds == 0 { return L("Completato") }
         if seconds < 60 { return "\(seconds)s" }
@@ -46,15 +46,15 @@ enum Fmt {
         return hours > 0 ? "\(days)\(dayUnit) \(hours)h" : "\(days)\(dayUnit)"
     }
 
-    static func percent(_ fraction: Double) -> String {
+    package static func percent(_ fraction: Double) -> String {
         String(format: "%.0f%%", locale: Locale.current, min(max(fraction, 0), 1) * 100)
     }
 
-    static func ratio(_ value: Double) -> String {
+    package static func ratio(_ value: Double) -> String {
         String(format: "%.2f", locale: Locale.current, value)
     }
 
-    static func added(_ unix: Int64) -> String {
+    package static func added(_ unix: Int64) -> String {
         guard unix > 0 else { return "—" }
         let date = Date(timeIntervalSince1970: TimeInterval(unix))
         let formatter = DateFormatter()
@@ -64,7 +64,7 @@ enum Fmt {
         return formatter.string(from: date)
     }
 
-    static func relativeDate(_ unix: Int64) -> String {
+    package static func relativeDate(_ unix: Int64) -> String {
         guard unix > 0 else { return "—" }
         let date = Date(timeIntervalSince1970: TimeInterval(unix))
         let formatter = RelativeDateTimeFormatter()
