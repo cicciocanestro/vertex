@@ -21,6 +21,7 @@ let package = Package(
             publicHeadersPath: "include",
             cxxSettings: [
                 .define("TORRENT_USE_OPENSSL", to: "1"),
+                .define("TORRENT_ABI_VERSION", to: "2"),
                 .unsafeFlags([
                     "-I\(libtorrent)/include",
                     "-I\(boost)/include",
@@ -44,7 +45,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "Vertex",
-            dependencies: ["VertexKit"],
+            dependencies: ["VertexKit", "CTorrent"],
             path: "Sources/Vertex"
         ),
         .executableTarget(
