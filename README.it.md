@@ -30,9 +30,7 @@ e gestione completa di magnet link e file `.torrent`.
 
 ## Requisiti
 
-- **macOS 27.0** — le librerie Homebrew attualmente utilizzate sono compilate con SDK 27.
-  Per supportare versioni precedenti di macOS è necessario ricompilare libtorrent con un
-  deployment target più basso.
+- **macOS 14.0** (Sonoma) o successivo su Apple Silicon (arm64).
 - **Xcode Command Line Tools** con Swift 6.x (testato con Swift 6.4). Non serve Xcode completo.
 - **Homebrew** e le dipendenze del motore:
 
@@ -224,8 +222,7 @@ Nelle build DEBUG sono disponibili dati demo e la cattura automatica della fines
 
 ## Limitazioni
 
-- macOS 27.0 con le librerie Homebrew attuali; per versioni precedenti va ricompilato
-  libtorrent con un deployment target inferiore.
+- macOS 14.0 o successivo su Apple Silicon (arm64); per Intel serve ricompilare librerie universali.
 - Firma ad-hoc, non notarizzata: su un altro Mac potrebbe essere necessario scegliere
   “Apri comunque” dal menu contestuale del Finder. Per la distribuzione conviene firmare
   con Developer ID e notarizzare.

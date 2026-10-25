@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build-and-test:
     name: Build & Test (macOS Apple Silicon)
@@ -39,3 +42,29 @@ jobs:
         run: |
           codesign --verify --deep --strict dist/Vertex.app
           otool -L dist/Vertex.app/Contents/MacOS/Vertex
+
+      - name: Create DMG Disk Image
+        run: |
+          ./Scripts/make-dmg.sh --no-build
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vertex-macOS14-arm64-dmg
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+
+      - name: Attach DMG to GitHub Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG trovata. Caricamento DMG compilata su macOS 14..."
+            gh release upload "$TAG" dist/Vertex-${VERSION}-macOS14.0-arm64.dmg* --clobber
+          else
+            echo "Release $TAG non ancora creata. Skip upload."
+          fi
