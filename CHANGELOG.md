@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.2] — 2026-10-25
+
+### Aggiunto
+- Suite di test automatica versionata (`VertexTestRunner`, eseguibile con `./build.sh test`)
+  che copre formattatori, modelli, deserializzazione snapshot JSON, preferenze e ciclo vitale
+  del bridge C++ `CTorrent`.
+- Workflow di CI/CD con GitHub Actions su runner `macos-14` (Apple Silicon M1) che compila,
+  esegue i test e valida l'integrità del bundle ad ogni commit e pull request.
+- Architettura modulare con il target libreria `VertexKit` e visibilità `package` in SwiftPM.
+- Comando `./build.sh test` per l'esecuzione rapida dei test locali.
+
+### Modificato
+- Deployment target minimo configurato su macOS 14.0 in `Package.swift`.
+- Impostato esplicitamente `TORRENT_ABI_VERSION=2` per la compilazione del bridge C++.
+
 ## [1.3.1] — 2026-10-24
 
 ### Aggiunto
