@@ -15,3 +15,7 @@ Resources/AppIcon.iconset/
 
 # Command Code workspace data
 .commandcode/
+
+# Local agent handoff
+HANDOFF.txt
+

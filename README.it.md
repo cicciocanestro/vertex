@@ -191,7 +191,7 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 - `Sources/CTorrent` — bridge C++/C verso libtorrent: sessione, aggiunta torrent,
   snapshot JSON, dettagli file/tracker, resume data, priorità, validazione dei percorsi
   e comandi.
-- `Sources/Vertex` — app SwiftUI:
+- `Sources/VertexKit` — libreria interna con la logica dell'applicazione:
   - `Engine/TorrentEngine.swift` — polling del motore e stato pubblicato;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno tramite check-host.net;
   - `Views/` — lista, righe, pannello dettagli, finestra di aggiunta, impostazioni,
@@ -199,8 +199,11 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
   - `Utilities/NetworkInfo.swift` — rilevamento dell’IP locale;
   - `Utilities/Localization.swift` — helper `L`/`LF` per le stringhe dinamiche;
   - `Design/` — palette adattiva, componenti, animazioni;
-  - `Models/` e `Utilities/` — modelli e formattazione.
-- `Sources/Vertex/DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.
+  - `Models/` e `Utilities/` — modelli e formattazione;
+  - `DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.
+- `Sources/Vertex` — punto di ingresso dell'app SwiftUI (`@main`, AppDelegate, apertura URL e finestra).
+- `Tests/VertexTests` — suite di test automatica (`VertexTestRunner`).
+- `.github/workflows/ci.yml` — workflow di CI/CD GitHub Actions su runner Apple Silicon.
 - `Scripts/make-icon.swift` — genera l'icona `.icns` con CoreGraphics.
 - `Scripts/make-dmg.sh` — crea la DMG distribuibile con checksum SHA-256.
 - `Resources/Info.plist` — bundle, associazione `.torrent`, versione minima.

@@ -183,15 +183,18 @@ The app is not sandboxed and accesses the chosen folders and the download folder
 
 - `Sources/CTorrent` — C++/C bridge to libtorrent: session, adding torrents, JSON snapshot,
   file/tracker details, resume data, priorities, path validation and commands.
-- `Sources/Vertex` — SwiftUI app:
+- `Sources/VertexKit` — core application library:
   - `Engine/TorrentEngine.swift` — engine polling and published state;
   - `Engine/PortReachabilityTester.swift` — external TCP test via check-host.net;
   - `Views/` — list, rows, inspector, add window, settings, network diagnostics, status bar;
   - `Utilities/NetworkInfo.swift` — local IP detection;
   - `Utilities/Localization.swift` — `L`/`LF` helpers for dynamic strings;
   - `Design/` — adaptive palette, components, animations;
-  - `Models/` and `Utilities/` — models and formatting.
-- `Sources/Vertex/DebugSupport.swift` — demo data and screenshot capture, DEBUG builds only.
+  - `Models/` and `Utilities/` — models and formatting;
+  - `DebugSupport.swift` — demo data and screenshot capture, DEBUG builds only.
+- `Sources/Vertex` — SwiftUI app entry point (`@main`, AppDelegate, URL handling, window setup).
+- `Tests/VertexTests` — automated test suite (`VertexTestRunner`).
+- `.github/workflows/ci.yml` — GitHub Actions CI/CD workflow (macOS Apple Silicon runner).
 - `Scripts/make-icon.swift` — generates the `.icns` icon with CoreGraphics.
 - `Scripts/make-dmg.sh` — creates the distributable DMG with SHA-256 checksum.
 - `Resources/Info.plist` — bundle, `.torrent` association, minimum version.
