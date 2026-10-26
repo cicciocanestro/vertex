@@ -21,26 +21,46 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
+    env:
+      # Tagged builds are the canonical release builds and must use the exact
+      # toolchain recorded in Scripts/toolchain.env. Branches may use a newer
+      # runner image for development; the mismatch is reported but not fatal.
+      VERTEX_CANONICAL: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '0' }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Verify arm64 runner
         run: test "$(uname -m)" = arm64
 
-      - name: Ensure CMake is available
+      - name: Select canonical Xcode
         run: |
-          if ! command -v cmake >/dev/null 2>&1; then
-            brew install cmake
+          source Scripts/toolchain.env
+          if [ -d "$VERTEX_CANONICAL_XCODE_PATH" ]; then
+            sudo xcode-select --switch "$VERTEX_CANONICAL_XCODE_PATH"
+            echo "DEVELOPER_DIR=$VERTEX_CANONICAL_XCODE_PATH/Contents/Developer" >> "$GITHUB_ENV"
+            xcodebuild -version
+          elif [ "${VERTEX_CANONICAL}" = "1" ]; then
+            echo "::error::Xcode canonico non trovato: $VERTEX_CANONICAL_XCODE_PATH" >&2
+            exit 1
+          else
+            echo "::warning::Xcode canonico non trovato; build di sviluppo non canonica"
           fi
-          cmake --version
+
+      - name: Verify canonical toolchain
+        run: |
+          if [ "${VERTEX_CANONICAL}" = "1" ]; then
+            ./Scripts/check-toolchain.sh --strict
+          else
+            ./Scripts/check-toolchain.sh --warn
+          fi
 
       - name: Cache pinned engine dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .build/vertex-deps
-          key: vertex-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/deps.env', 'Scripts/build-deps.sh') }}
+          key: vertex-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/deps.env', 'Scripts/build-deps.sh', 'Scripts/toolchain.env') }}
           restore-keys: |
             vertex-deps-${{ runner.os }}-${{ runner.arch }}-
 
@@ -49,6 +69,22 @@ jobs:
 
       - name: Run test suite
         run: ./build.sh test
+
+      - name: Verify test artifacts
+        run: |
+          test -s dist/test-results.xml
+          test -s dist/coverage/coverage.txt
+          test -s dist/coverage/coverage.lcov
+
+      - name: Upload test report and coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Vertex-tests-${{ github.sha }}
+          path: |
+            dist/test-results.xml
+            dist/coverage/
+          if-no-files-found: warn
 
       - name: Build application bundle
         run: ./build.sh release
@@ -74,7 +110,7 @@ jobs:
           }
 
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Vertex-${{ github.sha }}
           path: |
@@ -86,13 +122,13 @@ jobs:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build-and-test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
       - name: Download verified artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: Vertex-${{ github.sha }}
           path: dist

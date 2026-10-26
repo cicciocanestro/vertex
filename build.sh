@@ -51,9 +51,7 @@ else
 fi
 
 if [ "$CONFIG" = "test" ]; then
-    echo "→ Esecuzione test suite…"
-    swift run VertexTestRunner
-    exit 0
+    exec "$ROOT/Scripts/run-tests.sh"
 fi
 
 echo "→ Compilazione ($CONFIG)…"

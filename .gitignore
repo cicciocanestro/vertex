@@ -3,6 +3,10 @@
 .swiftpm/
 dist/
 
+# Coverage artifacts
+*.profraw
+*.profdata
+
 # Generated icon
 Resources/AppIcon.icns
 Resources/AppIcon.iconset/

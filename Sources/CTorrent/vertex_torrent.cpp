@@ -1,6 +1,7 @@
 #include "vertex_torrent.h"
 
 #include <libtorrent/add_torrent_params.hpp>
+#include <libtorrent/address.hpp>
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/announce_entry.hpp>
 #include <libtorrent/hex.hpp>
@@ -905,6 +906,47 @@ int vt_add_torrent_file(vt_session* session,
             return -1;
         }
         unmark_removed(session, added_id);
+        return 0;
+    }
+    catch (std::exception const& e)
+    {
+        session->last_error = e.what();
+        return -1;
+    }
+    catch (...)
+    {
+        session->last_error = "Errore sconosciuto";
+        return -1;
+    }
+}
+
+int vt_add_peer(vt_session* session,
+                const char* torrent_id_value,
+                const char* host,
+                int port)
+{
+    if (!session || !torrent_id_value || !host || port <= 0 || port > 65535)
+        return -1;
+
+    try
+    {
+        auto handle = find_handle(session, torrent_id_value);
+        if (!handle.is_valid())
+        {
+            session->last_error = "Torrent non trovato";
+            return -1;
+        }
+
+        lt::error_code ec;
+        auto address = lt::make_address(host, ec);
+        if (ec)
+        {
+            session->last_error = ec.message();
+            return -1;
+        }
+
+        handle.connect_peer(lt::tcp::endpoint(
+            address, static_cast<unsigned short>(port)));
         return 0;
     }
     catch (std::exception const& e)

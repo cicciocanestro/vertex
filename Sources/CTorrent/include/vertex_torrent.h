@@ -34,6 +34,14 @@ int vt_add_torrent_file(vt_session* session,
                         int paused,
                         int sequential);
 
+/* Connect an already-added torrent to an explicit peer. This is used by the
+   deterministic loopback integration tests and can also be useful for
+   diagnostics; it does not enable any external discovery service. */
+int vt_add_peer(vt_session* session,
+                const char* torrent_id,
+                const char* host,
+                int port);
+
 int vt_control(vt_session* session, const char* torrent_id, const char* action);
 int vt_set_file_priority(vt_session* session, const char* torrent_id, int file_index, int priority);
 int vt_apply_settings(vt_session* session,

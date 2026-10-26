@@ -1,9 +1,35 @@
 # Changelog
 
+## [1.3.4] — 2026-10-26
+
+Release focalizzata su test d'integrazione, report coverage e toolchain di build
+riproducibile a parità di ambiente CI.
+
+### Documentazione
+- Chiarita la portata della riproducibilità: sorgenti delle dipendenze fissati e build
+  canonica prodotta dalla CI, senza la promessa di app o DMG identici bit-per-bit su
+  macchine arbitrarie. Una DMG locale non è confrontabile con l'asset pubblicato.
+
+### Test
+- Aggiunti test d'integrazione deterministici su loopback con due sessioni libtorrent:
+  trasferimenti v1/v2, pausa/ripresa, resume dopo riavvio, priorità file, rimozione con
+  `delete_files`, torrent multipli e failure path.
+- Aggiunte fixture torrent v1/v2 in `Tests/Fixtures`, senza tracker o rete esterna.
+- `./build.sh test` produce ora un report JUnit (`dist/test-results.xml`) e coverage
+  LLVM/LCOV (`dist/coverage/`); la CI carica entrambi gli artefatti.
+
+### Build e CI
+- Aggiunto `Scripts/toolchain.env` con Xcode, CMake, macOS e immagine runner canonici.
+- Aggiunto `Scripts/check-toolchain.sh`: la CI usa la modalità `--strict` sui tag di
+  release e segnala le differenze sulle build di sviluppo.
+- La CI seleziona esplicitamente Xcode 16.4 e non installa più CMake senza versione
+  fissata; le dipendenze in cache vengono invalidate quando cambia il toolchain.
+- Le GitHub Actions sono fissate a SHA immutabili.
+
 ## [1.3.3] — 2026-10-25
 
 ### Aggiunto
-- Build riproducibile delle dipendenze del motore: `Scripts/deps.env` fissa
+- Dipendenze del motore fissate e compilate dai sorgenti: `Scripts/deps.env` fissa
   libtorrent 2.1.2, OpenSSL 3.5.9 e Boost 1.92.0 con checksum SHA-256.
 - `Scripts/build-deps.sh` compila le dipendenze dai sorgenti con deployment target
   macOS 15.0 e le installa in `.build/vertex-deps`; non usa più le bottiglie Homebrew.

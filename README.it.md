@@ -31,14 +31,23 @@ e gestione completa di magnet link e file `.torrent`.
 ## Requisiti
 
 - **macOS 15.0** (Sequoia) o successivo su Apple Silicon (arm64).
-- **Xcode Command Line Tools** con Swift 6.x (testato con Swift 6.4). Non serve Xcode completo.
-- **CMake 3.20+** per compilare le dipendenze del motore. Su macOS si installa con
-  `brew install cmake`; non serve alcuna libreria Homebrew a runtime.
+- **Xcode Command Line Tools** con Swift 6.x per le build locali (testato con Swift 6.4).
+  Non serve Xcode completo per lo sviluppo; le release canoniche usano Xcode 16.4 come
+  registrato in `Scripts/toolchain.env`.
+- **CMake 3.20+** per compilare le dipendenze del motore (build locali testate con
+  CMake 4.4.4). Su macOS si installa con `brew install cmake`; non serve alcuna
+  libreria Homebrew a runtime.
 
 Le dipendenze (`libtorrent`, OpenSSL e gli header Boost) sono **versioni fissate**
 in `Scripts/deps.env` e vengono compilate dai sorgenti con deployment target
-macOS 15.0. Non vengono usate le bottiglie Homebrew: la build è quindi
-riproducibile e il bundle finale non dipende da percorsi esterni.
+macOS 15.0. Non vengono usate le bottiglie Homebrew: la chiusura delle dipendenze
+è quindi fissata ai sorgenti e il bundle finale non dipende da percorsi esterni.
+
+Questo **non** implica che app o DMG siano riproducibili bit-per-bit su qualsiasi Mac.
+Il toolchain canonico di release (Xcode, CMake e immagine del runner) è registrato in
+`Scripts/toolchain.env` e verificato dalla CI. Le build locali possono usare strumenti,
+percorsi o metadati del filesystem diversi; la DMG pubblicata è quella prodotta dalla CI
+e il suo SHA-256 è il checksum canonico.
 
 Al primo `./build.sh` la compilazione delle dipendenze può richiedere alcuni minuti;
 le build successive riutilizzano `.build/vertex-deps`.
@@ -84,6 +93,34 @@ Lo script:
 7. verifica che il bundle non contenga dipendenze esterne e che il `minos` dei
    binari non superi quello dichiarato in `Info.plist`.
 
+### Riproducibilità e provenienza
+
+Il progetto garantisce:
+
+- URL e SHA-256 di ogni sorgente delle dipendenze fissati in `Scripts/deps.env`;
+- l'intera chiusura delle dipendenze copiata nell'app e verificata da
+  `Scripts/verify-bundle.sh`;
+- il toolchain canonico registrato in `Scripts/toolchain.env` e verificato dalla CI
+  (`Scripts/check-toolchain.sh --strict` sui tag di release);
+- che l'asset pubblicato sia quello compilato e checksummato dalla CI.
+
+Non garantisce file app o DMG identici bit-per-bit su macchine arbitrarie, né due
+esecuzioni della DMG byte-identiche. Xcode/SDK, CMake, l'immagine del runner, il percorso
+del checkout e i timestamp HFS+/UDIF scritti da `hdiutil` possono cambiare i byte. In
+particolare, una DMG compilata localmente non è attesa coincidere con l'asset CI: il suo
+hash non va confrontato con il checksum pubblicato. Per verificare l'artefatto canonico
+usa il file `.dmg.sha256` pubblicato.
+
+Per controllare l'ambiente locale senza bloccare la build:
+
+```bash
+./Scripts/check-toolchain.sh --warn
+```
+
+La CI usa `--strict` sui tag. Quando cambiano l'immagine del runner o il toolchain,
+aggiorna `Scripts/toolchain.env` solo dopo aver validato il nuovo artefatto e il suo
+checksum.
+
 Se esegui `swift build` senza `build.sh`, compila prima le dipendenze e passa il
 prefix:
 
@@ -117,6 +154,10 @@ e l'icona del volume. Le licenze sono incluse nell'app e raggiungibili dal menu
 architettura sia prima di creare la DMG sia dopo averla montata, poi genera il
 checksum SHA-256.
 
+La DMG locale è utile per provare l'installer, ma non è l'artefatto canonico di release:
+`hdiutil`, i metadati HFS+/UDIF e il toolchain locale possono cambiarne i byte anche a
+parità di app. Solo la DMG prodotta dalla CI e il relativo `.sha256` sono canonici.
+
 La build è `arm64` su Apple Silicon. Per una release universale servono dipendenze
 compilate per entrambe le architetture; la build Intel non è testata.
 
@@ -140,7 +181,8 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 - I link magnet aperti dal browser o dal Finder vengono gestiti dall'app come client
   BitTorrent.
 - La cartella di destinazione viene validata: se viene indicato un file, viene usata la
-  cartella che lo contiene; se non è scrivibile, l'app torna alla destinazione predefinita.
+  cartella che lo contiene; se non è scrivibile, l'app mostra un errore e non aggiunge
+  il torrent.
 - Le opzioni della finestra di aggiunta (cartella, avvio in pausa, download sequenziale)
   valgono **solo per quel torrent**. I valori predefiniti si configurano nelle Impostazioni.
 
@@ -218,9 +260,13 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
   - `Models/` e `Utilities/` — modelli e formattazione;
   - `DebugSupport.swift` — dati demo e cattura schermo, solo build DEBUG.
 - `Sources/Vertex` — punto di ingresso dell'app SwiftUI (`@main`, AppDelegate, apertura URL e finestra).
-- `Tests/VertexTests` — suite di test automatica (`VertexTestRunner`).
+- `Tests/VertexTests` — suite di test automatica (`VertexTestRunner`), inclusi test d'integrazione libtorrent su loopback.
+- `Tests/Fixtures` — torrent deterministici v1/v2 usati dai test d'integrazione.
 - `.github/workflows/ci.yml` — workflow di CI/CD: build e test su push/PR, release solo su tag.
+- `Scripts/run-tests.sh` — esegue la suite con coverage LLVM e produce report JUnit/LCOV.
 - `Scripts/deps.env` — versioni e checksum SHA-256 delle dipendenze del motore.
+- `Scripts/toolchain.env` — Xcode, CMake, macOS e immagine runner canoniche per la release.
+- `Scripts/check-toolchain.sh` — confronta la macchina corrente con il toolchain canonico.
 - `Scripts/build-deps.sh` — compila libtorrent, OpenSSL e gli header Boost con target macOS 15.
 - `Scripts/verify-bundle.sh` — verifica autosufficienza, `minos`, architettura e firma del bundle.
 - `Scripts/make-icon.swift` — genera l'icona `.icns` con CoreGraphics.
@@ -232,12 +278,23 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 ## Sviluppo
 
 ```bash
+./Scripts/check-toolchain.sh --warn  # il toolchain locale non canonico è ammesso
 ./build.sh debug
 ./build.sh test
-./Scripts/build-deps.sh --force   # ricompila le dipendenze fissate
+./Scripts/build-deps.sh --force      # ricompila le dipendenze fissate
 ```
 
-Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le preferenze e il ciclo vitale del bridge C++. Il workflow di CI/CD viene eseguito automaticamente su GitHub Actions ad ogni push e pull request (`.github/workflows/ci.yml`); i tag `v*` pubblicano la release.
+Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la
+formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le
+preferenze e il ciclo vitale del bridge C++. Esegue anche test d'integrazione deterministici
+su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa, ricaricamento
+del resume dopo il riavvio di una sessione, priorità dei file, rimozione con e senza
+`delete_files`, torrent concorrenti e path di errore. Non viene usato alcun tracker esterno
+o connessione Internet.
+
+`./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
+(`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è
+headless: le viste SwiftUI e i tracker esterni reali non vengono esercitati.
 
 Nelle build DEBUG sono disponibili dati demo e la cattura automatica della finestra
 (`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`).

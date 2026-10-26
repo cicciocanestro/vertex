@@ -13,6 +13,8 @@ cd "$ROOT"
 
 # shellcheck source=Scripts/deps.env
 source "$ROOT/Scripts/deps.env"
+# shellcheck source=Scripts/toolchain.env
+source "$ROOT/Scripts/toolchain.env"
 
 PREFIX="${VERTEX_DEPS_PREFIX:-$ROOT/.build/vertex-deps}"
 SRC="${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}"
@@ -38,11 +40,29 @@ for arg in "$@"; do
     esac
 done
 
+if [ "${VERTEX_CANONICAL:-0}" = "1" ]; then
+    "$ROOT/Scripts/check-toolchain.sh" --strict
+else
+    "$ROOT/Scripts/check-toolchain.sh" --warn
+fi
+
+# The cache stamp must include the actual compiler/build tools, not only the
+# dependency versions: a cached dependency tree from a different CMake/Xcode
+# must never be reused silently.
+toolchain_fingerprint() {
+    printf 'arch=%s\n' "$(uname -m)"
+    printf 'macos=%s\n' "$(sw_vers -productVersion)"
+    printf 'cmake=%s\n' "$({ cmake --version 2>/dev/null || true; } | awk 'NR==1 {print $3; exit}')"
+    printf 'xcode=%s\n' "$({ xcodebuild -version 2>/dev/null || true; } | tr '\n' ' ')"
+    printf 'swift=%s\n' "$({ swift --version 2>/dev/null || true; } | tr '\n' ' ')"
+}
+TOOLCHAIN_HASH="$(toolchain_fingerprint | shasum -a 256 | awk '{print $1}')"
+
 if [ "$FORCE" -eq 0 ] && [ -f "$STAMP" ]; then
     CURRENT_STAMP="$(cat "$STAMP")"
     LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
     SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
-    EXPECTED_STAMP="lock=$LOCK_HASH script=$SCRIPT_HASH target=$TARGET arch=$ARCH"
+    EXPECTED_STAMP="lock=$LOCK_HASH script=$SCRIPT_HASH toolchain=$TOOLCHAIN_HASH target=$TARGET arch=$ARCH"
     if [ "$CURRENT_STAMP" = "$EXPECTED_STAMP" ] \
         && [ -n "$(find "$PREFIX/lib" -maxdepth 1 -name 'libtorrent-rasterbar*.dylib' -print -quit)" ] \
         && [ -f "$PREFIX/include/boost/version.hpp" ] \
@@ -251,7 +271,7 @@ done
 
 LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
 SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
-printf 'lock=%s script=%s target=%s arch=%s\n' \
-    "$LOCK_HASH" "$SCRIPT_HASH" "$TARGET" "$ARCH" > "$STAMP"
+printf 'lock=%s script=%s toolchain=%s target=%s arch=%s\n' \
+    "$LOCK_HASH" "$SCRIPT_HASH" "$TOOLCHAIN_HASH" "$TARGET" "$ARCH" > "$STAMP"
 
 echo "✓ Dipendenze pronte in $PREFIX"
