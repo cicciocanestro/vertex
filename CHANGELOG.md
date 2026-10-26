@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### CI
+- Aggiornate le GitHub Actions a versioni con runtime Node.js 24
+  (`checkout` 7.0.1, `cache` 6.1.0, `upload-artifact` 7.0.2,
+  `download-artifact` 8.0.2), eliminando gli avvisi di deprecazione di Node.js 20.
+
 ## [1.3.4] — 2026-10-26
 
 Release focalizzata su test d'integrazione, report coverage e toolchain di build
