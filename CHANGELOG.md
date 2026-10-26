@@ -17,6 +17,8 @@ riproducibile a parità di ambiente CI.
 - Aggiunte fixture torrent v1/v2 in `Tests/Fixtures`, senza tracker o rete esterna.
 - `./build.sh test` produce ora un report JUnit (`dist/test-results.xml`) e coverage
   LLVM/LCOV (`dist/coverage/`); la CI carica entrambi gli artefatti.
+- Il test pausa/ripresa verifica la transizione di stato senza dipendere dalla
+  riconnessione del peer locale, evitando un timeout su runner CI più lenti.
 
 ### Build e CI
 - Aggiunto `Scripts/toolchain.env` con Xcode, CMake, macOS e immagine runner canonici.
