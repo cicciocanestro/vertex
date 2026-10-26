@@ -35,6 +35,8 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = 0
     @AppStorage(PrefKey.listenPort) private var listenPort = 6881
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
+    @AppStorage(PrefKey.pexEnabled) private var pexEnabled = true
+    @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = true
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = true
     @AppStorage(PrefKey.startPaused) private var startPaused = false
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = false
@@ -99,9 +101,25 @@ struct SettingsSheet: View {
                         section("Rete", palette) {
                             toggleRow(
                                 icon: "globe",
-                                title: "DHT e Peer Exchange",
+                                title: "DHT",
                                 subtitle: "Trova peer senza tracker centralizzati",
                                 isOn: $dhtEnabled,
+                                palette: palette
+                            )
+                            rowDivider(palette)
+                            toggleRow(
+                                icon: "person.2",
+                                title: "Peer Exchange (PEX)",
+                                subtitle: "Scambia peer con i client connessi",
+                                isOn: $pexEnabled,
+                                palette: palette
+                            )
+                            rowDivider(palette)
+                            toggleRow(
+                                icon: "dot.radiowaves.left.and.right",
+                                title: "Local Service Discovery (LSD)",
+                                subtitle: "Scopre peer sulla rete locale",
+                                isOn: $lsdEnabled,
                                 palette: palette
                             )
                             rowDivider(palette)
@@ -166,6 +184,8 @@ struct SettingsSheet: View {
         .onChange(of: uploadLimitKB) { engine.applySettings() }
         .onChange(of: listenPort) { engine.applySettings() }
         .onChange(of: dhtEnabled) { engine.applySettings() }
+        .onChange(of: pexEnabled) { engine.applySettings() }
+        .onChange(of: lsdEnabled) { engine.applySettings() }
         .onChange(of: upnpEnabled) { engine.applySettings() }
         .onChange(of: appearance) { AppAppearance.apply() }
         .onDisappear { engine.applySettings() }

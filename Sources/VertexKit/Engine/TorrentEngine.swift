@@ -8,6 +8,8 @@ package enum PrefKey {
     package static let uploadLimitKB = "uploadLimitKB"
     package static let listenPort = "listenPort"
     package static let dhtEnabled = "dhtEnabled"
+    package static let pexEnabled = "pexEnabled"
+    package static let lsdEnabled = "lsdEnabled"
     package static let upnpEnabled = "upnpEnabled"
     package static let startPaused = "startPaused"
     package static let sequentialDefault = "sequentialDefault"
@@ -31,6 +33,8 @@ package enum Preferences {
             PrefKey.uploadLimitKB: 0,
             PrefKey.listenPort: 6881,
             PrefKey.dhtEnabled: true,
+            PrefKey.pexEnabled: true,
+            PrefKey.lsdEnabled: true,
             PrefKey.upnpEnabled: true,
             PrefKey.startPaused: false,
             PrefKey.sequentialDefault: false,
@@ -106,6 +110,7 @@ package final class TorrentEngine: ObservableObject {
     private var forceDetailRefresh = false
     private var hasLoadedSnapshot = false
     private var isShuttingDown = false
+    private var sessionPexEnabled = true
     private let decoder = JSONDecoder()
 
     private init() {
@@ -119,6 +124,26 @@ package final class TorrentEngine: ObservableObject {
         }
         #endif
 
+        session = createSession()
+        isReady = session != nil
+
+        if session == nil {
+            DispatchQueue.main.async { [weak self] in
+                self?.showToast(
+                    L("Impossibile avviare il motore BitTorrent"),
+                    kind: .error,
+                    detail: L("Controlla che libtorrent-rasterbar sia installata.")
+                )
+            }
+        } else {
+            startPolling()
+        }
+    }
+
+    /// Creates the libtorrent session using the current preferences. PEX is a
+    /// session plugin in libtorrent, so it is selected here and cannot be
+    /// changed on a live session.
+    private func createSession() -> OpaquePointer? {
         let defaults = UserDefaults.standard
         let downloadPath = Preferences.downloadPath
         let resumeDirectory = Preferences.resumeDirectory
@@ -140,40 +165,58 @@ package final class TorrentEngine: ObservableObject {
         let uploadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB))
         let port = Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort))
         let dht = defaults.bool(forKey: PrefKey.dhtEnabled)
+        let pex = defaults.bool(forKey: PrefKey.pexEnabled)
+        let lsd = defaults.bool(forKey: PrefKey.lsdEnabled)
+        let upnp = defaults.bool(forKey: PrefKey.upnpEnabled)
+        sessionPexEnabled = pex
 
-        session = vt_session_create(
+        let created = vt_session_create_ex(
             downloadPath,
             resumeDirectory.path,
             port,
             downloadLimit,
             uploadLimit,
-            dht ? 1 : 0
+            dht ? 1 : 0,
+            pex ? 1 : 0,
+            lsd ? 1 : 0
         )
+        guard let created else { return nil }
 
-        isReady = session != nil
+        _ = vt_apply_settings_ex(
+            created,
+            port,
+            downloadLimit,
+            uploadLimit,
+            dht ? 1 : 0,
+            upnp ? 1 : 0,
+            lsd ? 1 : 0
+        )
+        return created
+    }
 
+    private func restartSessionForPeerExchange() {
+        pollTask?.cancel()
+        pollTask = nil
         if let session {
-            let upnp = defaults.bool(forKey: PrefKey.upnpEnabled)
-            _ = vt_apply_settings(
-                session,
-                port,
-                downloadLimit,
-                uploadLimit,
-                dht ? 1 : 0,
-                upnp ? 1 : 0
-            )
+            vt_session_destroy(session)
+            self.session = nil
         }
+        isShuttingDown = false
+        isReady = false
+        hasLoadedSnapshot = false
+        unfinishedIDs.removeAll()
 
+        session = createSession()
+        isReady = session != nil
         if session == nil {
-            DispatchQueue.main.async { [weak self] in
-                self?.showToast(
-                    L("Impossibile avviare il motore BitTorrent"),
-                    kind: .error,
-                    detail: L("Controlla che libtorrent-rasterbar sia installata.")
-                )
-            }
+            showToast(
+                L("Impossibile riavviare il motore BitTorrent"),
+                kind: .error,
+                detail: L("La modifica a Peer Exchange non è stata applicata.")
+            )
         } else {
             startPolling()
+            poll()
         }
     }
 
@@ -358,15 +401,26 @@ package final class TorrentEngine: ObservableObject {
         let uploadLimit = Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB))
         let port = Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort))
         let dht = defaults.bool(forKey: PrefKey.dhtEnabled)
+        let pex = defaults.bool(forKey: PrefKey.pexEnabled)
+        let lsd = defaults.bool(forKey: PrefKey.lsdEnabled)
         let upnp = defaults.bool(forKey: PrefKey.upnpEnabled)
 
-        _ = vt_apply_settings(
+        // PEX is a session plugin in libtorrent 2.1: applying a change requires
+        // recreating the session. Resume data is written during destruction and
+        // reloaded by createSession().
+        if pex != sessionPexEnabled {
+            restartSessionForPeerExchange()
+            return
+        }
+
+        _ = vt_apply_settings_ex(
             session,
             port,
             downloadLimit,
             uploadLimit,
             dht ? 1 : 0,
-            upnp ? 1 : 0
+            upnp ? 1 : 0,
+            lsd ? 1 : 0
         )
         poll()
     }

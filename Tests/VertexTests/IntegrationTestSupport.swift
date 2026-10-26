@@ -185,7 +185,14 @@ final class BridgeSession {
     let requestedPort: Int
     private var closed = false
 
-    init(downloadDirectory: URL, resumeDirectory: URL, port: Int, enableDHT: Bool = false) throws {
+    init(
+        downloadDirectory: URL,
+        resumeDirectory: URL,
+        port: Int,
+        enableDHT: Bool = false,
+        enablePEX: Bool = false,
+        enableLSD: Bool = false
+    ) throws {
         self.downloadDirectory = downloadDirectory
         self.resumeDirectory = resumeDirectory
         self.requestedPort = port
@@ -201,13 +208,15 @@ final class BridgeSession {
 
         let created = downloadDirectory.path.withCString { downloadPath in
             resumeDirectory.path.withCString { resumePath in
-                vt_session_create(
+                vt_session_create_ex(
                     downloadPath,
                     resumePath,
                     Int32(port),
                     0,
                     0,
-                    enableDHT ? 1 : 0
+                    enableDHT ? 1 : 0,
+                    enablePEX ? 1 : 0,
+                    enableLSD ? 1 : 0
                 )
             }
         }
@@ -216,8 +225,16 @@ final class BridgeSession {
         }
         self.pointer = created
 
-        // Keep tests hermetic even if the caller requests DHT/UPnP.
-        _ = vt_apply_settings(pointer, Int32(port), 0, 0, enableDHT ? 1 : 0, 0)
+        // Keep tests hermetic even if the caller requests discovery features.
+        _ = vt_apply_settings_ex(
+            pointer,
+            Int32(port),
+            0,
+            0,
+            enableDHT ? 1 : 0,
+            0,
+            enableLSD ? 1 : 0
+        )
     }
 
     deinit {

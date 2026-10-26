@@ -201,11 +201,15 @@ hardened runtime and notarize the app with `notarytool` and `stapler` before cre
 
 ### Settings
 
-- Download folder, global download/upload limits, listening port, DHT, UPnP/NAT-PMP.
+- Download folder, global download/upload limits, listening port, DHT, Peer Exchange (PEX),
+  Local Service Discovery (LSD), UPnP/NAT-PMP.
 - Start paused and sequential download defaults for new torrents; choices made in the add
   window apply only to the individual torrent.
 - Dark, light or system appearance.
 - The download folder applies to new torrents; torrents already added keep their own path.
+- DHT and LSD apply immediately. Changing Peer Exchange recreates the libtorrent session
+  so the plugin is actually enabled or disabled; active torrents are restored from
+  resume data.
 
 ## Shortcuts
 

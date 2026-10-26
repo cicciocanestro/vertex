@@ -132,8 +132,12 @@
 "Limite upload" = "Upload limit";
 "Porta di ascolto" = "Listening port";
 "Usata per le connessioni in ingresso" = "Used for incoming connections";
-"DHT e Peer Exchange" = "DHT and Peer Exchange";
+"DHT" = "DHT";
 "Trova peer senza tracker centralizzati" = "Find peers without centralized trackers";
+"Peer Exchange (PEX)" = "Peer Exchange (PEX)";
+"Scambia peer con i client connessi" = "Share peers with connected clients";
+"Local Service Discovery (LSD)" = "Local Service Discovery (LSD)";
+"Scopre peer sulla rete locale" = "Discover peers on the local network";
 "Apri automaticamente la porta sul router" = "Open the port on the router automatically";
 "Avvia i nuovi torrent in pausa" = "Start new torrents paused";
 "Potrai riprenderli quando vuoi" = "You can resume them whenever you want";
@@ -201,6 +205,8 @@
 
 /* Engine and errors */
 "Impossibile avviare il motore BitTorrent" = "Unable to start the BitTorrent engine";
+"Impossibile riavviare il motore BitTorrent" = "Unable to restart the BitTorrent engine";
+"La modifica a Peer Exchange non è stata applicata." = "The Peer Exchange change was not applied.";
 "Controlla che libtorrent-rasterbar sia installata." = "Check that libtorrent-rasterbar is installed.";
 "Motore non disponibile." = "Engine unavailable.";
 "Il link magnet non è valido." = "The magnet link is not valid.";

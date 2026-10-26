@@ -22,19 +22,27 @@ enum CTorrentBridgeTests {
             // Create session
             let session = downloadDir.path.withCString { dlPath in
                 resumeDir.path.withCString { resPath in
-                    vt_session_create(dlPath, resPath, 6882, 0, 0, 0)
+                    vt_session_create_ex(dlPath, resPath, 6882, 0, 0, 0, 0, 0)
                 }
             }
 
-            try TestRunner.assertNotNil(session, "vt_session_create deve restituire un puntatore valido")
+            try TestRunner.assertNotNil(session, "vt_session_create_ex deve restituire un puntatore valido")
             guard let session else { return }
 
             // Poll
             vt_session_poll(session)
 
             // Apply settings
-            let settingsResult = vt_apply_settings(session, 6883, 1024 * 1024, 512 * 1024, 0, 0)
-            try TestRunner.assertEqual(settingsResult, 0, "vt_apply_settings deve restituire 0 per successo")
+            let settingsResult = vt_apply_settings_ex(
+                session,
+                6883,
+                1024 * 1024,
+                512 * 1024,
+                0,
+                0,
+                0
+            )
+            try TestRunner.assertEqual(settingsResult, 0, "vt_apply_settings_ex deve restituire 0 per successo")
 
             // Snapshot JSON
             let cSnapshot = vt_snapshot_json(session)

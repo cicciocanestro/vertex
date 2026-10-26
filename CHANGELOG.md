@@ -1,6 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [1.3.5] — 2026-10-26
+
+Release dedicata al controllo delle funzioni di discovery e all'aggiornamento
+dell'infrastruttura CI a Node.js 24.
+
+### Corretto
+- Separati i controlli DHT, Peer Exchange e Local Service Discovery.
+- Il toggle PEX ora abilita o disabilita realmente l'estensione `ut_pex` ricreando la
+  sessione libtorrent con resume data, invece di limitarsi a cambiare `enable_dht`.
+- Aggiunto il toggle LSD, applicato a caldo tramite `enable_lsd`.
 
 ### CI
 - Aggiornate le GitHub Actions a versioni con runtime Node.js 24

@@ -10,6 +10,10 @@
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
+#include <libtorrent/session_params.hpp>
+#include <libtorrent/extensions/smart_ban.hpp>
+#include <libtorrent/extensions/ut_metadata.hpp>
+#include <libtorrent/extensions/ut_pex.hpp>
 #include <libtorrent/session_stats.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/torrent_flags.hpp>
@@ -330,6 +334,26 @@ vt_session* vt_session_create(const char* download_dir,
                              int upload_limit_bytes,
                              int enable_dht)
 {
+    return vt_session_create_ex(
+        download_dir,
+        resume_dir,
+        listen_port,
+        download_limit_bytes,
+        upload_limit_bytes,
+        enable_dht,
+        1,
+        1);
+}
+
+vt_session* vt_session_create_ex(const char* download_dir,
+                                 const char* resume_dir,
+                                 int listen_port,
+                                 int download_limit_bytes,
+                                 int upload_limit_bytes,
+                                 int enable_dht,
+                                 int enable_pex,
+                                 int enable_lsd)
+{
     try
     {
         auto session = std::make_unique<vt_session>();
@@ -355,7 +379,7 @@ vt_session* vt_session_create(const char* download_dir,
                          "0.0.0.0:" + std::to_string(session->listen_port) +
                              ",[::]:" + std::to_string(session->listen_port));
         settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
-        settings.set_bool(lt::settings_pack::enable_lsd, true);
+        settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
         settings.set_bool(lt::settings_pack::enable_upnp, true);
         settings.set_bool(lt::settings_pack::enable_natpmp, true);
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
@@ -369,7 +393,15 @@ vt_session* vt_session_create(const char* download_dir,
         settings.set_bool(lt::settings_pack::announce_to_all_tiers, true);
         settings.set_bool(lt::settings_pack::announce_to_all_trackers, true);
 
-        session->session = std::make_unique<lt::session>(settings);
+        // Do not use the implicit default plugin list: ut_pex must be
+        // controllable per session. ut_metadata is required for magnet links
+        // and smart_ban keeps corrupt peers out.
+        lt::session_params params(std::move(settings), {});
+        session->session = std::make_unique<lt::session>(std::move(params));
+        session->session->add_extension(&lt::create_ut_metadata_plugin);
+        session->session->add_extension(&lt::create_smart_ban_plugin);
+        if (enable_pex != 0)
+            session->session->add_extension(&lt::create_ut_pex_plugin);
         session->dht_metric_index = lt::find_metric_idx("dht.dht_nodes");
         session->last_stats = std::chrono::steady_clock::now();
         session->last_resume_save = std::chrono::steady_clock::now();
@@ -1076,6 +1108,24 @@ int vt_apply_settings(vt_session* session,
                       int enable_dht,
                       int enable_upnp)
 {
+    return vt_apply_settings_ex(
+        session,
+        listen_port,
+        download_limit_bytes,
+        upload_limit_bytes,
+        enable_dht,
+        enable_upnp,
+        1);
+}
+
+int vt_apply_settings_ex(vt_session* session,
+                         int listen_port,
+                         int download_limit_bytes,
+                         int upload_limit_bytes,
+                         int enable_dht,
+                         int enable_upnp,
+                         int enable_lsd)
+{
     if (!session || !session->session)
         return -1;
 
@@ -1116,6 +1166,7 @@ int vt_apply_settings(vt_session* session,
         settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
         settings.set_bool(lt::settings_pack::enable_upnp, enable_upnp != 0);
         settings.set_bool(lt::settings_pack::enable_natpmp, enable_upnp != 0);
+        settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
         session->session->apply_settings(settings);
         return 0;
     }

@@ -208,12 +208,15 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 ### Impostazioni
 
 - Cartella di download, limiti globali di download/upload, porta di ascolto,
-  DHT, UPnP/NAT-PMP.
+  DHT, Peer Exchange (PEX), Local Service Discovery (LSD), UPnP/NAT-PMP.
 - Avvio in pausa e download sequenziale predefiniti per i nuovi torrent; le scelte fatte
   nella finestra di aggiunta valgono solo per il singolo torrent.
 - Tema scuro, chiaro o di sistema.
 - La cartella di download vale per i nuovi torrent; i torrent già aggiunti mantengono
   il proprio percorso.
+- DHT e LSD si applicano subito. Cambiare Peer Exchange ricrea la sessione libtorrent
+  per abilitare o disabilitare realmente il plugin; i torrent attivi vengono ripristinati
+  dal resume data.
 
 ## Scorciatoie
 
