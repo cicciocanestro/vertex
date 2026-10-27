@@ -8,7 +8,10 @@ struct NetworkDiagnosticsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @StateObject private var tester = PortReachabilityTester()
-    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
+    /// Resolved once per presentation instead of re-running `getifaddrs` on
+    /// every render.
+    @StateObject private var localIP = UIState(LocalNetwork.primaryIPv4Address() ?? "—")
+    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
 
     private var port: Int {
         engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
@@ -18,10 +21,6 @@ struct NetworkDiagnosticsView: View {
     private var testPort: Int {
         let mapping = engine.stats.portmap.tcp
         return mapping.mapped && mapping.externalPort > 0 ? mapping.externalPort : port
-    }
-
-    private var localIP: String {
-        LocalNetwork.primaryIPv4Address() ?? "—"
     }
 
     var body: some View {
@@ -107,7 +106,7 @@ struct NetworkDiagnosticsView: View {
 
             statusCard(
                 title: "IP locale",
-                value: localIP,
+                value: localIP.value,
                 detail: L("interfaccia di rete principale"),
                 palette: palette
             )
@@ -391,7 +390,7 @@ struct NetworkDiagnosticsView: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionLabel(text: "Se la porta risulta chiusa")
 
-            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", port, localIP), palette)
+            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", port, localIP.value), palette)
             instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
             instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }

@@ -53,23 +53,4 @@ package enum Fmt {
     package static func ratio(_ value: Double) -> String {
         String(format: "%.2f", locale: Locale.current, value)
     }
-
-    package static func added(_ unix: Int64) -> String {
-        guard unix > 0 else { return "—" }
-        let date = Date(timeIntervalSince1970: TimeInterval(unix))
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
-    package static func relativeDate(_ unix: Int64) -> String {
-        guard unix > 0 else { return "—" }
-        let date = Date(timeIntervalSince1970: TimeInterval(unix))
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale.current
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
 }

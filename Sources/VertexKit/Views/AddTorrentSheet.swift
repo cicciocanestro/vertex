@@ -17,7 +17,7 @@ enum AddTorrentMode: String, CaseIterable, Identifiable {
 }
 
 struct AddTorrentSheet: View {
-    @ObservedObject var engine: TorrentEngine
+    let engine: TorrentEngine
 
     @Environment(\.colorScheme) private var scheme
     // Per-torrent choices: initialised from the saved defaults, never written back to them.
@@ -36,7 +36,7 @@ struct AddTorrentSheet: View {
     let onClose: () -> Void
 
     init(engine: TorrentEngine, initialMode: AddTorrentMode, onClose: @escaping () -> Void) {
-        _engine = ObservedObject(wrappedValue: engine)
+        self.engine = engine
         _mode = StateObject(wrappedValue: UIState(initialMode))
         self.onClose = onClose
     }
@@ -427,7 +427,7 @@ struct AddTorrentSheet: View {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 handled = true
-                provider.loadObject(ofClass: URL.self) { url, _ in
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url, url.pathExtension.lowercased() == "torrent" else { return }
                     DispatchQueue.main.async {
                         fileURL.value = url
@@ -437,7 +437,7 @@ struct AddTorrentSheet: View {
                 }
             } else if provider.canLoadObject(ofClass: NSString.self) {
                 handled = true
-                provider.loadObject(ofClass: NSString.self) { object, _ in
+                _ = provider.loadObject(ofClass: NSString.self) { object, _ in
                     guard let text = object as? String,
                           text.lowercased().hasPrefix("magnet:") else { return }
                     DispatchQueue.main.async {

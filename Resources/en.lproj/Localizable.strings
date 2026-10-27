@@ -17,9 +17,7 @@
 "Dimensione" = "Size";
 "Progresso" = "Progress";
 "Velocità" = "Speed";
-"Attivo" = "Active";
 "Errore" = "Error";
-"In attesa" = "Waiting";
 
 /* Formatters */
 "g" = "d";

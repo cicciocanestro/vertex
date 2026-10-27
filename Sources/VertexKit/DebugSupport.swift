@@ -16,7 +16,6 @@ enum DemoData {
             Torrent(
                 id: "8f14e45fceea167a5a36dedd4bea2543a1b2c3d4",
                 name: "Big.Buck.Bunny.4K.OPEN.MOVIE.mkv",
-                state: "downloading",
                 stateCode: 3,
                 progress: 0.427,
                 size: 19_726_740_480,
@@ -41,7 +40,6 @@ enum DemoData {
             Torrent(
                 id: "c9f0f895fb98ab9159f51fd0297e236d1e2f3a4b",
                 name: "Sintel.2010.4K.DCP.REMUX",
-                state: "metadata",
                 stateCode: 2,
                 progress: 0,
                 size: 0,
@@ -66,7 +64,6 @@ enum DemoData {
             Torrent(
                 id: "45c48cce2e2d7fbdea1afc51c7c6ad26f5e4d3c2",
                 name: "ubuntu-24.04.2-desktop-amd64.iso",
-                state: "seeding",
                 stateCode: 5,
                 progress: 1,
                 size: 6_128_123_904,
@@ -91,7 +88,6 @@ enum DemoData {
             Torrent(
                 id: "d3d9446802a44259755d38e6d163e820aabbccdd",
                 name: "Cosmos.Laundromat.2022.OPEN.MOVIE.mkv",
-                state: "downloading",
                 stateCode: 3,
                 progress: 0.634,
                 size: 8_718_000_000,
@@ -116,7 +112,6 @@ enum DemoData {
             Torrent(
                 id: "6512bd43d9caa6e02c990b0a82652dcae5f6a7b8",
                 name: "Open.Movie.Project.Assets.2025.zip",
-                state: "finished",
                 stateCode: 4,
                 progress: 1,
                 size: 2_311_000_000,

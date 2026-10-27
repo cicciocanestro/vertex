@@ -33,6 +33,23 @@ enum AppCommand: Equatable {
     case settings
     case filter(TorrentFilter)
 
+    /// Every notification the app can receive, used by the single subscription
+    /// in `RootView` so adding a command does not require a new `onReceive`.
+    static let notifications: [Notification.Name] = [
+        .vertexAddFile,
+        .vertexAddMagnet,
+        .vertexPasteMagnet,
+        .vertexPauseResume,
+        .vertexRemove,
+        .vertexReveal,
+        .vertexCopyMagnet,
+        .vertexFind,
+        .vertexToggleInspector,
+        .vertexSettings,
+        .vertexDiagnostics,
+        .vertexFilter
+    ]
+
     var notification: Notification.Name {
         switch self {
         case .addFile: return .vertexAddFile
@@ -126,16 +143,13 @@ package struct AppCommands: Commands {
 
             Divider()
 
-            Button("Tutti") { post(.filter(.all)) }
-                .keyboardShortcut("1", modifiers: .command)
-            Button("Download") { post(.filter(.downloading)) }
-                .keyboardShortcut("2", modifiers: .command)
-            Button("Seed") { post(.filter(.seeding)) }
-                .keyboardShortcut("3", modifiers: .command)
-            Button("Completati") { post(.filter(.completed)) }
-                .keyboardShortcut("4", modifiers: .command)
-            Button("In pausa") { post(.filter(.paused)) }
-                .keyboardShortcut("5", modifiers: .command)
+            ForEach(Array(TorrentFilter.allCases.enumerated()), id: \.element) { index, filter in
+                Button(filter.label) { post(.filter(filter)) }
+                    .keyboardShortcut(
+                        KeyEquivalent(Character(String(index + 1))),
+                        modifiers: .command
+                    )
+            }
         }
 
         CommandGroup(replacing: .appInfo) {

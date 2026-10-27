@@ -30,17 +30,17 @@ struct SettingsSheet: View {
 
     @Environment(\.colorScheme) private var scheme
 
-    @AppStorage(PrefKey.downloadPath) private var downloadPath = ""
-    @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = 0
-    @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = 0
-    @AppStorage(PrefKey.listenPort) private var listenPort = 6881
-    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
-    @AppStorage(PrefKey.pexEnabled) private var pexEnabled = true
-    @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = true
-    @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = true
-    @AppStorage(PrefKey.startPaused) private var startPaused = false
-    @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = false
-    @AppStorage(PrefKey.appearance) private var appearance = "dark"
+    @AppStorage(PrefKey.downloadPath) private var downloadPath = PrefDefault.downloadPath
+    @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
+    @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
+    @AppStorage(PrefKey.listenPort) private var listenPort = PrefDefault.listenPort
+    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
+    @AppStorage(PrefKey.pexEnabled) private var pexEnabled = PrefDefault.pexEnabled
+    @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = PrefDefault.lsdEnabled
+    @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
+    @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
+    @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
+    @AppStorage(PrefKey.appearance) private var appearance = PrefDefault.appearance
 
     let onClose: () -> Void
     let onOpenDiagnostics: () -> Void
@@ -181,15 +181,15 @@ struct SettingsSheet: View {
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
-        .onChange(of: downloadLimitKB) { engine.applySettings() }
-        .onChange(of: uploadLimitKB) { engine.applySettings() }
-        .onChange(of: listenPort) { engine.applySettings() }
-        .onChange(of: dhtEnabled) { engine.applySettings() }
-        .onChange(of: pexEnabled) { engine.applySettings() }
-        .onChange(of: lsdEnabled) { engine.applySettings() }
-        .onChange(of: upnpEnabled) { engine.applySettings() }
+        .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
+        .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
+        .onChange(of: listenPort) { engine.applySettingsSoon() }
+        .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
+        .onChange(of: pexEnabled) { engine.applySettingsSoon() }
+        .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
+        .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
         .onChange(of: appearance) { AppAppearance.apply() }
-        .onDisappear { engine.applySettings() }
+        .onDisappear { engine.applySettingsNow() }
     }
 
     private func header(_ palette: Palette) -> some View {
@@ -495,7 +495,7 @@ struct SettingsSheet: View {
         panel.directoryURL = URL(fileURLWithPath: downloadPath)
         if panel.runModal() == .OK, let url = panel.url {
             downloadPath = url.path
-            engine.applySettings()
+            engine.applySettingsNow()
         }
     }
 }

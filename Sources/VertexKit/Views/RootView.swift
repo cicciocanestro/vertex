@@ -1,6 +1,15 @@
 import AppKit
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+
+/// Mutually exclusive modal surfaces. Keeping them in one value makes invalid
+/// combinations (for example settings and diagnostics both open) impossible.
+enum ActiveModal: Equatable {
+    case add(AddTorrentMode)
+    case settings
+    case diagnostics
+}
 
 package struct RootView: View {
     @ObservedObject private var engine: TorrentEngine
@@ -13,6 +22,7 @@ package struct RootView: View {
     /// Test-only initializer: lets the rendering tests start from a specific UI
     /// state (selected torrent, active modal, search query) without driving the
     /// view through AppKit. Production always uses `init()`.
+    @MainActor
     init(
         engine: TorrentEngine,
         filter: TorrentFilter = .all,
@@ -28,14 +38,21 @@ package struct RootView: View {
         showDeleteConfirmation: Bool = false
     ) {
         self.engine = engine
+        engine.select(selectedID)
+        let modal: ActiveModal?
+        if showDiagnostics {
+            modal = .diagnostics
+        } else if showSettings {
+            modal = .settings
+        } else if showAddSheet {
+            modal = .add(addMode)
+        } else {
+            modal = nil
+        }
         _filter = StateObject(wrappedValue: UIState(filter))
         _sort = StateObject(wrappedValue: UIState(sort))
         _search = StateObject(wrappedValue: UIState(search))
-        _selectedID = StateObject(wrappedValue: UIState(selectedID))
-        _showAddSheet = StateObject(wrappedValue: UIState(showAddSheet))
-        _addMode = StateObject(wrappedValue: UIState(addMode))
-        _showSettings = StateObject(wrappedValue: UIState(showSettings))
-        _showDiagnostics = StateObject(wrappedValue: UIState(showDiagnostics))
+        _activeModal = StateObject(wrappedValue: UIState(modal))
         _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
         _pendingDeletion = StateObject(wrappedValue: UIState(pendingDeletion))
         _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
@@ -47,11 +64,7 @@ package struct RootView: View {
     @StateObject private var filter = UIState<TorrentFilter>(.all)
     @StateObject private var sort = UIState<TorrentSort>(.recent)
     @StateObject private var search = UIState("")
-    @StateObject private var selectedID = UIState<String?>(nil)
-    @StateObject private var showAddSheet = UIState(false)
-    @StateObject private var addMode = UIState<AddTorrentMode>(.magnet)
-    @StateObject private var showSettings = UIState(false)
-    @StateObject private var showDiagnostics = UIState(false)
+    @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
     @StateObject private var pendingDeletion = UIState<Torrent?>(nil)
     @StateObject private var showDeleteConfirmation = UIState(false)
@@ -60,11 +73,9 @@ package struct RootView: View {
 
     package var body: some View {
         layout
-            .animation(.snappy(duration: 0.22), value: selectedID.value)
+            .animation(.snappy(duration: 0.22), value: engine.selectedID)
             .animation(.easeOut(duration: 0.18), value: engine.toast?.id)
-            .animation(.snappy(duration: 0.22), value: showAddSheet.value)
-            .animation(.snappy(duration: 0.22), value: showSettings.value)
-            .animation(.snappy(duration: 0.22), value: showDiagnostics.value)
+            .animation(.snappy(duration: 0.22), value: activeModal.value)
             .alert(
                 "Rimuovere il torrent?",
                 isPresented: $showDeleteConfirmation.value,
@@ -82,19 +93,18 @@ package struct RootView: View {
             } message: { torrent in
                 Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", torrent.name))
             }
-            .sheet(isPresented: $showAddSheet.value) {
+            .sheet(isPresented: addSheetPresented) {
                 AddTorrentSheet(
                     engine: engine,
-                    initialMode: addMode.value,
-                    onClose: { showAddSheet.value = false }
+                    initialMode: addMode,
+                    onClose: { activeModal.value = nil }
                 )
             }
             .modifier(
                 RootEventHandlers(actions: RootEventHandlerActions(
                     onAddFile: chooseTorrentFile,
                     onAddMagnet: {
-                        addMode.value = .magnet
-                        showAddSheet.value = true
+                        activeModal.value = .add(.magnet)
                     },
                     onPasteMagnet: pasteMagnet,
                     onPauseResume: {
@@ -127,12 +137,10 @@ package struct RootView: View {
                         toggleInspector()
                     },
                     onSettings: {
-                        showDiagnostics.value = false
-                        showSettings.value = true
+                        activeModal.value = .settings
                     },
                     onDiagnostics: {
-                        showSettings.value = false
-                        showDiagnostics.value = true
+                        activeModal.value = .diagnostics
                     },
                     onFilter: { raw in
                         guard let value = TorrentFilter(rawValue: raw) else { return }
@@ -145,18 +153,12 @@ package struct RootView: View {
             .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
                 handleRootDrop(providers)
             }
-            .onChange(of: engine.torrents) { _, torrents in
-                if let id = selectedID.value, !torrents.contains(where: { $0.id == id }) {
-                    selectedID.value = nil
-                    engine.select(nil)
-                }
-            }
             #if DEBUG
             .onAppear {
                 if ProcessInfo.processInfo.environment["VERTEX_DEMO_SELECT"] == "1" {
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 700_000_000)
-                        if selectedID.value == nil, let first = engine.torrents.first {
+                        if engine.selectedID == nil, let first = engine.torrents.first {
                             select(first)
                         }
                     }
@@ -164,12 +166,11 @@ package struct RootView: View {
 
                 switch ProcessInfo.processInfo.environment["VERTEX_DEMO_SHEET"] {
                 case "add":
-                    addMode.value = .magnet
-                    showAddSheet.value = true
+                    activeModal.value = .add(.magnet)
                 case "settings":
-                    showSettings.value = true
+                    activeModal.value = .settings
                 case "diagnostics":
-                    showDiagnostics.value = true
+                    activeModal.value = .diagnostics
                 default:
                     break
                 }
@@ -189,29 +190,23 @@ package struct RootView: View {
 
     @ViewBuilder
     private var modalLayer: some View {
-        if showDiagnostics.value {
+        if case .diagnostics = activeModal.value {
             modalBackdrop {
                 NetworkDiagnosticsView(
                     engine: engine,
-                    onClose: { showDiagnostics.value = false },
-                    onOpenSettings: {
-                        showDiagnostics.value = false
-                        showSettings.value = true
-                    }
+                    onClose: { activeModal.value = nil },
+                    onOpenSettings: { activeModal.value = .settings }
                 )
-                .onExitCommand { showDiagnostics.value = false }
+                .onExitCommand { activeModal.value = nil }
             }
-        } else if showSettings.value {
+        } else if case .settings = activeModal.value {
             modalBackdrop {
                 SettingsSheet(
                     engine: engine,
-                    onClose: { showSettings.value = false },
-                    onOpenDiagnostics: {
-                        showSettings.value = false
-                        showDiagnostics.value = true
-                    }
+                    onClose: { activeModal.value = nil },
+                    onOpenDiagnostics: { activeModal.value = .diagnostics }
                 )
-                .onExitCommand { showSettings.value = false }
+                .onExitCommand { activeModal.value = nil }
             }
         }
     }
@@ -241,12 +236,14 @@ package struct RootView: View {
     }
 
     private var mainColumn: some View {
-        VStack(spacing: 0) {
+        let palette = Palette(scheme: scheme)
+        let visible = filteredTorrents
+        return VStack(spacing: 0) {
             headerBar
             filterBar
 
             HStack(spacing: 0) {
-                content(Palette(scheme: scheme))
+                content(palette, torrents: visible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let torrent = selectedTorrent {
@@ -257,7 +254,7 @@ package struct RootView: View {
 
             StatusBarView(
                 engine: engine,
-                onOpenDiagnostics: { showDiagnostics.value = true }
+                onOpenDiagnostics: { activeModal.value = .diagnostics }
             )
         }
     }
@@ -269,7 +266,7 @@ package struct RootView: View {
             searchFocused: $searchFocused,
             onAdd: openAddSheet,
             onAddFile: chooseTorrentFile,
-            onSettings: { showSettings.value = true }
+            onSettings: { activeModal.value = .settings }
         )
     }
 
@@ -314,13 +311,13 @@ package struct RootView: View {
     }
 
     @ViewBuilder
-    private func content(_ palette: Palette) -> some View {
+    private func content(_ palette: Palette, torrents: [Torrent]) -> some View {
         if engine.torrents.isEmpty && search.value.isEmpty {
             EmptyStateView(
                 onAdd: openAddSheet,
                 onPasteMagnet: pasteMagnet
             )
-        } else if filteredTorrents.isEmpty {
+        } else if torrents.isEmpty {
             NoResultsView(query: search.value) {
                 search.value = ""
                 filter.value = .all
@@ -328,8 +325,8 @@ package struct RootView: View {
         } else {
             TorrentListView(
                 engine: engine,
-                torrents: filteredTorrents,
-                selectedID: selectedID.value,
+                torrents: torrents,
+                selectedID: engine.selectedID,
                 onSelect: { select($0) },
                 onDeleteWithFiles: { requestDeletion($0) }
             )
@@ -337,49 +334,47 @@ package struct RootView: View {
     }
 
     private var selectedTorrent: Torrent? {
-        guard let id = selectedID.value else { return nil }
-        return engine.torrents.first { $0.id == id }
+        guard let id = engine.selectedID else { return nil }
+        return engine.torrent(withID: id)
     }
 
     /// Settings, diagnostics and the add sheet are app-modal: torrent shortcuts must not
     /// act on the list behind them.
     private var hasModalOverlay: Bool {
-        showAddSheet.value || showSettings.value || showDiagnostics.value
+        activeModal.value != nil
     }
 
     private var filteredTorrents: [Torrent] {
-        var list = engine.torrents.filter { filter.value.matches($0) }
+        TorrentListPipeline.apply(
+            to: engine.torrents,
+            filter: filter.value,
+            search: search.value,
+            sort: sort.value
+        )
+    }
 
-        if !search.value.isEmpty {
-            list = list.filter {
-                $0.name.localizedCaseInsensitiveContains(search.value) ||
-                $0.id.localizedCaseInsensitiveContains(search.value)
+    private var addSheetPresented: Binding<Bool> {
+        Binding(
+            get: {
+                if case .add = activeModal.value { return true }
+                return false
+            },
+            set: { presented in
+                if !presented { activeModal.value = nil }
             }
-        }
+        )
+    }
 
-        switch sort.value {
-        case .recent:
-            list.sort { $0.added > $1.added }
-        case .name:
-            list.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        case .size:
-            list.sort { $0.size > $1.size }
-        case .progress:
-            list.sort { $0.displayProgress > $1.displayProgress }
-        case .speed:
-            list.sort { $0.downloadRate > $1.downloadRate }
-        }
-
-        return list
+    private var addMode: AddTorrentMode {
+        if case .add(let mode) = activeModal.value { return mode }
+        return .magnet
     }
 
     private func openAddSheet() {
-        addMode.value = .magnet
-        showAddSheet.value = true
+        activeModal.value = .add(.magnet)
     }
 
     private func select(_ torrent: Torrent?) {
-        selectedID.value = torrent?.id
         engine.select(torrent?.id)
     }
 
@@ -389,8 +384,7 @@ package struct RootView: View {
     }
 
     private func clearSelectionIfNeeded(_ torrent: Torrent) {
-        if selectedID.value == torrent.id {
-            selectedID.value = nil
+        if engine.selectedID == torrent.id {
             engine.select(nil)
         }
     }
@@ -404,7 +398,7 @@ package struct RootView: View {
     }
 
     private func toggleInspector() {
-        if selectedID.value != nil {
+        if engine.selectedID != nil {
             select(nil)
         } else if let first = filteredTorrents.first {
             select(first)
@@ -417,8 +411,7 @@ package struct RootView: View {
 
         guard let clipboard, clipboard.lowercased().hasPrefix("magnet:") else {
             engine.showToast(L("Nessun link magnet negli appunti"), kind: .info)
-            addMode.value = .magnet
-            showAddSheet.value = true
+            activeModal.value = .add(.magnet)
             return
         }
 
@@ -457,7 +450,7 @@ package struct RootView: View {
     }
 
     private func handleRootDrop(_ providers: [NSItemProvider]) -> Bool {
-        if showAddSheet.value || showSettings.value || showDiagnostics.value {
+        if activeModal.value != nil {
             return false
         }
 
@@ -468,10 +461,10 @@ package struct RootView: View {
         for provider in providers {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 handled = true
-                provider.loadObject(ofClass: URL.self) { url, _ in
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
                     guard let url, url.pathExtension.lowercased() == "torrent" else { return }
                     Task { @MainActor in
-                        _ = TorrentEngine.shared.addTorrentFile(
+                        _ = engine.addTorrentFile(
                             url,
                             destination: nil,
                             startPaused: paused,
@@ -481,11 +474,11 @@ package struct RootView: View {
                 }
             } else if provider.canLoadObject(ofClass: NSString.self) {
                 handled = true
-                provider.loadObject(ofClass: NSString.self) { object, _ in
+                _ = provider.loadObject(ofClass: NSString.self) { object, _ in
                     guard let text = object as? String,
                           text.lowercased().hasPrefix("magnet:") else { return }
                     Task { @MainActor in
-                        _ = TorrentEngine.shared.addMagnet(
+                        _ = engine.addMagnet(
                             text,
                             destination: nil,
                             startPaused: paused,
@@ -544,42 +537,14 @@ private struct RootEventHandlers: ViewModifier {
     let actions: RootEventHandlerActions
 
     func body(content: Content) -> some View {
-        content
-            .onReceive(NotificationCenter.default.publisher(for: .vertexAddFile)) { _ in
-                actions.handle(.vertexAddFile)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexAddMagnet)) { _ in
-                actions.handle(.vertexAddMagnet)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexPasteMagnet)) { _ in
-                actions.handle(.vertexPasteMagnet)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexPauseResume)) { _ in
-                actions.handle(.vertexPauseResume)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexRemove)) { _ in
-                actions.handle(.vertexRemove)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexReveal)) { _ in
-                actions.handle(.vertexReveal)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexCopyMagnet)) { _ in
-                actions.handle(.vertexCopyMagnet)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexFind)) { _ in
-                actions.handle(.vertexFind)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexToggleInspector)) { _ in
-                actions.handle(.vertexToggleInspector)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexSettings)) { _ in
-                actions.handle(.vertexSettings)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexDiagnostics)) { _ in
-                actions.handle(.vertexDiagnostics)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexFilter)) { note in
-                actions.handle(.vertexFilter, object: note.object)
-            }
+        content.onReceive(
+            Publishers.MergeMany(
+                AppCommand.notifications.map {
+                    NotificationCenter.default.publisher(for: $0)
+                }
+            )
+        ) { note in
+            actions.handle(note.name, object: note.object)
+        }
     }
 }

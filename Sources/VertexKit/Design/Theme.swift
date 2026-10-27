@@ -26,12 +26,6 @@ enum Theme {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
-
-    static let warmGradient = LinearGradient(
-        colors: [violet, blue],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
 }
 
 struct Palette {

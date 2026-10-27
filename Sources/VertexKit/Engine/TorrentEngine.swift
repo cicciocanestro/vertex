@@ -27,19 +27,7 @@ package enum Preferences {
     }
 
     package static func registerDefaults() {
-        UserDefaults.standard.register(defaults: [
-            PrefKey.downloadPath: suggestedDownloadPath,
-            PrefKey.downloadLimitKB: 0,
-            PrefKey.uploadLimitKB: 0,
-            PrefKey.listenPort: 6881,
-            PrefKey.dhtEnabled: true,
-            PrefKey.pexEnabled: true,
-            PrefKey.lsdEnabled: true,
-            PrefKey.upnpEnabled: true,
-            PrefKey.startPaused: false,
-            PrefKey.sequentialDefault: false,
-            PrefKey.appearance: "dark"
-        ])
+        UserDefaults.standard.register(defaults: PrefDefault.dictionary)
     }
 
     package static func resolvedDownloadPath(_ raw: String?) -> String {
@@ -102,6 +90,39 @@ package enum Preferences {
     }
 }
 
+/// Single source of truth for preference defaults. `registerDefaults()` feeds
+/// them to `UserDefaults`, and the views use the same constants as the initial
+/// value of their `@AppStorage` properties.
+package enum PrefDefault {
+    package static let downloadPath: String = Preferences.suggestedDownloadPath
+    package static let downloadLimitKB = 0
+    package static let uploadLimitKB = 0
+    package static let listenPort = 6881
+    package static let dhtEnabled = true
+    package static let pexEnabled = true
+    package static let lsdEnabled = true
+    package static let upnpEnabled = true
+    package static let startPaused = false
+    package static let sequentialDefault = false
+    package static let appearance = "dark"
+
+    package static var dictionary: [String: Any] {
+        [
+            PrefKey.downloadPath: downloadPath,
+            PrefKey.downloadLimitKB: downloadLimitKB,
+            PrefKey.uploadLimitKB: uploadLimitKB,
+            PrefKey.listenPort: listenPort,
+            PrefKey.dhtEnabled: dhtEnabled,
+            PrefKey.pexEnabled: pexEnabled,
+            PrefKey.lsdEnabled: lsdEnabled,
+            PrefKey.upnpEnabled: upnpEnabled,
+            PrefKey.startPaused: startPaused,
+            PrefKey.sequentialDefault: sequentialDefault,
+            PrefKey.appearance: appearance
+        ]
+    }
+}
+
 package struct SessionConfiguration: Sendable {
     package var downloadPath: String
     package var resumePath: String
@@ -157,19 +178,38 @@ private final class SessionPointerBox: @unchecked Sendable {
 package final class TorrentEngine: ObservableObject {
     package static let shared = TorrentEngine()
 
-    @Published private(set) var torrents: [Torrent] = []
-    @Published private(set) var stats = SessionStats()
+    /// Data refreshed by the poll. Publishing a single value avoids four
+    /// separate `objectWillChange` notifications and intermediate UI states.
+    struct PollState {
+        var torrents: [Torrent] = []
+        var stats = SessionStats()
+        var downloadHistory: [Double] = []
+        var uploadHistory: [Double] = []
+        var torrentsByID: [String: Torrent] = [:]
+    }
+
+    @Published private(set) var pollState = PollState()
     @Published private(set) var detail: TorrentDetail?
-    @Published private(set) var downloadHistory: [Double] = []
-    @Published private(set) var uploadHistory: [Double] = []
+
+    package var torrents: [Torrent] { pollState.torrents }
+    package var stats: SessionStats { pollState.stats }
+    package var downloadHistory: [Double] { pollState.downloadHistory }
+    package var uploadHistory: [Double] { pollState.uploadHistory }
+
+    package func torrent(withID id: String) -> Torrent? {
+        pollState.torrentsByID[id]
+    }
     @Published var toast: ToastMessage?
     @Published private(set) var isReady = false
     @Published private(set) var isRestartingSession = false
+    /// Torrent shown in the inspector. It is the single source of truth for
+    /// the selection: `RootView` reads it instead of keeping a parallel copy.
+    @Published private(set) var selectedID: String?
 
     private var session: OpaquePointer?
     private var pollTask: Task<Void, Never>?
     private var toastTask: Task<Void, Never>?
-    private var detailID: String?
+    private var settingsApplyTask: Task<Void, Never>?
     private var unfinishedIDs: Set<String> = []
     private var detailTick = 0
     private var forceDetailRefresh = false
@@ -392,10 +432,9 @@ package final class TorrentEngine: ObservableObject {
         } else {
             session = nil
             isReady = false
-            torrents = []
-            stats = SessionStats()
+            pollState = PollState()
             detail = nil
-            detailID = nil
+            selectedID = nil
             showToast(
                 L("Impossibile riavviare il motore BitTorrent"),
                 kind: .error,
@@ -523,7 +562,7 @@ package final class TorrentEngine: ObservableObject {
 
     func remove(_ torrent: Torrent, deleteFiles: Bool) {
         if control(deleteFiles ? "remove_files" : "remove", id: torrent.id) {
-            if detailID == torrent.id {
+            if selectedID == torrent.id {
                 select(nil)
             }
             showToast(
@@ -535,7 +574,7 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func select(_ id: String?) {
-        detailID = id
+        selectedID = id
         detailTick = 0
         detail = nil
         if let id {
@@ -578,6 +617,27 @@ package final class TorrentEngine: ObservableObject {
         } else {
             NSWorkspace.shared.open(URL(fileURLWithPath: torrent.savePath))
         }
+    }
+
+    /// Coalesces the edits of a settings field: applying on every keystroke
+    /// rebinds the listening port (and resets the port mapping) for partial
+    /// values like `6` or `68`. Closing the sheet still flushes immediately.
+    func applySettingsSoon() {
+        settingsApplyTask?.cancel()
+        settingsApplyTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.settingsApplyTask = nil
+            self.applySettings()
+        }
+    }
+
+    /// Cancels a pending debounced update and applies the current preferences
+    /// immediately.
+    func applySettingsNow() {
+        settingsApplyTask?.cancel()
+        settingsApplyTask = nil
+        applySettings()
     }
 
     func applySettings() {
@@ -672,6 +732,8 @@ package final class TorrentEngine: ObservableObject {
         pollTask?.cancel()
         pollTask = nil
         toastTask?.cancel()
+        settingsApplyTask?.cancel()
+        settingsApplyTask = nil
 
         if isRestartingSession {
             return
@@ -742,27 +804,32 @@ package final class TorrentEngine: ObservableObject {
         unfinishedIDs = unfinished
         hasLoadedSnapshot = true
 
-        torrents = snapshot.torrents
-        stats = snapshot.stats
-
-        downloadHistory.append(Double(snapshot.downloadRate))
-        uploadHistory.append(Double(snapshot.uploadRate))
-        if downloadHistory.count > 80 {
-            downloadHistory.removeFirst(downloadHistory.count - 80)
+        var next = pollState
+        next.torrents = snapshot.torrents
+        next.stats = snapshot.stats
+        next.torrentsByID = Dictionary(
+            snapshot.torrents.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        next.downloadHistory.append(Double(snapshot.downloadRate))
+        next.uploadHistory.append(Double(snapshot.uploadRate))
+        if next.downloadHistory.count > 80 {
+            next.downloadHistory.removeFirst(next.downloadHistory.count - 80)
         }
-        if uploadHistory.count > 80 {
-            uploadHistory.removeFirst(uploadHistory.count - 80)
+        if next.uploadHistory.count > 80 {
+            next.uploadHistory.removeFirst(next.uploadHistory.count - 80)
         }
+        pollState = next
 
-        if let id = detailID {
-            if snapshot.torrents.contains(where: { $0.id == id }) {
+        if let id = selectedID {
+            if next.torrentsByID[id] != nil {
                 detailTick += 1
                 if forceDetailRefresh || detailTick % 3 == 0 {
                     forceDetailRefresh = false
                     loadDetail(id)
                 }
             } else {
-                detailID = nil
+                selectedID = nil
                 detail = nil
             }
         }
@@ -771,10 +838,9 @@ package final class TorrentEngine: ObservableObject {
     #if DEBUG
     private func applyDemoSnapshot() {
         let list = DemoData.torrents()
-        torrents = list
         let down = list.reduce(Int64(0)) { $0 + $1.downloadRate }
         let up = list.reduce(Int64(0)) { $0 + $1.uploadRate }
-        stats = SessionStats(
+        var stats = SessionStats(
             downloadRate: down,
             uploadRate: up,
             totalDownload: list.reduce(Int64(0)) { $0 + $1.downloaded },
@@ -791,17 +857,25 @@ package final class TorrentEngine: ObservableObject {
             udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
             error: ""
         )
-        downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
-        uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)
+        var next = PollState()
+        next.torrents = list
+        next.stats = stats
+        next.torrentsByID = Dictionary(
+            list.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        next.downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
+        next.uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)
+        pollState = next
         hasLoadedSnapshot = true
-        if let id = detailID {
+        if let id = selectedID {
             detail = DemoData.detail(for: list.first { $0.id == id })
         }
     }
     #endif
 
     private func loadDetail(_ id: String) {
-        guard detailID == id else { return }
+        guard selectedID == id else { return }
         guard let session else {
             detail = nil
             return
@@ -811,7 +885,7 @@ package final class TorrentEngine: ObservableObject {
     }
 
     private func applyDetailJSON(_ json: String?, id: String) {
-        guard detailID == id else { return }
+        guard selectedID == id else { return }
         guard let json,
               let data = json.data(using: .utf8),
               let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
@@ -841,7 +915,9 @@ package final class TorrentEngine: ObservableObject {
     /// Test-only hook used to render the diagnostics view with the UPnP/NAT-PMP
     /// states (mapped, error, unmapped) without a real router or a live session.
     package func setStatsForTesting(_ stats: SessionStats) {
-        self.stats = stats
+        var next = pollState
+        next.stats = stats
+        pollState = next
     }
     #endif
 

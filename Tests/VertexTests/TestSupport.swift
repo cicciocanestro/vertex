@@ -149,11 +149,15 @@ final class TestRunner {
 
 // MARK: - Test Helpers
 
+/// Runs a closure on the main actor from the synchronous test runner.
+func onMain<T>(_ body: @MainActor () throws -> T) rethrows -> T {
+    try MainActor.assumeIsolated(body)
+}
+
 extension Torrent {
     static func test(
         id: String,
         name: String,
-        state: String = "downloading",
         stateCode: Int = 3,
         progress: Double = 0.0,
         size: Int64 = 1024,
@@ -178,7 +182,6 @@ extension Torrent {
         Torrent(
             id: id,
             name: name,
-            state: state,
             stateCode: stateCode,
             progress: progress,
             size: size,

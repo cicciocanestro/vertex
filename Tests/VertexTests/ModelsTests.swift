@@ -74,7 +74,7 @@ enum ModelsTests {
             let t = snapshot.torrents[0]
             try TestRunner.assertEqual(t.id, "abc123def456")
             try TestRunner.assertEqual(t.name, "Ubuntu 24.04 LTS Desktop")
-            try TestRunner.assertEqual(t.state, "downloading")
+            try TestRunner.assertEqual(t.stateCode, 3)
             try TestRunner.assertEqual(t.progress, 0.65)
             try TestRunner.assertEqual(t.size, 4294967296)
             try TestRunner.assertEqual(t.peers, 42)
@@ -153,7 +153,7 @@ enum ModelsTests {
             try TestRunner.assertEqual(detail.trackers.count, 1)
             try TestRunner.assertEqual(detail.trackers[0].url, "https://torrent.ubuntu.com/announce")
             try TestRunner.assertEqual(detail.trackers[0].verified, true)
-            try TestRunner.assertEqual(detail.trackers[0].statusLabel, L("Attivo"))
+            try TestRunner.assertEqual(detail.trackers[0].fails, 0)
             try TestRunner.assertEqual(detail.files.count, 1)
             try TestRunner.assertEqual(detail.files[0].path, "ubuntu-24.04-desktop-arm64.iso")
             try TestRunner.assertEqual(detail.files[0].priority, 4)
@@ -187,29 +187,31 @@ enum ModelsTests {
             try TestRunner.assertTrue(filteredCompleted.contains { $0.id == "4" })
         }
 
-        TestRunner.run("TorrentSort: ordinamento") {
+        TestRunner.run("TorrentListPipeline: filtro, ricerca e ordinamento") {
             let tA = Torrent.test(id: "A", name: "Alpha", progress: 0.1, size: 100, downloadRate: 50, added: 100)
             let tB = Torrent.test(id: "B", name: "Beta", progress: 0.9, size: 500, downloadRate: 500, added: 200)
 
-            var byName = [tB, tA]
-            byName.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            try TestRunner.assertEqual(byName.first?.id, "A")
+            let all = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .name)
+            try TestRunner.assertEqual(all.map(\.id), ["A", "B"])
 
-            var byProgress = [tA, tB]
-            byProgress.sort { $0.displayProgress > $1.displayProgress }
+            let byProgress = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .progress)
             try TestRunner.assertEqual(byProgress.first?.id, "B")
 
-            var bySize = [tA, tB]
-            bySize.sort { $0.size > $1.size }
+            let bySize = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .size)
             try TestRunner.assertEqual(bySize.first?.id, "B")
 
-            var byRate = [tA, tB]
-            byRate.sort { $0.downloadRate > $1.downloadRate }
-            try TestRunner.assertEqual(byRate.first?.id, "B")
+            let bySpeed = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .speed)
+            try TestRunner.assertEqual(bySpeed.first?.id, "B")
 
-            var byRecent = [tA, tB]
-            byRecent.sort { $0.added > $1.added }
+            let byRecent = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .recent)
             try TestRunner.assertEqual(byRecent.first?.id, "B")
+
+            let searched = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "alp", sort: .name)
+            try TestRunner.assertEqual(searched.map(\.id), ["A"])
+
+            let paused = Torrent.test(id: "P", name: "Paused", paused: true)
+            let filtered = TorrentListPipeline.apply(to: [tA, paused], filter: .paused, search: "", sort: .name)
+            try TestRunner.assertEqual(filtered.map(\.id), ["P"])
         }
     }
 }

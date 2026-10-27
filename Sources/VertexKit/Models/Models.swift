@@ -23,7 +23,6 @@ enum TorrentPhase {
 package struct Torrent: Decodable, Identifiable, Equatable {
     package let id: String
     package let name: String
-    package let state: String
     package let stateCode: Int
     package let progress: Double
     package let size: Int64
@@ -48,7 +47,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     package init(
         id: String,
         name: String,
-        state: String,
         stateCode: Int,
         progress: Double,
         size: Int64,
@@ -72,7 +70,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     ) {
         self.id = id
         self.name = name
-        self.state = state
         self.stateCode = stateCode
         self.progress = progress
         self.size = size
@@ -96,7 +93,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, state, progress, size, downloaded, uploaded, peers, seeds, eta
+        case id, name, progress, size, downloaded, uploaded, peers, seeds, eta
         case stateCode = "state_code"
         case downloadRate = "download_rate"
         case uploadRate = "upload_rate"
@@ -120,10 +117,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     }
 
     package var hasError: Bool { !error.isEmpty }
-
-    package var downloadedFraction: Double {
-        size > 0 ? min(max(Double(downloaded) / Double(size), 0), 1) : 0
-    }
 }
 
 package struct PortMapInfo: Decodable, Equatable {
@@ -274,12 +267,6 @@ package struct TorrentTracker: Decodable, Identifiable, Equatable {
     package let seeds: Int
 
     package var id: String { url }
-
-    package var statusLabel: String {
-        if verified { return L("Attivo") }
-        if fails > 0 { return L("Errore") }
-        return L("In attesa")
-    }
 }
 
 package struct TorrentDetail: Decodable, Equatable {
@@ -345,6 +332,41 @@ package enum TorrentSort: String, CaseIterable, Identifiable {
         case .progress: return "chart.bar"
         case .speed: return "speedometer"
         }
+    }
+}
+
+/// Filtering and sorting applied by the torrent list. It lives in the model
+/// layer so the behaviour can be tested without rendering `RootView`.
+package enum TorrentListPipeline {
+    package static func apply(
+        to torrents: [Torrent],
+        filter: TorrentFilter,
+        search: String,
+        sort: TorrentSort
+    ) -> [Torrent] {
+        var list = torrents.filter { filter.matches($0) }
+
+        if !search.isEmpty {
+            list = list.filter {
+                $0.name.localizedCaseInsensitiveContains(search) ||
+                $0.id.localizedCaseInsensitiveContains(search)
+            }
+        }
+
+        switch sort {
+        case .recent:
+            list.sort { $0.added > $1.added }
+        case .name:
+            list.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .size:
+            list.sort { $0.size > $1.size }
+        case .progress:
+            list.sort { $0.displayProgress > $1.displayProgress }
+        case .speed:
+            list.sort { $0.downloadRate > $1.downloadRate }
+        }
+
+        return list
     }
 }
 

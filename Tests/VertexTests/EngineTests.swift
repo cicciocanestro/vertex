@@ -354,9 +354,5 @@ enum EngineTests {
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
         }
     }
-
-    private static func onMain<T>(_ body: @MainActor () throws -> T) rethrows -> T {
-        try MainActor.assumeIsolated(body)
-    }
 }
 #endif

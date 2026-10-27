@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TorrentListView: View {
-    @ObservedObject var engine: TorrentEngine
+    let engine: TorrentEngine
     let torrents: [Torrent]
     let selectedID: String?
     let onSelect: (Torrent) -> Void
@@ -29,7 +29,7 @@ struct TorrentListView: View {
 }
 
 struct TorrentRow: View {
-    @ObservedObject var engine: TorrentEngine
+    let engine: TorrentEngine
     let torrent: Torrent
     let selected: Bool
     let onSelect: () -> Void

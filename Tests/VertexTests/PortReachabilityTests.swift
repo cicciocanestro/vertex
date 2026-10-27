@@ -136,9 +136,7 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "L'errore deve avere un messaggio")
     }
 
@@ -152,9 +150,7 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "L'errore HTTP deve avere un messaggio")
         try TestRunner.assertFalse(
             onMain { stub.requests.contains { $0.url?.path == "/check-tcp" } },
@@ -180,9 +176,7 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "L'assenza di nodi deve produrre un errore")
     }
 
@@ -271,9 +265,7 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "Un IP vuoto deve produrre un errore")
     }
 
@@ -299,9 +291,7 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "Una risposta non HTTP deve produrre un errore")
     }
 
@@ -325,13 +315,26 @@ enum PortReachabilityTests {
 
         onMain { tester.start(port: 6881) }
         let state = try onMain { try waitForState(tester) }
-        guard case .failed(let message) = state else {
-            throw TestFailure(message: "Atteso stato failed, ottenuto \(state)", file: #file, line: #line)
-        }
+        let message = try failureMessage(state)
         try TestRunner.assertFalse(message.isEmpty, "Un risultato malformato deve produrre un errore")
     }
 
     // MARK: - Helpers
+
+    private static func failureMessage(
+        _ state: PortReachabilityTester.State,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws -> String {
+        guard case .failed(let message) = state else {
+            throw TestFailure(
+                message: "Atteso stato failed, ottenuto \(state)",
+                file: file,
+                line: line
+            )
+        }
+        return message
+    }
 
     @MainActor
     private static func makeTester(
@@ -359,10 +362,6 @@ enum PortReachabilityTests {
             }
         }
         return resolved ?? tester.state
-    }
-
-    private static func onMain<T>(_ body: @MainActor () throws -> T) rethrows -> T {
-        try MainActor.assumeIsolated(body)
     }
 }
 

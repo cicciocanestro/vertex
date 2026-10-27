@@ -40,6 +40,33 @@ enum PreferencesTests {
             try TestRunner.assertFalse(Preferences.isValidPort(65536))
         }
 
+        TestRunner.run("Defaults: unica fonte per i valori registrati") {
+            let defaults = PrefDefault.dictionary
+            let expectedKeys: Set<String> = [
+                PrefKey.downloadPath,
+                PrefKey.downloadLimitKB,
+                PrefKey.uploadLimitKB,
+                PrefKey.listenPort,
+                PrefKey.dhtEnabled,
+                PrefKey.pexEnabled,
+                PrefKey.lsdEnabled,
+                PrefKey.upnpEnabled,
+                PrefKey.startPaused,
+                PrefKey.sequentialDefault,
+                PrefKey.appearance
+            ]
+            try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
+            try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
+            try TestRunner.assertEqual(defaults[PrefKey.listenPort] as? Int, 6881)
+            try TestRunner.assertEqual(defaults[PrefKey.downloadLimitKB] as? Int, 0)
+            try TestRunner.assertEqual(defaults[PrefKey.uploadLimitKB] as? Int, 0)
+            try TestRunner.assertEqual(defaults[PrefKey.dhtEnabled] as? Bool, true)
+            try TestRunner.assertEqual(defaults[PrefKey.pexEnabled] as? Bool, true)
+            try TestRunner.assertEqual(defaults[PrefKey.upnpEnabled] as? Bool, true)
+            try TestRunner.assertEqual(defaults[PrefKey.startPaused] as? Bool, false)
+            try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "dark")
+        }
+
         TestRunner.run("ResolvedDownloadPath: sanitizzazione e percorsi fallback") {
             let fallback = Preferences.suggestedDownloadPath
             try TestRunner.assertEqual(Preferences.resolvedDownloadPath(""), fallback)

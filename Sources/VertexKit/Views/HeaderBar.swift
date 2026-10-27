@@ -99,11 +99,12 @@ struct FilterBar: View {
 
     var body: some View {
         let palette = Palette(scheme: scheme)
+        let counts = filterCounts()
         HStack(spacing: 6) {
             ForEach(TorrentFilter.allCases) { option in
                 FilterChip(
                     title: option.label,
-                    count: count(for: option),
+                    count: counts[option, default: 0],
                     selected: filter == option
                 ) {
                     withAnimation(.snappy(duration: 0.18)) {
@@ -148,7 +149,17 @@ struct FilterBar: View {
         .padding(.bottom, 11)
     }
 
-    private func count(for filter: TorrentFilter) -> Int {
-        torrents.filter { filter.matches($0) }.count
+    /// Counts every filter in one pass over the list instead of running a
+    /// separate `filter` for each chip on every render.
+    private func filterCounts() -> [TorrentFilter: Int] {
+        var counts = Dictionary(
+            uniqueKeysWithValues: TorrentFilter.allCases.map { ($0, 0) }
+        )
+        for torrent in torrents {
+            for filter in TorrentFilter.allCases where filter.matches(torrent) {
+                counts[filter, default: 0] += 1
+            }
+        }
+        return counts
     }
 }
