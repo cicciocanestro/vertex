@@ -18,8 +18,8 @@ enum ModelsTests {
                 "listen_actual_port": 6881,
                 "listening": true,
                 "portmap": {
-                    "tcp": {"mapped": true, "external_port": 6881, "transport": "UPnP"},
-                    "udp": {"mapped": false, "external_port": 0, "transport": ""},
+                    "tcp": {"mapped": true, "external_port": 6881, "transport": "UPnP", "error": ""},
+                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                     "error": ""
                 },
                 "port": 6881,
@@ -82,6 +82,40 @@ enum ModelsTests {
             try TestRunner.assertEqual(t.sequential, true)
             try TestRunner.assertEqual(t.hasMetadata, true)
             try TestRunner.assertEqual(t.error, "")
+        }
+
+        TestRunner.run("PortMapSnapshot: errori TCP e UDP separati") {
+            let json = """
+            {
+                "tcp": {
+                    "mapped": false,
+                    "external_port": 0,
+                    "transport": "",
+                    "error": "UPnP: timeout"
+                },
+                "udp": {
+                    "mapped": true,
+                    "external_port": 6881,
+                    "transport": "NAT-PMP",
+                    "error": ""
+                },
+                "error": ""
+            }
+            """
+            guard let data = json.data(using: .utf8) else {
+                try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
+                return
+            }
+
+            let portmap = try JSONDecoder().decode(PortMapSnapshot.self, from: data)
+            try TestRunner.assertEqual(portmap.tcp.error, "UPnP: timeout")
+            try TestRunner.assertTrue(portmap.tcp.hasError)
+            try TestRunner.assertFalse(portmap.tcp.mapped)
+            try TestRunner.assertEqual(portmap.udp.error, "")
+            try TestRunner.assertFalse(portmap.udp.hasError)
+            try TestRunner.assertTrue(portmap.udp.mapped)
+            try TestRunner.assertEqual(portmap.udp.transport, "NAT-PMP")
+            try TestRunner.assertTrue(portmap.hasError)
         }
 
         TestRunner.run("TorrentDetail JSON Decoding") {

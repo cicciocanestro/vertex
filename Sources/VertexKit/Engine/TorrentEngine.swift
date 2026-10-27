@@ -571,6 +571,12 @@ package final class TorrentEngine: ObservableObject {
             return
         }
 
+        // Keep the C++ fallback destination in sync with the preferences. It is
+        // used by resume-data loading and by callers that omit a save path.
+        _ = configuration.downloadPath.withCString {
+            vt_set_default_save_path(session, $0)
+        }
+
         let result = vt_apply_settings_ex(
             session,
             configuration.port,
@@ -752,6 +758,7 @@ package final class TorrentEngine: ObservableObject {
     #endif
 
     private func loadDetail(_ id: String) {
+        guard detailID == id else { return }
         guard let session else {
             detail = nil
             return
@@ -760,6 +767,8 @@ package final class TorrentEngine: ObservableObject {
         guard let json = string(from: pointer),
               let data = json.data(using: .utf8),
               let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
+            // Never keep showing the previous snapshot when the fetch fails.
+            detail = nil
             return
         }
         // Avoid republishing identical data: it re-renders the whole inspector.

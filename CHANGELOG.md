@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.3.7] — 2026-10-27
+
+Piccola release di stabilizzazione dell'interfaccia e della diagnostica di rete.
+
+### Corretto
+- Il pannello dettagli non mantiene più i dati del torrent selezionato quando la lettura
+  aggiornata fallisce: viene svuotato invece di mostrare informazioni obsolete.
+- Gli errori di mappatura UPnP/NAT-PMP sono separati per TCP e UDP e indicano il trasporto
+  che li ha prodotti. Un mapping riuscito non cancella più l'errore dell'altro protocollo.
+- La cartella di download predefinita della sessione C++ viene aggiornata quando cambia
+  nelle preferenze, così anche i torrent aggiunti senza percorso esplicito e il
+  caricamento dei resume data usano la destinazione corrente.
+
+### Test
+- Aggiunta la decodifica degli errori di mappatura separati per TCP e UDP.
+- Aggiunto un test del bridge per l'aggiornamento della cartella di salvataggio
+  predefinita e per il suo uso nell'aggiunta di un magnet senza destinazione.
+
 ## [1.3.6] — 2026-10-27
 
 Release di correzione per il ciclo di vita della sessione libtorrent e la validazione

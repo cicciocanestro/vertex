@@ -130,17 +130,27 @@ package struct PortMapInfo: Decodable, Equatable {
     package var mapped: Bool = false
     package var externalPort: Int = 0
     package var transport: String = ""
+    package var error: String = ""
 
-    package init(mapped: Bool = false, externalPort: Int = 0, transport: String = "") {
+    package init(
+        mapped: Bool = false,
+        externalPort: Int = 0,
+        transport: String = "",
+        error: String = ""
+    ) {
         self.mapped = mapped
         self.externalPort = externalPort
         self.transport = transport
+        self.error = error
     }
+
+    package var hasError: Bool { !error.isEmpty }
 
     enum CodingKeys: String, CodingKey {
         case mapped
         case externalPort = "external_port"
         case transport
+        case error
     }
 }
 
@@ -154,6 +164,8 @@ package struct PortMapSnapshot: Decodable, Equatable {
         self.udp = udp
         self.error = error
     }
+
+    package var hasError: Bool { tcp.hasError || udp.hasError || !error.isEmpty }
 }
 
 package struct SessionStats: Equatable {

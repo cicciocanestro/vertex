@@ -201,7 +201,7 @@ struct NetworkDiagnosticsView: View {
             )
 
             if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
-                && engine.stats.portmap.error.isEmpty {
+                && !engine.stats.portmap.hasError {
                 Text("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato.")
                     .font(.system(size: 9.8))
                     .foregroundStyle(palette.tertiary)
@@ -210,34 +210,49 @@ struct NetworkDiagnosticsView: View {
     }
 
     private func mappingRow(_ label: String, info: PortMapInfo, palette: Palette) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(info.mapped ? Theme.green : Theme.amber)
-                .frame(width: 6, height: 6)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(info.mapped ? Theme.green : (info.hasError ? Theme.coral : Theme.amber))
+                    .frame(width: 6, height: 6)
 
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(palette.text)
+                Text(label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.text)
 
-            Spacer()
+                Spacer()
 
-            if info.mapped {
-                Text(LF("porta esterna %ld", info.externalPort))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(palette.secondary)
-                if !info.transport.isEmpty {
-                    Text(info.transport)
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundStyle(Theme.green)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Capsule().fill(Theme.green.opacity(0.12)))
+                if info.mapped {
+                    Text(LF("porta esterna %ld", info.externalPort))
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(palette.secondary)
+                    if !info.transport.isEmpty {
+                        Text(info.transport)
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundStyle(Theme.green)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Theme.green.opacity(0.12)))
+                    }
+                } else {
+                    Text("non mappata")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(palette.tertiary)
                 }
-            } else {
-                Text("non mappata")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(palette.tertiary)
+            }
+
+            if info.hasError {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.coral)
+                    Text(info.error)
+                        .font(.system(size: 9.8))
+                        .foregroundStyle(palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 14)
             }
         }
         .padding(.vertical, 8)

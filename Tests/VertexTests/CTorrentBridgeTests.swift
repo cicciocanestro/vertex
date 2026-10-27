@@ -83,5 +83,77 @@ enum CTorrentBridgeTests {
             // Destroy session
             vt_session_destroy(session)
         }
+
+        TestRunner.run("Default save path: aggiornamento usato dai torrent senza destinazione") {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vertex_default_path_\(UUID().uuidString)")
+            let firstDownloadDir = tempDir.appendingPathComponent("downloads-1")
+            let secondDownloadDir = tempDir.appendingPathComponent("downloads-2")
+            let resumeDir = tempDir.appendingPathComponent("resume")
+
+            try FileManager.default.createDirectory(at: firstDownloadDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: resumeDir, withIntermediateDirectories: true)
+            defer {
+                try? FileManager.default.removeItem(at: tempDir)
+            }
+
+            let session = firstDownloadDir.path.withCString { dlPath in
+                resumeDir.path.withCString { resPath in
+                    vt_session_create_full(dlPath, resPath, 6884, 0, 0, 0, 0, 0, 0)
+                }
+            }
+            guard let session else {
+                try TestRunner.assertTrue(false, "vt_session_create_full deve restituire un puntatore valido")
+                return
+            }
+            defer { vt_session_destroy(session) }
+
+            let updated = secondDownloadDir.path.withCString {
+                vt_set_default_save_path(session, $0)
+            }
+            try TestRunner.assertEqual(updated, 0, "vt_set_default_save_path deve accettare una cartella valida")
+            try TestRunner.assertTrue(
+                FileManager.default.fileExists(atPath: secondDownloadDir.path),
+                "La nuova cartella predefinita deve essere creata"
+            )
+
+            let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567"
+            let addResult = magnet.withCString {
+                vt_add_magnet(session, $0, nil, 1, 0)
+            }
+            try TestRunner.assertEqual(addResult, 0, "Il magnet valido deve essere aggiunto")
+
+            vt_session_poll(session)
+            guard let cSnapshot = vt_snapshot_json(session) else {
+                try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                return
+            }
+            let json = String(cString: cSnapshot)
+            vt_free_string(cSnapshot)
+            let snapshot = try JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
+            guard let torrent = snapshot.torrents.first else {
+                try TestRunner.assertTrue(false, "Lo snapshot deve contenere il torrent aggiunto")
+                return
+            }
+            try TestRunner.assertEqual(
+                torrent.savePath,
+                secondDownloadDir.path,
+                "Il torrent senza save path deve usare la nuova cartella predefinita"
+            )
+
+            let filePath = tempDir.appendingPathComponent("not-a-directory")
+            try Data("x".utf8).write(to: filePath)
+            let rejectedFile = filePath.path.withCString {
+                vt_set_default_save_path(session, $0)
+            }
+            try TestRunner.assertTrue(
+                rejectedFile != 0,
+                "Un file non può essere usato come cartella predefinita"
+            )
+            try TestRunner.assertTrue(
+                vt_set_default_save_path(session, nil) != 0,
+                "Un percorso nullo deve essere rifiutato"
+            )
+        }
     }
 }

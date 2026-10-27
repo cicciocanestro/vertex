@@ -193,7 +193,9 @@ hardened runtime and notarize the app with `notarytool` and `stapler` before cre
 
 - Open it from the port number in the status bar, from **Settings → Network → Network
   diagnostics**, or with `⌘⇧D`.
-- Shows the actual port, local IP, UPnP/NAT-PMP mapping state and DHT nodes.
+- Shows the actual port, local IP, UPnP/NAT-PMP mapping state and DHT nodes. Mapping
+  failures are reported separately for TCP and UDP, together with the transport
+  (UPnP or NAT-PMP) that produced them.
 - **Test port** checks TCP reachability through check-host.net: the public IP is sent to the
   service only when you start the test. UDP/uTP traffic is not checked.
 - If the port appears closed, enable UPnP/NAT-PMP on the router or forward TCP and UDP to the
@@ -309,8 +311,9 @@ The app is not sandboxed and accesses the chosen folders and the download folder
 ```
 
 An automated test suite (`VertexTestRunner`, run via `./build.sh test`) covers formatters,
-snapshot JSON deserialization, model filtering/sorting, preferences and C++ bridge lifecycle.
-It also runs deterministic loopback integration tests with two libtorrent sessions: v1/v2
+snapshot JSON deserialization (including separate TCP/UDP mapping errors), model
+filtering/sorting, preferences, C++ bridge lifecycle and default save-path updates. It also
+runs deterministic loopback integration tests with two libtorrent sessions: v1/v2
 transfers, pause/resume, resume reload after a session restart (including a PEX change),
 file priorities, removal with and without `delete_files`, concurrent torrents and failure
 paths. No external tracker or internet connection is used.

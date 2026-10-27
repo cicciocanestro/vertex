@@ -181,6 +181,9 @@ struct vt_session
     int udp_external_port = 0;
     std::string udp_map_transport;
     lt::port_mapping_t udp_mapping{};
+    std::string tcp_portmap_error;
+    std::string udp_portmap_error;
+    // Error whose TCP/UDP protocol could not be determined from the alert.
     std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     // Bounded FIFO: such alerts only arrive shortly after the removal.
@@ -601,6 +604,7 @@ void vt_session_poll(vt_session* session)
                     session->tcp_external_port = mapped->external_port;
                     session->tcp_map_transport = transport;
                     session->tcp_mapping = mapped->mapping;
+                    session->tcp_portmap_error.clear();
                 }
                 else if (mapped->map_protocol == lt::portmap_protocol::udp)
                 {
@@ -608,8 +612,8 @@ void vt_session_poll(vt_session* session)
                     session->udp_external_port = mapped->external_port;
                     session->udp_map_transport = transport;
                     session->udp_mapping = mapped->mapping;
+                    session->udp_portmap_error.clear();
                 }
-                session->portmap_error.clear();
             }
             else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
             {
@@ -617,6 +621,8 @@ void vt_session_poll(vt_session* session)
                 // are per transport (UPnP and NAT-PMP both start at 0), so match both the
                 // index and the transport recorded from the successful portmap_alert.
                 std::string const transport = portmap_transport_string(map_error->map_transport);
+                std::string const message = transport + ": " + map_error->error.message();
+                bool attributed = false;
                 if (session->tcp_mapped && map_error->mapping == session->tcp_mapping
                     && transport == session->tcp_map_transport)
                 {
@@ -624,6 +630,8 @@ void vt_session_poll(vt_session* session)
                     session->tcp_external_port = 0;
                     session->tcp_map_transport.clear();
                     session->tcp_mapping = lt::port_mapping_t{};
+                    session->tcp_portmap_error = message;
+                    attributed = true;
                 }
                 if (session->udp_mapped && map_error->mapping == session->udp_mapping
                     && transport == session->udp_map_transport)
@@ -632,8 +640,22 @@ void vt_session_poll(vt_session* session)
                     session->udp_external_port = 0;
                     session->udp_map_transport.clear();
                     session->udp_mapping = lt::port_mapping_t{};
+                    session->udp_portmap_error = message;
+                    attributed = true;
                 }
-                session->portmap_error = map_error->error.message();
+                if (!attributed)
+                {
+                    // libtorrent registers the TCP mapping before the UDP one for
+                    // each port mapper, so slots 0 and 1 identify them even when
+                    // the first attempt fails before any portmap_alert arrives.
+                    int const slot = static_cast<int>(map_error->mapping);
+                    if (slot == 0)
+                        session->tcp_portmap_error = message;
+                    else if (slot == 1)
+                        session->udp_portmap_error = message;
+                    else
+                        session->portmap_error = message;
+                }
             }
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
             {
@@ -724,10 +746,12 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"portmap\":{";
         out << "\"tcp\":{\"mapped\":" << (session->tcp_mapped ? "true" : "false")
             << ",\"external_port\":" << session->tcp_external_port
-            << ",\"transport\":\"" << json_escape(session->tcp_map_transport) << "\"},";
+            << ",\"transport\":\"" << json_escape(session->tcp_map_transport)
+            << "\",\"error\":\"" << json_escape(session->tcp_portmap_error) << "\"},";
         out << "\"udp\":{\"mapped\":" << (session->udp_mapped ? "true" : "false")
             << ",\"external_port\":" << session->udp_external_port
-            << ",\"transport\":\"" << json_escape(session->udp_map_transport) << "\"},";
+            << ",\"transport\":\"" << json_escape(session->udp_map_transport)
+            << "\",\"error\":\"" << json_escape(session->udp_portmap_error) << "\"},";
         out << "\"error\":\"" << json_escape(session->portmap_error) << "\"},";
         out << "\"port\":" << session->listen_port;
         out << "}";
@@ -1165,6 +1189,8 @@ int vt_apply_settings_ex(vt_session* session,
             session->udp_external_port = 0;
             session->udp_map_transport.clear();
             session->udp_mapping = lt::port_mapping_t{};
+            session->tcp_portmap_error.clear();
+            session->udp_portmap_error.clear();
             session->portmap_error.clear();
             settings.set_str(lt::settings_pack::listen_interfaces,
                              "0.0.0.0:" + std::to_string(listen_port) +
@@ -1181,6 +1207,8 @@ int vt_apply_settings_ex(vt_session* session,
             session->udp_external_port = 0;
             session->udp_map_transport.clear();
             session->udp_mapping = lt::port_mapping_t{};
+            session->tcp_portmap_error.clear();
+            session->udp_portmap_error.clear();
             session->portmap_error.clear();
         }
         settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));
@@ -1194,6 +1222,46 @@ int vt_apply_settings_ex(vt_session* session,
     }
     catch (...)
     {
+        return -1;
+    }
+}
+
+int vt_set_default_save_path(vt_session* session, const char* path)
+{
+    if (!session || !path || !*path)
+        return -1;
+
+    try
+    {
+        fs::path target(path);
+        std::error_code ec;
+        fs::create_directories(target, ec);
+        if (ec)
+        {
+            session->last_error = ec.message();
+            return -1;
+        }
+        if (!fs::is_directory(target, ec) || ec)
+        {
+            session->last_error = "La destinazione non è una cartella.";
+            return -1;
+        }
+        if (::access(target.c_str(), W_OK) != 0)
+        {
+            session->last_error = "La cartella di destinazione non è scrivibile.";
+            return -1;
+        }
+        session->default_save_path = target.string();
+        return 0;
+    }
+    catch (std::exception const& e)
+    {
+        session->last_error = e.what();
+        return -1;
+    }
+    catch (...)
+    {
+        session->last_error = "Errore sconosciuto";
         return -1;
     }
 }

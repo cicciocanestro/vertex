@@ -88,6 +88,10 @@ int vt_apply_settings_ex(vt_session* session,
                          int enable_upnp,
                          int enable_lsd);
 
+/* Updates the fallback folder used when a torrent is added without an explicit
+   save path. The folder is created if needed. Returns 0 on success. */
+int vt_set_default_save_path(vt_session* session, const char* path);
+
 void vt_free_string(char* value);
 
 #ifdef __cplusplus

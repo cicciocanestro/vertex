@@ -199,7 +199,9 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 
 - Si apre dal numero di porta nella barra di stato, da **Impostazioni → Rete → Diagnostica
   rete**, oppure con `⌘⇧D`.
-- Mostra porta effettiva, IP locale, stato delle mappature UPnP/NAT-PMP e nodi DHT.
+- Mostra porta effettiva, IP locale, stato delle mappature UPnP/NAT-PMP e nodi DHT. Gli
+  errori di mappatura sono riportati separatamente per TCP e UDP, insieme al trasporto
+  (UPnP o NAT-PMP) che li ha prodotti.
 - **Testa porta** verifica la raggiungibilità TCP tramite check-host.net: l’IP pubblico
   viene inviato al servizio solo quando avvii il test. Il traffico UDP/uTP non è verificato.
 - Se la porta risulta chiusa, abilita UPnP/NAT-PMP sul router o inoltra TCP e UDP verso
@@ -318,12 +320,13 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 ```
 
 Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la
-formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le
-preferenze e il ciclo vitale del bridge C++. Esegue anche test d'integrazione deterministici
-su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa, ricaricamento
-del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità dei file,
-rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non viene usato
-alcun tracker esterno o connessione Internet.
+formattazione, la decodifica dei JSON di snapshot (inclusi gli errori di mappatura separati
+per TCP e UDP), i filtri/ordinamenti dei modelli, le preferenze, il ciclo vitale del bridge
+C++ e l'aggiornamento della cartella di salvataggio predefinita. Esegue anche test
+d'integrazione deterministici su loopback con due sessioni libtorrent: trasferimenti
+v1/v2, pausa/ripresa, ricaricamento del resume dopo il riavvio di una sessione (anche con
+cambio PEX), priorità dei file, rimozione con e senza `delete_files`, torrent concorrenti
+e path di errore. Non viene usato alcun tracker esterno o connessione Internet.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
 (`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è
