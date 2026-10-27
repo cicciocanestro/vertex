@@ -1,6 +1,10 @@
 # Changelog
 
-## [Non rilasciato]
+## [1.3.8] — 2026-10-27
+
+Release di manutenzione: nessuna modifica alle funzioni principali, ma meno
+duplicazione nello stato dell'interfaccia, nel bridge C++ e negli script di
+build. La suite automatica passa a 51 test.
 
 ### Manutenzione
 - Preferenze con un'unica fonte (`PrefDefault`) condivisa da registrazione dei default,
