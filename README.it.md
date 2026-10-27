@@ -325,11 +325,13 @@ per TCP e UDP), i filtri/ordinamenti dei modelli, le preferenze, il ciclo vitale
 C++ e l'aggiornamento della cartella di salvataggio predefinita. Una suite dedicata a
 `TorrentEngine` verifica aggiunta da magnet e file, selezione e dettaglio (anche quando la
 lettura fallisce), priorità dei file, pausa/ripresa, comandi su torrent rimossi, riavvio
-della sessione per PEX e shutdown asincrono. Esegue anche test d'integrazione deterministici
-su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa, ricaricamento
-del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità dei file,
-rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non viene usato
-alcun tracker esterno o connessione Internet.
+della sessione per PEX e shutdown asincrono. Una suite per `PortReachabilityTester` usa un
+loader HTTP finto per coprire porta aperta/chiusa, errori del servizio, nodi assenti,
+timeout parziali, reset e payload non validi, senza contattare servizi esterni. Esegue anche test d'integrazione
+deterministici su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa,
+ricaricamento del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità
+dei file, rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non
+viene usato alcun tracker esterno o connessione Internet.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
 (`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è

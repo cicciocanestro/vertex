@@ -14,6 +14,8 @@ CTorrentBridgeTests.runAll()
 #if DEBUG
 TestRunner.beginSuite("EngineTests")
 EngineTests.runAll()
+TestRunner.beginSuite("PortReachabilityTests")
+PortReachabilityTests.runAll()
 #endif
 TestRunner.beginSuite("TorrentIntegrationTests")
 TorrentIntegrationTests.runAll()

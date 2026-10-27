@@ -260,7 +260,7 @@ enum EngineTests {
             let rendered = onMain {
                 ViewRenderingSupport.renderCriticalViews(engine: engine, torrents: engine.torrents)
             }
-            try TestRunner.assertEqual(rendered.count, 6)
+            try TestRunner.assertEqual(rendered.count, 11)
             for (name, area) in rendered {
                 try TestRunner.assertTrue(area > 0, "La vista \(name) non ha prodotto un'immagine")
             }

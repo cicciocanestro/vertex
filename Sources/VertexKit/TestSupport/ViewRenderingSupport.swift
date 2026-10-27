@@ -34,6 +34,35 @@ package enum ViewRenderingSupport {
             width: 580,
             height: 560
         )
+        results["FilterBar"] = render(
+            FilterBar(
+                filter: .constant(.all),
+                sort: .constant(.recent),
+                torrents: torrents
+            ),
+            width: 900,
+            height: 44
+        )
+        results["EmptyStateView"] = render(
+            EmptyStateView(onAdd: {}, onPasteMagnet: {}),
+            width: 760,
+            height: 520
+        )
+        results["NoResultsView"] = render(
+            NoResultsView(query: "ubuntu", onReset: {}),
+            width: 760,
+            height: 520
+        )
+        results["DropOverlay"] = render(
+            DropOverlay(),
+            width: 760,
+            height: 520
+        )
+        results["RootView"] = render(
+            RootView(engine: engine),
+            width: 1180,
+            height: 760
+        )
 
         if let torrent = torrents.first {
             results["InspectorView"] = render(

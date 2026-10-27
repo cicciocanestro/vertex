@@ -3,9 +3,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 package struct RootView: View {
-    package init() {}
+    @ObservedObject private var engine: TorrentEngine
 
-    @ObservedObject private var engine = TorrentEngine.shared
+    package init() {
+        self.engine = .shared
+    }
+
+    #if DEBUG
+    package init(engine: TorrentEngine) {
+        self.engine = engine
+    }
+    #endif
+
     @Environment(\.colorScheme) private var scheme
 
     @StateObject private var filter = UIState<TorrentFilter>(.all)

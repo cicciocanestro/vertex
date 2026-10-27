@@ -315,7 +315,9 @@ snapshot JSON deserialization (including separate TCP/UDP mapping errors), model
 filtering/sorting, preferences, C++ bridge lifecycle and default save-path updates. A
 dedicated `TorrentEngine` suite verifies magnet and file additions, selection and detail
 loading (including failed fetches), file priorities, pause/resume, commands on removed
-torrents, PEX session restarts and asynchronous shutdown. It also runs deterministic
+torrents, PEX session restarts and asynchronous shutdown. A `PortReachabilityTester` suite
+uses a fake HTTP loader to cover open/closed ports, service errors, missing nodes, partial
+timeouts, reset and invalid payloads, without contacting external services. It also runs deterministic
 loopback integration tests with two libtorrent sessions: v1/v2 transfers, pause/resume,
 resume reload after a session restart (including a PEX change), file priorities, removal
 with and without `delete_files`, concurrent torrents and failure paths. No external

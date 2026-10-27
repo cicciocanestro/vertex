@@ -8,8 +8,12 @@
   riavvio della sessione per PEX e shutdown asincrono.
 - Test mirato per il dettaglio svuotato quando la lettura del torrent fallisce o arriva
   una risposta obsoleta.
-- Rendering headless delle viste SwiftUI critiche tramite `ImageRenderer`.
-- Gli hook e la suite sono disponibili solo in DEBUG: il comportamento delle build di
+- Nuova suite `PortReachabilityTests` con loader HTTP iniettato: porta aperta e chiusa,
+  errori HTTP, servizio non valido, nodi assenti, timeout parziali, reset, IP vuoto,
+  risposte non HTTP e payload malformati.
+- Rendering headless delle viste SwiftUI critiche tramite `ImageRenderer`, ora esteso a
+  `RootView`, barra superiore e filtri, stati vuoti, nessun risultato e overlay di drop.
+- Gli hook e le suite sono disponibili solo in DEBUG: il comportamento delle build di
   release resta invariato.
 
 ## [1.3.7] — 2026-10-27

@@ -11,6 +11,8 @@ final class PortReachabilityTester: ObservableObject {
         case failed(String)
     }
 
+    typealias Loader = @MainActor (URLRequest) async throws -> (Data, URLResponse)
+
     @Published private(set) var state: State = .idle
     @Published private(set) var publicIP: String?
 
@@ -19,7 +21,17 @@ final class PortReachabilityTester: ObservableObject {
         return "Vertex/\(version)"
     }()
 
+    private let load: Loader
+    private let pollInterval: UInt64
     private var task: Task<Void, Never>?
+
+    init(
+        load: @escaping Loader = { try await URLSession.shared.data(for: $0) },
+        pollInterval: UInt64 = 1_500_000_000
+    ) {
+        self.load = load
+        self.pollInterval = pollInterval
+    }
 
     func start(port: Int) {
         task?.cancel()
@@ -61,7 +73,7 @@ final class PortReachabilityTester: ObservableObject {
 
             for _ in 0..<15 {
                 do {
-                    try await Task.sleep(nanoseconds: 1_500_000_000)
+                    try await Task.sleep(nanoseconds: pollInterval)
                 } catch {
                     return
                 }
@@ -114,7 +126,7 @@ final class PortReachabilityTester: ObservableObject {
         request.timeoutInterval = 10
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await load(request)
         try validate(response)
 
         struct IPResponse: Decodable {
@@ -143,7 +155,7 @@ final class PortReachabilityTester: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await load(request)
         try validate(response)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -166,7 +178,7 @@ final class PortReachabilityTester: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await load(request)
         try validate(response)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
