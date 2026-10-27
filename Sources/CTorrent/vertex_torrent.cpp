@@ -354,13 +354,35 @@ vt_session* vt_session_create_ex(const char* download_dir,
                                  int enable_pex,
                                  int enable_lsd)
 {
+    return vt_session_create_full(
+        download_dir,
+        resume_dir,
+        listen_port,
+        download_limit_bytes,
+        upload_limit_bytes,
+        enable_dht,
+        enable_pex,
+        enable_lsd,
+        1);
+}
+
+vt_session* vt_session_create_full(const char* download_dir,
+                                   const char* resume_dir,
+                                   int listen_port,
+                                   int download_limit_bytes,
+                                   int upload_limit_bytes,
+                                   int enable_dht,
+                                   int enable_pex,
+                                   int enable_lsd,
+                                   int enable_upnp)
+{
     try
     {
         auto session = std::make_unique<vt_session>();
         session->default_save_path = download_dir ? download_dir : "";
         session->resume_dir = resume_dir ? resume_dir : "";
         session->listen_port = listen_port > 0 ? listen_port : 6881;
-        session->upnp_enabled = true;
+        session->upnp_enabled = enable_upnp != 0;
 
         if (!session->default_save_path.empty())
             fs::create_directories(session->default_save_path);
@@ -380,8 +402,8 @@ vt_session* vt_session_create_ex(const char* download_dir,
                              ",[::]:" + std::to_string(session->listen_port));
         settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
         settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
-        settings.set_bool(lt::settings_pack::enable_upnp, true);
-        settings.set_bool(lt::settings_pack::enable_natpmp, true);
+        settings.set_bool(lt::settings_pack::enable_upnp, enable_upnp != 0);
+        settings.set_bool(lt::settings_pack::enable_natpmp, enable_upnp != 0);
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
                          "dht.transmissionbt.com:6881,router.utorrent.com:6881");

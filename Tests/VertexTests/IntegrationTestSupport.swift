@@ -389,6 +389,7 @@ enum IntegrationSwarm {
         workspace: IntegrationWorkspace,
         seedPort: Int,
         name: String = "leech",
+        enablePEX: Bool = false,
         configureBeforeConnect: ((BridgeSession, String) throws -> Void)? = nil
     ) throws -> (session: BridgeSession, torrentID: String) {
         let downloadRoot = try workspace.directory(name)
@@ -397,7 +398,8 @@ enum IntegrationSwarm {
         let leech = try BridgeSession(
             downloadDirectory: downloadRoot,
             resumeDirectory: resumeRoot,
-            port: port
+            port: port,
+            enablePEX: enablePEX
         )
         do {
             try leech.addTorrentFile(

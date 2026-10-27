@@ -28,6 +28,19 @@ vt_session* vt_session_create_ex(const char* download_dir,
                                  int enable_pex,
                                  int enable_lsd);
 
+/* Same as vt_session_create_ex, with an explicit UPnP/NAT-PMP switch. */
+vt_session* vt_session_create_full(const char* download_dir,
+                                   const char* resume_dir,
+                                   int listen_port,
+                                   int download_limit_bytes,
+                                   int upload_limit_bytes,
+                                   int enable_dht,
+                                   int enable_pex,
+                                   int enable_lsd,
+                                   int enable_upnp);
+
+/* Saves resume data and destroys the session. It can wait up to ~3 seconds:
+   callers must invoke it off the main/UI thread. */
 void vt_session_destroy(vt_session* session);
 void vt_session_poll(vt_session* session);
 

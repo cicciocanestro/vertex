@@ -8,6 +8,7 @@ struct NetworkDiagnosticsView: View {
 
     @Environment(\.colorScheme) private var scheme
     @StateObject private var tester = PortReachabilityTester()
+    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
 
     private var port: Int {
         engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
@@ -113,9 +114,12 @@ struct NetworkDiagnosticsView: View {
 
             statusCard(
                 title: "Nodi DHT",
-                value: "\(engine.stats.dhtNodes)",
-                detail: L(engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione"),
-                color: engine.stats.dhtNodes > 0 ? Theme.blue : Theme.amber,
+                value: dhtEnabled ? "\(engine.stats.dhtNodes)" : "—",
+                detail: L(!dhtEnabled ? "DHT disattivato"
+                    : (engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione")),
+                color: dhtEnabled
+                    ? (engine.stats.dhtNodes > 0 ? Theme.blue : Theme.amber)
+                    : palette.tertiary,
                 palette: palette
             )
         }

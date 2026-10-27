@@ -125,7 +125,7 @@
 "Sistema" = "Sistema";
 "Scuro" = "Scuro";
 "Chiaro" = "Chiaro";
-"Le modifiche di rete vengono applicate immediatamente." = "Le modifiche di rete vengono applicate immediatamente.";
+"Le modifiche di rete vengono applicate automaticamente." = "Le modifiche di rete vengono applicate automaticamente.";
 "Fine" = "Fine";
 "UPnP / NAT-PMP" = "UPnP / NAT-PMP";
 "Errore del torrent" = "Errore del torrent";
@@ -176,7 +176,16 @@
 "Impossibile avviare il motore BitTorrent" = "Impossibile avviare il motore BitTorrent";
 "Impossibile riavviare il motore BitTorrent" = "Impossibile riavviare il motore BitTorrent";
 "La modifica a Peer Exchange non è stata applicata." = "La modifica a Peer Exchange non è stata applicata.";
-"Controlla che libtorrent-rasterbar sia installata." = "Controlla che libtorrent-rasterbar sia installata.";
+"La modifica a Peer Exchange non è stata applicata. Riavvia Vertex." = "La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.";
+"La sessione precedente è stata ripristinata." = "La sessione precedente è stata ripristinata.";
+"Riavvio del motore BitTorrent…" = "Riavvio del motore BitTorrent…";
+"Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app." = "Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.";
+"Porta non valida" = "Porta non valida";
+"Inserisci un valore tra 1 e 65535." = "Inserisci un valore tra 1 e 65535.";
+"Limite non valido" = "Limite non valido";
+"Inserisci 0 o un valore positivo entro il massimo consentito." = "Inserisci 0 o un valore positivo entro il massimo consentito.";
+"Impostazioni non applicate" = "Impostazioni non applicate";
+"Il motore BitTorrent ha rifiutato la configurazione." = "Il motore BitTorrent ha rifiutato la configurazione.";
 "Motore non disponibile." = "Motore non disponibile.";
 "Il link magnet non è valido." = "Il link magnet non è valido.";
 "Cartella di destinazione non valida." = "Cartella di destinazione non valida.";

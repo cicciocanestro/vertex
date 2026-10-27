@@ -20,7 +20,7 @@ and full support for magnet links and `.torrent` files.
 - Download, seed, pause/resume, file verification and metadata retrieval.
 - Instant search, filters (all, downloading, seeding, completed, paused) and sorting.
 - Inspector with statistics, files with priorities and tracker status.
-- Global speed limits, listening port, DHT, UPnP/NAT-PMP.
+- Global speed limits, listening port, DHT, PEX, LSD and UPnP/NAT-PMP.
 - **Network diagnostics** panel: actual port, local IP, UPnP/NAT-PMP mapping state and a
   TCP external reachability test.
 - Dark, light or system appearance, applied immediately.
@@ -208,8 +208,38 @@ hardened runtime and notarize the app with `notarytool` and `stapler` before cre
 - Dark, light or system appearance.
 - The download folder applies to new torrents; torrents already added keep their own path.
 - DHT and LSD apply immediately. Changing Peer Exchange recreates the libtorrent session
-  so the plugin is actually enabled or disabled; active torrents are restored from
-  resume data.
+  in the background so the plugin is actually enabled or disabled; network controls are
+  briefly disabled and active torrents are restored from resume data. If the new session
+  cannot start, Vertex attempts to restore the previous configuration.
+- Port and speed limits are validated: an invalid value is not applied and is reported
+  with a message.
+
+The network options in **Settings → Network** control how Vertex finds other peers and how
+it makes itself reachable from the outside; they do not affect speed limits, queues or
+folders.
+
+- **DHT** — A distributed "phone book" without a tracker: it lets Vertex find peers for
+  magnet links and trackerless torrents. If disabled, Vertex uses only trackers. Keep it on
+  for normal use; disable it if you want tracker-only operation.
+- **Peer Exchange (PEX)** — Connected clients share other peer addresses with each other.
+  This speeds up discovery and helps recover the swarm when trackers are slow. It exchanges
+  only addresses, not files. Disable it to reduce propagation of your IP through PEX; it
+  does not make you anonymous. In Vertex, changing it recreates the session in the
+  background without blocking the window; network controls are briefly disabled.
+- **Local Service Discovery (LSD)** — Finds peers on the same local network via multicast.
+  Useful for transfers between two home computers without going through the internet. On
+  public or corporate networks it is better disabled because it announces torrents to the
+  LAN.
+- **UPnP / NAT-PMP** — Asks the router to open Vertex's listening port automatically. It
+  improves incoming connections, seeding and reachability. If disabled, you must configure
+  port forwarding manually; otherwise Vertex can only make outgoing connections. It is
+  reasonable to disable it on untrusted routers or networks.
+- **Network diagnostics** — Not a setting: it verifies the effective port, router mapping
+  and external reachability.
+
+For normal home use, leave all four toggles enabled. For maximum privacy, disable DHT, PEX
+and LSD, and consider disabling UPnP/NAT-PMP as well; without port forwarding or a VPN that
+provides an incoming port, the client will be less reachable.
 
 ## Shortcuts
 
@@ -281,9 +311,9 @@ The app is not sandboxed and accesses the chosen folders and the download folder
 An automated test suite (`VertexTestRunner`, run via `./build.sh test`) covers formatters,
 snapshot JSON deserialization, model filtering/sorting, preferences and C++ bridge lifecycle.
 It also runs deterministic loopback integration tests with two libtorrent sessions: v1/v2
-transfers, pause/resume, resume reload after a session restart, file priorities, removal
-with and without `delete_files`, concurrent torrents and failure paths. No external tracker or internet
-connection is used.
+transfers, pause/resume, resume reload after a session restart (including a PEX change),
+file priorities, removal with and without `delete_files`, concurrent torrents and failure
+paths. No external tracker or internet connection is used.
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/`
 (`coverage.txt` plus LCOV). CI uploads both artifacts on every run. The suite is headless:

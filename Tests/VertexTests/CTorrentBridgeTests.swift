@@ -19,14 +19,15 @@ enum CTorrentBridgeTests {
                 try? FileManager.default.removeItem(at: tempDir)
             }
 
-            // Create session
+            // Create session through the full entry point, also covering the
+            // explicit UPnP/NAT-PMP switch used by the app.
             let session = downloadDir.path.withCString { dlPath in
                 resumeDir.path.withCString { resPath in
-                    vt_session_create_ex(dlPath, resPath, 6882, 0, 0, 0, 0, 0)
+                    vt_session_create_full(dlPath, resPath, 6882, 0, 0, 0, 0, 0, 0)
                 }
             }
 
-            try TestRunner.assertNotNil(session, "vt_session_create_ex deve restituire un puntatore valido")
+            try TestRunner.assertNotNil(session, "vt_session_create_full deve restituire un puntatore valido")
             guard let session else { return }
 
             // Poll

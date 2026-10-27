@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.3.6] — 2026-10-27
+
+Release di correzione per il ciclo di vita della sessione libtorrent e la validazione
+delle impostazioni di rete.
+
+### Corretto
+- La distruzione della sessione (cambio PEX e chiusura dell'app) non avviene più sul
+  main thread: il salvataggio del resume data non blocca più l'interfaccia per un massimo
+  di 3 secondi.
+- Il cambio PEX ricrea la sessione in background; se la nuova sessione non parte,
+  Vertex ripristina la preferenza e la sessione precedente quando possibile.
+- Porta e limiti di velocità vengono validati prima dell'applicazione. I valori non
+  validi non vengono applicati e producono un messaggio di errore.
+- Gli errori restituiti da `vt_apply_settings_ex` non vengono più ignorati.
+- La diagnostica mostra DHT come disattivato quando il relativo toggle è spento.
+- Aggiornato il messaggio di errore all'avvio: non fa più riferimento a un'installazione
+  esterna di libtorrent, che è inclusa nel bundle.
+
+### Test
+- Aggiunta la validazione dei limiti KB/s e delle porte.
+- Aggiunto un test d'integrazione per il ricaricamento del resume dopo un cambio PEX.
+
 ## [1.3.5] — 2026-10-26
 
 Release dedicata al controllo delle funzioni di discovery e all'aggiornamento

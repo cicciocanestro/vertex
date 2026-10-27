@@ -20,7 +20,7 @@ e gestione completa di magnet link e file `.torrent`.
 - Download, seed, pausa/ripresa, verifica dei file e recupero dei metadati.
 - Ricerca istantanea, filtri (tutti, download, seed, completati, in pausa) e ordinamento.
 - Pannello dettagli con statistiche, file con priorità e stato dei tracker.
-- Limiti globali di velocità, porta di ascolto, DHT, UPnP/NAT-PMP.
+- Limiti globali di velocità, porta di ascolto, DHT, PEX, LSD e UPnP/NAT-PMP.
 - Pannello **Diagnostica rete**: porta effettiva, IP locale, stato UPnP/NAT-PMP e test TCP di
   raggiungibilità esterna.
 - Tema scuro, chiaro o di sistema, applicato immediatamente.
@@ -215,8 +215,38 @@ firmare con Developer ID, abilitare l'hardened runtime e notarizzare l'app con
 - La cartella di download vale per i nuovi torrent; i torrent già aggiunti mantengono
   il proprio percorso.
 - DHT e LSD si applicano subito. Cambiare Peer Exchange ricrea la sessione libtorrent
-  per abilitare o disabilitare realmente il plugin; i torrent attivi vengono ripristinati
-  dal resume data.
+  in background per abilitare o disabilitare realmente il plugin; i controlli di rete
+  restano disattivati per pochi istanti e i torrent attivi vengono ripristinati dal
+  resume data. Se la nuova sessione non parte, Vertex tenta di ripristinare la
+  configurazione precedente.
+- Porta e limiti di velocità vengono validati: un valore non valido non viene applicato
+  e viene segnalato con un messaggio.
+
+Le opzioni di rete in **Impostazioni → Rete** controllano come Vertex trova altri peer e
+come si rende raggiungibile dall’esterno; non modificano limiti di velocità, code o cartelle.
+
+- **DHT** — È una “rubrica distribuita” senza tracker: permette di trovare peer anche per
+  magnet link e torrent senza tracker. Se la disattivi, Vertex usa solo i tracker. Lasciala
+  attiva per un uso normale; disattivala se vuoi dipendere solo dai tracker.
+- **Peer Exchange (PEX)** — I client già connessi si scambiano reciprocamente altri
+  indirizzi di peer. Velocizza la scoperta e aiuta a recuperare il gruppo quando i tracker
+  sono lenti. Non scambia file, solo indirizzi. Disattivalo se vuoi ridurre la propagazione
+  del tuo IP tramite PEX; non ti rende comunque anonimo. In Vertex il cambio ricrea la
+  sessione in background, senza bloccare la finestra; i controlli di rete restano
+  disattivati per pochi istanti.
+- **Local Service Discovery (LSD)** — Cerca peer sulla stessa rete locale tramite multicast.
+  È utile per trasferire tra due computer di casa senza passare da Internet. Su reti
+  pubbliche o aziendali è meglio disattivarlo, perché annuncia i torrent alla LAN.
+- **UPnP / NAT-PMP** — Chiede al router di aprire automaticamente la porta usata da Vertex.
+  Migliora le connessioni in entrata, quindi seeding e raggiungibilità. Se lo disattivi,
+  devi configurare il port forwarding manualmente; altrimenti Vertex può solo stabilire
+  connessioni in uscita. Su router o reti non fidate è ragionevole spegnerlo.
+- **Diagnostica rete** — Non è un’impostazione: verifica porta effettiva, mapping sul router
+  e raggiungibilità dall’esterno.
+
+Per un uso domestico normale lascia attivi tutti e quattro i toggle. Per la massima
+riservatezza disattiva DHT, PEX e LSD e valuta anche UPnP/NAT-PMP; senza port forwarding o
+una VPN con porta in entrata il client sarà meno raggiungibile.
 
 ## Scorciatoie
 
@@ -291,9 +321,9 @@ Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh tes
 formattazione, la decodifica dei JSON di snapshot, i filtri/ordinamenti dei modelli, le
 preferenze e il ciclo vitale del bridge C++. Esegue anche test d'integrazione deterministici
 su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa, ricaricamento
-del resume dopo il riavvio di una sessione, priorità dei file, rimozione con e senza
-`delete_files`, torrent concorrenti e path di errore. Non viene usato alcun tracker esterno
-o connessione Internet.
+del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità dei file,
+rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non viene usato
+alcun tracker esterno o connessione Internet.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
 (`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è

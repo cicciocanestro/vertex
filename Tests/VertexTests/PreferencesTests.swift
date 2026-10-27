@@ -16,6 +16,14 @@ enum PreferencesTests {
             try TestRunner.assertTrue(maxLimit <= Int32.max, "Il limite deve rientrare in Int32")
         }
 
+        TestRunner.run("Limiti KB/s: validazione dei valori ammessi") {
+            try TestRunner.assertTrue(Preferences.isValidLimitKB(0))
+            try TestRunner.assertTrue(Preferences.isValidLimitKB(1024))
+            try TestRunner.assertTrue(Preferences.isValidLimitKB(Preferences.maximumLimitKB))
+            try TestRunner.assertFalse(Preferences.isValidLimitKB(-1))
+            try TestRunner.assertFalse(Preferences.isValidLimitKB(Preferences.maximumLimitKB + 1))
+        }
+
         TestRunner.run("ValidPort: validazione range porte TCP/UDP") {
             try TestRunner.assertEqual(Preferences.validPort(6881), 6881)
             try TestRunner.assertEqual(Preferences.validPort(80), 80)
@@ -24,6 +32,12 @@ enum PreferencesTests {
             try TestRunner.assertEqual(Preferences.validPort(0), 6881)
             try TestRunner.assertEqual(Preferences.validPort(-1), 6881)
             try TestRunner.assertEqual(Preferences.validPort(70000), 6881)
+            try TestRunner.assertTrue(Preferences.isValidPort(1))
+            try TestRunner.assertTrue(Preferences.isValidPort(6881))
+            try TestRunner.assertTrue(Preferences.isValidPort(65535))
+            try TestRunner.assertFalse(Preferences.isValidPort(0))
+            try TestRunner.assertFalse(Preferences.isValidPort(-1))
+            try TestRunner.assertFalse(Preferences.isValidPort(65536))
         }
 
         TestRunner.run("ResolvedDownloadPath: sanitizzazione e percorsi fallback") {

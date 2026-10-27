@@ -133,6 +133,7 @@ struct SettingsSheet: View {
                             rowDivider(palette)
                             diagnosticsRow(palette)
                         }
+                        .disabled(engine.isRestartingSession)
 
                         section("Comportamento", palette) {
                             toggleRow(
@@ -459,7 +460,9 @@ struct SettingsSheet: View {
 
     private func footer(_ palette: Palette) -> some View {
         HStack {
-            Text("Le modifiche di rete vengono applicate immediatamente.")
+            Text(engine.isRestartingSession
+                ? L("Riavvio del motore BitTorrent…")
+                : L("Le modifiche di rete vengono applicate automaticamente."))
                 .font(.system(size: 9.5))
                 .foregroundStyle(palette.tertiary)
 

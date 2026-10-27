@@ -40,9 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         MainActor.assumeIsolated {
-            TorrentEngine.shared.shutdown()
+            TorrentEngine.shared.shutdown {
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
         }
-        return .terminateNow
+        return .terminateLater
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

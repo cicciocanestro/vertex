@@ -14,6 +14,14 @@ struct StatusBarView: View {
 
     @Environment(\.colorScheme) private var scheme
 
+    private var downloadLimitBytes: Int64 {
+        Int64(Preferences.limitBytes(fromKB: downloadLimitKB))
+    }
+
+    private var uploadLimitBytes: Int64 {
+        Int64(Preferences.limitBytes(fromKB: uploadLimitKB))
+    }
+
     var body: some View {
         let palette = Palette(scheme: scheme)
 
@@ -42,15 +50,15 @@ struct StatusBarView: View {
 
             Spacer(minLength: 10)
 
-            if downloadLimitKB > 0 || uploadLimitKB > 0 {
+            if downloadLimitBytes > 0 || uploadLimitBytes > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "gauge.with.dots.needle.33percent")
                         .font(.system(size: 9, weight: .medium))
-                    if downloadLimitKB > 0 {
-                        Text("↓ \(Fmt.rate(Int64(downloadLimitKB) * 1024))")
+                    if downloadLimitBytes > 0 {
+                        Text("↓ \(Fmt.rate(downloadLimitBytes))")
                     }
-                    if uploadLimitKB > 0 {
-                        Text("↑ \(Fmt.rate(Int64(uploadLimitKB) * 1024))")
+                    if uploadLimitBytes > 0 {
+                        Text("↑ \(Fmt.rate(uploadLimitBytes))")
                     }
                 }
                 .font(.system(size: 9.3, weight: .medium, design: .rounded))

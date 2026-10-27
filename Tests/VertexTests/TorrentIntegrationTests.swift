@@ -22,6 +22,10 @@ enum TorrentIntegrationTests {
             try resumeAfterRestart()
         }
 
+        TestRunner.run("Resume: cambio PEX con sessione ricreata") {
+            try resumeAfterPexChange()
+        }
+
         TestRunner.run("Priorità file: esclusione del secondo file") {
             try filePriority()
         }
@@ -143,6 +147,61 @@ enum TorrentIntegrationTests {
             restored.savePath,
             downloadDirectory.path,
             "Il save_path non è stato preservato dal resume"
+        )
+        try fixture.assertDownloaded(in: downloadDirectory, path: "data.bin")
+    }
+
+    private static func resumeAfterPexChange() throws {
+        let fixture = IntegrationFixture.v1
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let seed = try IntegrationSwarm.makeSeed(fixture, workspace: workspace)
+        defer { seed.session.close() }
+
+        let leech = try IntegrationSwarm.makeLeech(
+            fixture,
+            workspace: workspace,
+            seedPort: seed.port,
+            enablePEX: true
+        )
+        defer { leech.session.close() }
+
+        try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
+
+        let downloadDirectory = leech.session.downloadDirectory
+        let resumeDirectory = leech.session.resumeDirectory
+        let torrentID = leech.torrentID
+        let resumeFile = resumeDirectory.appendingPathComponent("\(torrentID).resume")
+        leech.session.close()
+
+        try TestRunner.assertTrue(
+            FileManager.default.fileExists(atPath: resumeFile.path),
+            "Il resume data non è stato scritto in \(resumeFile.path)"
+        )
+
+        // This is the same recreate-and-reload path used when the PEX toggle
+        // changes, with the plugin disabled on the new session.
+        let restarted = try BridgeSession(
+            downloadDirectory: downloadDirectory,
+            resumeDirectory: resumeDirectory,
+            port: try TestsSupport.freeTCPPort(),
+            enablePEX: false
+        )
+        defer { restarted.close() }
+
+        try TestsSupport.waitFor("ricaricamento del resume dopo cambio PEX") {
+            try restarted.snapshot().torrents.contains {
+                $0.name == fixture.rootName && $0.hasMetadata
+            }
+        }
+
+        let restored = try restarted.waitForTorrent(fixture.rootName)
+        try TestRunner.assertEqual(
+            restored.savePath,
+            downloadDirectory.path,
+            "Il save_path non è stato preservato dopo il cambio PEX"
         )
         try fixture.assertDownloaded(in: downloadDirectory, path: "data.bin")
     }

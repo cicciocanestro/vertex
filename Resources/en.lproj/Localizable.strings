@@ -146,7 +146,7 @@
 "Sistema" = "System";
 "Scuro" = "Dark";
 "Chiaro" = "Light";
-"Le modifiche di rete vengono applicate immediatamente." = "Network changes are applied immediately.";
+"Le modifiche di rete vengono applicate automaticamente." = "Network changes are applied automatically.";
 "Fine" = "Done";
 "UPnP / NAT-PMP" = "UPnP / NAT-PMP";
 
@@ -207,7 +207,16 @@
 "Impossibile avviare il motore BitTorrent" = "Unable to start the BitTorrent engine";
 "Impossibile riavviare il motore BitTorrent" = "Unable to restart the BitTorrent engine";
 "La modifica a Peer Exchange non è stata applicata." = "The Peer Exchange change was not applied.";
-"Controlla che libtorrent-rasterbar sia installata." = "Check that libtorrent-rasterbar is installed.";
+"La modifica a Peer Exchange non è stata applicata. Riavvia Vertex." = "The Peer Exchange change was not applied. Restart Vertex.";
+"La sessione precedente è stata ripristinata." = "The previous session was restored.";
+"Riavvio del motore BitTorrent…" = "Restarting the BitTorrent engine…";
+"Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app." = "The engine bundled with the app could not start. Restart Vertex; if the problem persists, reinstall the app.";
+"Porta non valida" = "Invalid port";
+"Inserisci un valore tra 1 e 65535." = "Enter a value between 1 and 65535.";
+"Limite non valido" = "Invalid limit";
+"Inserisci 0 o un valore positivo entro il massimo consentito." = "Enter 0 or a positive value within the allowed maximum.";
+"Impostazioni non applicate" = "Settings not applied";
+"Il motore BitTorrent ha rifiutato la configurazione." = "The BitTorrent engine rejected the configuration.";
 "Motore non disponibile." = "Engine unavailable.";
 "Il link magnet non è valido." = "The magnet link is not valid.";
 "Cartella di destinazione non valida." = "Invalid destination folder.";
