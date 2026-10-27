@@ -102,16 +102,38 @@ package enum Preferences {
     }
 }
 
-private struct SessionConfiguration: Sendable {
-    var downloadPath: String
-    var resumePath: String
-    var port: Int32
-    var downloadLimit: Int32
-    var uploadLimit: Int32
-    var dht: Bool
-    var pex: Bool
-    var lsd: Bool
-    var upnp: Bool
+package struct SessionConfiguration: Sendable {
+    package var downloadPath: String
+    package var resumePath: String
+    package var port: Int32
+    package var downloadLimit: Int32
+    package var uploadLimit: Int32
+    package var dht: Bool
+    package var pex: Bool
+    package var lsd: Bool
+    package var upnp: Bool
+
+    package init(
+        downloadPath: String,
+        resumePath: String,
+        port: Int32,
+        downloadLimit: Int32 = 0,
+        uploadLimit: Int32 = 0,
+        dht: Bool = false,
+        pex: Bool = false,
+        lsd: Bool = false,
+        upnp: Bool = false
+    ) {
+        self.downloadPath = downloadPath
+        self.resumePath = resumePath
+        self.port = port
+        self.downloadLimit = downloadLimit
+        self.uploadLimit = uploadLimit
+        self.dht = dht
+        self.pex = pex
+        self.lsd = lsd
+        self.upnp = upnp
+    }
 }
 
 /// A session pointer is only handed to one lifecycle queue at a time. The box
@@ -161,6 +183,7 @@ package final class TorrentEngine: ObservableObject {
         qos: .userInitiated
     )
     private let decoder = JSONDecoder()
+    private var configurationOverride: SessionConfiguration?
 
     private init() {
         Preferences.registerDefaults()
@@ -190,6 +213,21 @@ package final class TorrentEngine: ObservableObject {
             startPolling()
         }
     }
+
+    #if DEBUG
+    /// Test-only initializer: it uses an explicit configuration instead of the
+    /// user's preferences and never starts a polling task unless asked to.
+    package init(configuration: SessionConfiguration, startPollingImmediately: Bool = false) {
+        Preferences.registerDefaults()
+        configurationOverride = configuration
+        sessionPexEnabled = configuration.pex
+        session = Self.makeSession(configuration)
+        isReady = session != nil
+        if isReady && startPollingImmediately {
+            startPolling()
+        }
+    }
+    #endif
 
     /// Snapshot of the preferences used to create a libtorrent session.
     /// It is read before handing the work to the session lifecycle queue.
@@ -544,27 +582,32 @@ package final class TorrentEngine: ObservableObject {
 
     func applySettings() {
         guard !isShuttingDown, !isRestartingSession, let session else { return }
-        let defaults = UserDefaults.standard
-        let rawPort = defaults.integer(forKey: PrefKey.listenPort)
-        guard Preferences.isValidPort(rawPort) else {
-            showToast(
-                L("Porta non valida"),
-                kind: .error,
-                detail: L("Inserisci un valore tra 1 e 65535.")
-            )
-            return
-        }
-        guard Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.downloadLimitKB)),
-              Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.uploadLimitKB)) else {
-            showToast(
-                L("Limite non valido"),
-                kind: .error,
-                detail: L("Inserisci 0 o un valore positivo entro il massimo consentito.")
-            )
-            return
-        }
 
-        let configuration = Self.currentConfiguration()
+        let configuration: SessionConfiguration
+        if let configurationOverride {
+            configuration = configurationOverride
+        } else {
+            let defaults = UserDefaults.standard
+            let rawPort = defaults.integer(forKey: PrefKey.listenPort)
+            guard Preferences.isValidPort(rawPort) else {
+                showToast(
+                    L("Porta non valida"),
+                    kind: .error,
+                    detail: L("Inserisci un valore tra 1 e 65535.")
+                )
+                return
+            }
+            guard Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.downloadLimitKB)),
+                  Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.uploadLimitKB)) else {
+                showToast(
+                    L("Limite non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 o un valore positivo entro il massimo consentito.")
+                )
+                return
+            }
+            configuration = Self.currentConfiguration()
+        }
 
         if configuration.pex != sessionPexEnabled {
             restartSessionForPeerExchange(configuration: configuration, oldPex: sessionPexEnabled)
@@ -764,7 +807,12 @@ package final class TorrentEngine: ObservableObject {
             return
         }
         let pointer = id.withCString { vt_detail_json(session, $0) }
-        guard let json = string(from: pointer),
+        applyDetailJSON(string(from: pointer), id: id)
+    }
+
+    private func applyDetailJSON(_ json: String?, id: String) {
+        guard detailID == id else { return }
+        guard let json,
               let data = json.data(using: .utf8),
               let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
             // Never keep showing the previous snapshot when the fetch fails.
@@ -776,6 +824,20 @@ package final class TorrentEngine: ObservableObject {
             detail = decoded
         }
     }
+
+    #if DEBUG
+    package func pollNowForTesting() {
+        poll()
+    }
+
+    package func applyDetailJSONForTesting(_ json: String?, id: String) {
+        applyDetailJSON(json, id: id)
+    }
+
+    package func setConfigurationForTesting(_ configuration: SessionConfiguration) {
+        configurationOverride = configuration
+    }
+    #endif
 
     // MARK: - Helpers
 

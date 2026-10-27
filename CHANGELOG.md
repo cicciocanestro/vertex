@@ -1,5 +1,17 @@
 # Changelog
 
+## [Non rilasciato]
+
+### Test
+- Nuova suite `EngineTests` con sessioni libtorrent isolate: aggiunta da magnet e file,
+  selezione e dettaglio, priorità dei file, pausa/ripresa, comandi su torrent rimossi,
+  riavvio della sessione per PEX e shutdown asincrono.
+- Test mirato per il dettaglio svuotato quando la lettura del torrent fallisce o arriva
+  una risposta obsoleta.
+- Rendering headless delle viste SwiftUI critiche tramite `ImageRenderer`.
+- Gli hook e la suite sono disponibili solo in DEBUG: il comportamento delle build di
+  release resta invariato.
+
 ## [1.3.7] — 2026-10-27
 
 Piccola release di stabilizzazione dell'interfaccia e della diagnostica di rete.

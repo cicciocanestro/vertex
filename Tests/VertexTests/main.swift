@@ -11,6 +11,10 @@ TestRunner.beginSuite("ModelsTests")
 ModelsTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
+#if DEBUG
+TestRunner.beginSuite("EngineTests")
+EngineTests.runAll()
+#endif
 TestRunner.beginSuite("TorrentIntegrationTests")
 TorrentIntegrationTests.runAll()
 

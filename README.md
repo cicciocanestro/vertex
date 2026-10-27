@@ -312,15 +312,19 @@ The app is not sandboxed and accesses the chosen folders and the download folder
 
 An automated test suite (`VertexTestRunner`, run via `./build.sh test`) covers formatters,
 snapshot JSON deserialization (including separate TCP/UDP mapping errors), model
-filtering/sorting, preferences, C++ bridge lifecycle and default save-path updates. It also
-runs deterministic loopback integration tests with two libtorrent sessions: v1/v2
-transfers, pause/resume, resume reload after a session restart (including a PEX change),
-file priorities, removal with and without `delete_files`, concurrent torrents and failure
-paths. No external tracker or internet connection is used.
+filtering/sorting, preferences, C++ bridge lifecycle and default save-path updates. A
+dedicated `TorrentEngine` suite verifies magnet and file additions, selection and detail
+loading (including failed fetches), file priorities, pause/resume, commands on removed
+torrents, PEX session restarts and asynchronous shutdown. It also runs deterministic
+loopback integration tests with two libtorrent sessions: v1/v2 transfers, pause/resume,
+resume reload after a session restart (including a PEX change), file priorities, removal
+with and without `delete_files`, concurrent torrents and failure paths. No external
+tracker or internet connection is used.
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/`
 (`coverage.txt` plus LCOV). CI uploads both artifacts on every run. The suite is headless:
-SwiftUI views and real external trackers are not exercised.
+critical SwiftUI views are rendered off-screen with `ImageRenderer` without opening windows;
+real external trackers are not exercised.
 
 DEBUG builds provide demo data and automatic window capture (`VERTEX_DEMO=1`,
 `VERTEX_SNAPSHOT=/path/image.png`).

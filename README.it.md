@@ -322,15 +322,19 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 Una suite di test automatica (`VertexTestRunner`, eseguibile con `./build.sh test`) copre la
 formattazione, la decodifica dei JSON di snapshot (inclusi gli errori di mappatura separati
 per TCP e UDP), i filtri/ordinamenti dei modelli, le preferenze, il ciclo vitale del bridge
-C++ e l'aggiornamento della cartella di salvataggio predefinita. Esegue anche test
-d'integrazione deterministici su loopback con due sessioni libtorrent: trasferimenti
-v1/v2, pausa/ripresa, ricaricamento del resume dopo il riavvio di una sessione (anche con
-cambio PEX), priorità dei file, rimozione con e senza `delete_files`, torrent concorrenti
-e path di errore. Non viene usato alcun tracker esterno o connessione Internet.
+C++ e l'aggiornamento della cartella di salvataggio predefinita. Una suite dedicata a
+`TorrentEngine` verifica aggiunta da magnet e file, selezione e dettaglio (anche quando la
+lettura fallisce), priorità dei file, pausa/ripresa, comandi su torrent rimossi, riavvio
+della sessione per PEX e shutdown asincrono. Esegue anche test d'integrazione deterministici
+su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa, ricaricamento
+del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità dei file,
+rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non viene usato
+alcun tracker esterno o connessione Internet.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
 (`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è
-headless: le viste SwiftUI e i tracker esterni reali non vengono esercitati.
+headless: le viste SwiftUI critiche vengono renderizzate fuori schermo con `ImageRenderer`
+senza aprire finestre; i tracker esterni reali non vengono esercitati.
 
 Nelle build DEBUG sono disponibili dati demo e la cattura automatica della finestra
 (`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`).
