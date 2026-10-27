@@ -264,6 +264,17 @@ enum EngineTests {
             for (name, area) in rendered {
                 try TestRunner.assertTrue(area > 0, "La vista \(name) non ha prodotto un'immagine")
             }
+
+            let variants = onMain {
+                ViewRenderingSupport.renderStateVariants(engine: engine, torrents: engine.torrents)
+            }
+            try TestRunner.assertEqual(variants.count, 12)
+            for (name, area) in variants {
+                try TestRunner.assertTrue(
+                    area > 0,
+                    "La variante \(name) non ha prodotto un'immagine"
+                )
+            }
         }
     }
 

@@ -13,6 +13,16 @@
   risposte non HTTP e payload malformati.
 - Rendering headless delle viste SwiftUI critiche tramite `ImageRenderer`, ora esteso a
   `RootView`, barra superiore e filtri, stati vuoti, nessun risultato e overlay di drop.
+- Nuova suite `AppCommandsTests`: verifica il mapping comando → notifica, il payload dei
+  filtri, l'invio sul `NotificationCenter`, il routing delle notifiche di `RootView` e la
+  costruzione dell'albero dei menu.
+- Rendering headless delle varianti di `RootView` con impostazioni, diagnostica, sheet di
+  aggiunta, conferma di rimozione, dettagli, overlay di drop, ricerca senza risultati e
+  filtri. La diagnostica di rete viene renderizzata anche negli stati UPnP/NAT-PMP
+  mappato, parzialmente in errore, non mappato ed errore globale.
+- Smoke test UPnP/NAT-PMP eseguito solo con `VERTEX_TEST_UPNP=1` (impostato in CI): non
+  richiede che il router mappi davvero e verifica solo la coerenza dello snapshot. In
+  locale il gate resta chiuso, quindi non vengono creati mapping sul router dell'utente.
 - Gli hook e le suite sono disponibili solo in DEBUG: il comportamento delle build di
   release resta invariato.
 

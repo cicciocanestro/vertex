@@ -327,16 +327,22 @@ C++ e l'aggiornamento della cartella di salvataggio predefinita. Una suite dedic
 lettura fallisce), priorità dei file, pausa/ripresa, comandi su torrent rimossi, riavvio
 della sessione per PEX e shutdown asincrono. Una suite per `PortReachabilityTester` usa un
 loader HTTP finto per coprire porta aperta/chiusa, errori del servizio, nodi assenti,
-timeout parziali, reset e payload non validi, senza contattare servizi esterni. Esegue anche test d'integrazione
-deterministici su loopback con due sessioni libtorrent: trasferimenti v1/v2, pausa/ripresa,
-ricaricamento del resume dopo il riavvio di una sessione (anche con cambio PEX), priorità
-dei file, rimozione con e senza `delete_files`, torrent concorrenti e path di errore. Non
-viene usato alcun tracker esterno o connessione Internet.
+timeout parziali, reset e payload non validi, senza contattare servizi esterni. Una suite
+`AppCommandsTests` verifica il mapping comando → notifica, il payload dei filtri, l'invio
+sul `NotificationCenter` e il routing delle notifiche di `RootView`. Esegue anche test
+d'integrazione deterministici su loopback con due sessioni libtorrent: trasferimenti v1/v2,
+pausa/ripresa, ricaricamento del resume dopo il riavvio di una sessione (anche con cambio
+PEX), priorità dei file, rimozione con e senza `delete_files`, torrent concorrenti e path
+di errore. Non viene usato alcun tracker esterno o connessione Internet.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/`
 (`coverage.txt` più LCOV). La CI carica entrambi gli artefatti a ogni esecuzione. La suite è
-headless: le viste SwiftUI critiche vengono renderizzate fuori schermo con `ImageRenderer`
-senza aprire finestre; i tracker esterni reali non vengono esercitati.
+headless: le viste SwiftUI critiche e le varianti con i modali di `RootView` vengono
+renderizzate fuori schermo con `ImageRenderer` senza aprire finestre, e la diagnostica di
+rete viene renderizzata negli stati UPnP/NAT-PMP mappato, in errore e non mappato. Lo smoke
+test UPnP/NAT-PMP viene eseguito solo con `VERTEX_TEST_UPNP=1` (impostato in CI) e non
+richiede un mapping reale, quindi le esecuzioni locali non toccano il router dell'utente.
+I tracker esterni reali non vengono esercitati.
 
 Nelle build DEBUG sono disponibili dati demo e la cattura automatica della finestra
 (`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`).

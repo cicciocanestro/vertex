@@ -68,6 +68,10 @@ jobs:
         run: ./Scripts/build-deps.sh
 
       - name: Run test suite
+        env:
+          # Enables the best-effort UPnP/NAT-PMP smoke test. Local test runs
+          # never touch the user's router because the gate stays closed.
+          VERTEX_TEST_UPNP: "1"
         run: ./build.sh test
 
       - name: Verify test artifacts

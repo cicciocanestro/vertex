@@ -16,6 +16,8 @@ TestRunner.beginSuite("EngineTests")
 EngineTests.runAll()
 TestRunner.beginSuite("PortReachabilityTests")
 PortReachabilityTests.runAll()
+TestRunner.beginSuite("AppCommandsTests")
+AppCommandsTests.runAll()
 #endif
 TestRunner.beginSuite("TorrentIntegrationTests")
 TorrentIntegrationTests.runAll()

@@ -317,16 +317,21 @@ dedicated `TorrentEngine` suite verifies magnet and file additions, selection an
 loading (including failed fetches), file priorities, pause/resume, commands on removed
 torrents, PEX session restarts and asynchronous shutdown. A `PortReachabilityTester` suite
 uses a fake HTTP loader to cover open/closed ports, service errors, missing nodes, partial
-timeouts, reset and invalid payloads, without contacting external services. It also runs deterministic
-loopback integration tests with two libtorrent sessions: v1/v2 transfers, pause/resume,
-resume reload after a session restart (including a PEX change), file priorities, removal
-with and without `delete_files`, concurrent torrents and failure paths. No external
-tracker or internet connection is used.
+timeouts, reset and invalid payloads, without contacting external services. An
+`AppCommandsTests` suite checks the menu command to notification mapping, filter payloads,
+the dispatch on `NotificationCenter` and the `RootView` notification routing. It also runs
+deterministic loopback integration tests with two libtorrent sessions: v1/v2 transfers,
+pause/resume, resume reload after a session restart (including a PEX change), file
+priorities, removal with and without `delete_files`, concurrent torrents and failure
+paths. No external tracker or internet connection is used.
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/`
 (`coverage.txt` plus LCOV). CI uploads both artifacts on every run. The suite is headless:
-critical SwiftUI views are rendered off-screen with `ImageRenderer` without opening windows;
-real external trackers are not exercised.
+critical SwiftUI views and the `RootView` modal variants are rendered off-screen with
+`ImageRenderer` without opening windows, and network diagnostics is rendered with mapped,
+error and unmapped UPnP/NAT-PMP states. The UPnP/NAT-PMP smoke test only runs when
+`VERTEX_TEST_UPNP=1` (set in CI) and never requires a real mapping, so local runs do not
+touch the user's router. Real external trackers are not exercised.
 
 DEBUG builds provide demo data and automatic window capture (`VERTEX_DEMO=1`,
 `VERTEX_SNAPSHOT=/path/image.png`).

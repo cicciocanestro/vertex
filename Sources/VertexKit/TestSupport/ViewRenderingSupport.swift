@@ -91,6 +91,125 @@ package enum ViewRenderingSupport {
         return results
     }
 
+    /// Renders the states that are otherwise only reachable by interacting with
+    /// the window: settings/diagnostics modals, add sheet, delete confirmation,
+    /// inspector, drop overlay, filtered search and the UPnP/NAT-PMP cards.
+    @MainActor
+    package static func renderStateVariants(
+        engine: TorrentEngine,
+        torrents: [Torrent]
+    ) -> [String: Int] {
+        _ = NSApplication.shared
+
+        var results: [String: Int] = [
+            "RootViewSettings": render(
+                RootView(engine: engine, showSettings: true),
+                width: 1180,
+                height: 760
+            ),
+            "RootViewDiagnostics": render(
+                RootView(engine: engine, showDiagnostics: true),
+                width: 1180,
+                height: 760
+            ),
+            "RootViewAddSheet": render(
+                RootView(engine: engine, showAddSheet: true, addMode: .file),
+                width: 1180,
+                height: 760
+            ),
+            "RootViewNoResults": render(
+                RootView(engine: engine, search: "nessun-risultato-possibile"),
+                width: 1180,
+                height: 760
+            ),
+            "RootViewFiltered": render(
+                RootView(engine: engine, filter: .downloading, sort: .name),
+                width: 1180,
+                height: 760
+            ),
+            "RootViewDropOverlay": render(
+                RootView(engine: engine, dropTargeted: true),
+                width: 1180,
+                height: 760
+            )
+        ]
+
+        if let torrent = torrents.first {
+            results["RootViewInspector"] = render(
+                RootView(engine: engine, selectedID: torrent.id),
+                width: 1180,
+                height: 760
+            )
+            results["RootViewDeleteConfirmation"] = render(
+                RootView(
+                    engine: engine,
+                    pendingDeletion: torrent,
+                    showDeleteConfirmation: true
+                ),
+                width: 1180,
+                height: 760
+            )
+        }
+
+        let original = engine.stats
+        defer { engine.setStatsForTesting(original) }
+
+        let base = SessionStats(
+            downloadRate: 1_200_000,
+            uploadRate: 240_000,
+            totalDownload: 1_000_000_000,
+            totalUpload: 500_000_000,
+            active: 2,
+            paused: 1,
+            dhtNodes: 42,
+            port: 6881,
+            actualPort: 6881,
+            isListening: true
+        )
+
+        var mapped = base
+        mapped.portmap = PortMapSnapshot(
+            tcp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
+            udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "NAT-PMP")
+        )
+        engine.setStatsForTesting(mapped)
+        results["DiagnosticsMapped"] = render(
+            NetworkDiagnosticsView(engine: engine, onClose: {}, onOpenSettings: {}),
+            width: 760,
+            height: 640
+        )
+
+        var partialError = base
+        partialError.portmap = PortMapSnapshot(
+            tcp: PortMapInfo(error: "UPnP: timeout"),
+            udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "NAT-PMP")
+        )
+        engine.setStatsForTesting(partialError)
+        results["DiagnosticsPartialError"] = render(
+            NetworkDiagnosticsView(engine: engine, onClose: {}, onOpenSettings: {}),
+            width: 760,
+            height: 640
+        )
+
+        engine.setStatsForTesting(base)
+        results["DiagnosticsUnmapped"] = render(
+            NetworkDiagnosticsView(engine: engine, onClose: {}, onOpenSettings: {}),
+            width: 760,
+            height: 640
+        )
+
+        var globalError = base
+        globalError.portmap = PortMapSnapshot(error: "NAT-PMP: no gateway")
+        engine.setStatsForTesting(globalError)
+        results["DiagnosticsGlobalError"] = render(
+            NetworkDiagnosticsView(engine: engine, onClose: {}, onOpenSettings: {}),
+            width: 760,
+            height: 640
+        )
+
+        return results
+    }
+
     @MainActor
     private static func render<V: View>(
         _ view: V,

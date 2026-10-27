@@ -10,8 +10,35 @@ package struct RootView: View {
     }
 
     #if DEBUG
-    package init(engine: TorrentEngine) {
+    /// Test-only initializer: lets the rendering tests start from a specific UI
+    /// state (selected torrent, active modal, search query) without driving the
+    /// view through AppKit. Production always uses `init()`.
+    init(
+        engine: TorrentEngine,
+        filter: TorrentFilter = .all,
+        sort: TorrentSort = .recent,
+        search: String = "",
+        selectedID: String? = nil,
+        showAddSheet: Bool = false,
+        addMode: AddTorrentMode = .magnet,
+        showSettings: Bool = false,
+        showDiagnostics: Bool = false,
+        dropTargeted: Bool = false,
+        pendingDeletion: Torrent? = nil,
+        showDeleteConfirmation: Bool = false
+    ) {
         self.engine = engine
+        _filter = StateObject(wrappedValue: UIState(filter))
+        _sort = StateObject(wrappedValue: UIState(sort))
+        _search = StateObject(wrappedValue: UIState(search))
+        _selectedID = StateObject(wrappedValue: UIState(selectedID))
+        _showAddSheet = StateObject(wrappedValue: UIState(showAddSheet))
+        _addMode = StateObject(wrappedValue: UIState(addMode))
+        _showSettings = StateObject(wrappedValue: UIState(showSettings))
+        _showDiagnostics = StateObject(wrappedValue: UIState(showDiagnostics))
+        _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
+        _pendingDeletion = StateObject(wrappedValue: UIState(pendingDeletion))
+        _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
     }
     #endif
 
@@ -63,7 +90,7 @@ package struct RootView: View {
                 )
             }
             .modifier(
-                RootEventHandlers(
+                RootEventHandlers(actions: RootEventHandlerActions(
                     onAddFile: chooseTorrentFile,
                     onAddMagnet: {
                         addMode.value = .magnet
@@ -113,7 +140,7 @@ package struct RootView: View {
                             filter.value = value
                         }
                     }
-                )
+                ))
             )
             .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
                 handleRootDrop(providers)
@@ -474,37 +501,85 @@ package struct RootView: View {
 }
 
 
+/// Dispatches the menu/shortcut notifications received by `RootView`.
+/// The closures do the actual work; this type only maps notifications to
+/// actions, which makes the routing testable without a hosted SwiftUI view.
+struct RootEventHandlerActions {
+    var onAddFile: () -> Void = {}
+    var onAddMagnet: () -> Void = {}
+    var onPasteMagnet: () -> Void = {}
+    var onPauseResume: () -> Void = {}
+    var onRemove: () -> Void = {}
+    var onReveal: () -> Void = {}
+    var onCopyMagnet: () -> Void = {}
+    var onFind: () -> Void = {}
+    var onToggleInspector: () -> Void = {}
+    var onSettings: () -> Void = {}
+    var onDiagnostics: () -> Void = {}
+    var onFilter: (String) -> Void = { _ in }
+
+    func handle(_ notification: Notification.Name, object: Any? = nil) {
+        switch notification {
+        case .vertexAddFile: onAddFile()
+        case .vertexAddMagnet: onAddMagnet()
+        case .vertexPasteMagnet: onPasteMagnet()
+        case .vertexPauseResume: onPauseResume()
+        case .vertexRemove: onRemove()
+        case .vertexReveal: onReveal()
+        case .vertexCopyMagnet: onCopyMagnet()
+        case .vertexFind: onFind()
+        case .vertexToggleInspector: onToggleInspector()
+        case .vertexSettings: onSettings()
+        case .vertexDiagnostics: onDiagnostics()
+        case .vertexFilter:
+            guard let raw = object as? String else { return }
+            onFilter(raw)
+        default:
+            return
+        }
+    }
+}
+
 private struct RootEventHandlers: ViewModifier {
-    let onAddFile: () -> Void
-    let onAddMagnet: () -> Void
-    let onPasteMagnet: () -> Void
-    let onPauseResume: () -> Void
-    let onRemove: () -> Void
-    let onReveal: () -> Void
-    let onCopyMagnet: () -> Void
-    let onFind: () -> Void
-    let onToggleInspector: () -> Void
-    let onSettings: () -> Void
-    let onDiagnostics: () -> Void
-    let onFilter: (String) -> Void
+    let actions: RootEventHandlerActions
 
     func body(content: Content) -> some View {
         content
-            .onReceive(NotificationCenter.default.publisher(for: .vertexAddFile)) { _ in onAddFile() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexAddMagnet)) { _ in onAddMagnet() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexPasteMagnet)) { _ in onPasteMagnet() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexPauseResume)) { _ in onPauseResume() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexRemove)) { _ in onRemove() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexReveal)) { _ in onReveal() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexCopyMagnet)) { _ in onCopyMagnet() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexFind)) { _ in onFind() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexToggleInspector)) { _ in onToggleInspector() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexSettings)) { _ in onSettings() }
-            .onReceive(NotificationCenter.default.publisher(for: .vertexDiagnostics)) { _ in onDiagnostics() }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexAddFile)) { _ in
+                actions.handle(.vertexAddFile)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexAddMagnet)) { _ in
+                actions.handle(.vertexAddMagnet)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexPasteMagnet)) { _ in
+                actions.handle(.vertexPasteMagnet)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexPauseResume)) { _ in
+                actions.handle(.vertexPauseResume)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexRemove)) { _ in
+                actions.handle(.vertexRemove)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexReveal)) { _ in
+                actions.handle(.vertexReveal)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexCopyMagnet)) { _ in
+                actions.handle(.vertexCopyMagnet)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexFind)) { _ in
+                actions.handle(.vertexFind)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexToggleInspector)) { _ in
+                actions.handle(.vertexToggleInspector)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexSettings)) { _ in
+                actions.handle(.vertexSettings)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .vertexDiagnostics)) { _ in
+                actions.handle(.vertexDiagnostics)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .vertexFilter)) { note in
-                if let raw = note.object as? String {
-                    onFilter(raw)
-                }
+                actions.handle(.vertexFilter, object: note.object)
             }
     }
 }

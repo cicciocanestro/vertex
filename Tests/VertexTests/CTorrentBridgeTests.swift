@@ -155,5 +155,107 @@ enum CTorrentBridgeTests {
                 "Un percorso nullo deve essere rifiutato"
             )
         }
+        TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
+            try upnpSmoke()
+        }
+    }
+
+    /// Best-effort router test. It never requires a successful mapping: the
+    /// runner has no UPnP gateway, so it only checks that every reported state
+    /// is internally consistent. It is disabled unless explicitly requested.
+    private static func upnpSmoke() throws {
+        guard ProcessInfo.processInfo.environment["VERTEX_TEST_UPNP"] == "1" else {
+            print("(gate disattivato) ", terminator: "")
+            return
+        }
+
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+        let download = try workspace.directory("upnp-download")
+        let resume = try workspace.directory("upnp-resume")
+        let port = try TestsSupport.freeTCPPort()
+
+        let session = download.path.withCString { downloadPath in
+            resume.path.withCString { resumePath in
+                vt_session_create_full(
+                    downloadPath,
+                    resumePath,
+                    Int32(port),
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1
+                )
+            }
+        }
+        try TestRunner.assertNotNil(session, "vt_session_create_full con UPnP deve riuscire")
+        guard let session else { return }
+        defer { vt_session_destroy(session) }
+
+        var lastSnapshot: VertexSnapshot?
+        let deadline = Date().addingTimeInterval(8)
+        repeat {
+            vt_session_poll(session)
+            guard let pointer = vt_snapshot_json(session) else { break }
+            let json = String(cString: pointer)
+            vt_free_string(pointer)
+            guard let data = json.data(using: .utf8),
+                  let snapshot = try? JSONDecoder().decode(VertexSnapshot.self, from: data) else {
+                break
+            }
+            lastSnapshot = snapshot
+            let mapping = snapshot.portmap
+            if mapping.tcp.mapped || mapping.udp.mapped || mapping.hasError {
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+
+        guard let snapshot = lastSnapshot else {
+            throw TestFailure(
+                message: "Lo snapshot della sessione UPnP non è decodificabile",
+                file: #file,
+                line: #line
+            )
+        }
+
+        try TestRunner.assertEqual(snapshot.port, port)
+        try validateMapping(snapshot.portmap.tcp, label: "TCP")
+        try validateMapping(snapshot.portmap.udp, label: "UDP")
+        if !snapshot.portmap.error.isEmpty {
+            try TestRunner.assertTrue(
+                hasTransportPrefix(snapshot.portmap.error),
+                "L'errore di mapping non identifica il trasporto: \(snapshot.portmap.error)"
+            )
+        }
+    }
+
+    private static func validateMapping(_ info: PortMapInfo, label: String) throws {
+        if info.mapped {
+            try TestRunner.assertTrue(
+                info.externalPort > 0,
+                "\(label) mappata senza porta esterna"
+            )
+            try TestRunner.assertTrue(
+                info.transport == "UPnP" || info.transport == "NAT-PMP",
+                "\(label) mappata con trasporto inatteso: \(info.transport)"
+            )
+        } else {
+            try TestRunner.assertEqual(info.externalPort, 0, "\(label) non mappata con porta esterna")
+            try TestRunner.assertEqual(info.transport, "", "\(label) non mappata con trasporto")
+        }
+
+        if !info.error.isEmpty {
+            try TestRunner.assertTrue(
+                hasTransportPrefix(info.error),
+                "L'errore \(label) non identifica il trasporto: \(info.error)"
+            )
+        }
+    }
+
+    private static func hasTransportPrefix(_ error: String) -> Bool {
+        error.hasPrefix("UPnP: ") || error.hasPrefix("NAT-PMP: ")
     }
 }

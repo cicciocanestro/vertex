@@ -837,6 +837,12 @@ package final class TorrentEngine: ObservableObject {
     package func setConfigurationForTesting(_ configuration: SessionConfiguration) {
         configurationOverride = configuration
     }
+
+    /// Test-only hook used to render the diagnostics view with the UPnP/NAT-PMP
+    /// states (mapped, error, unmapped) without a real router or a live session.
+    package func setStatsForTesting(_ stats: SessionStats) {
+        self.stats = stats
+    }
     #endif
 
     // MARK: - Helpers
