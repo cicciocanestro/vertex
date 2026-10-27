@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.3.9] — 2026-10-27
+
+Release di manutenzione focalizzata sul payload dello snapshot e sul costo del
+polling. Nessuna modifica alle funzioni principali; la suite automatica resta a
+51 test.
+
+### Manutenzione
+- Snapshot più leggero: rimossi `state`, `files`, `total_download` e `total_upload`,
+  campi mai letti dalla UI. Lo stato usa `state_code` e il conteggio dei file arriva
+  dal dettaglio.
+- Polling: rimossi `query_torrent_file` e il lock di `torrent_file` per torrent;
+  `find_handle` usa direttamente gli info hash.
+- Magnet: l'URI viene costruito da un `add_torrent_params` minimale, senza
+  serializzare il resume data.
+- Resume: la directory viene creata una volta e ricreata solo se il salvataggio
+  fallisce.
+- UI: `DotGrid` memorizza il percorso per dimensione; filtri e conteggi vengono
+  calcolati in una sola passata.
+- Pulizia: rimossi parametri e callback inutilizzati, rami `#if DEBUG` ridondanti
+  e un warning nei test.
+- Build: `build.sh` verifica che `Info.plist` e `Scripts/app.env` dichiarino la
+  stessa versione minima di macOS.
+
 ## [1.3.8] — 2026-10-27
 
 Release di manutenzione: nessuna modifica alle funzioni principali, ma meno
