@@ -235,6 +235,67 @@ void unmark_removed(vt_session* session, std::string const& id)
         session->removed_ids.end());
 }
 
+void reset_portmap_state(vt_session* session)
+{
+    session->tcp_mapped = false;
+    session->tcp_external_port = 0;
+    session->tcp_map_transport.clear();
+    session->tcp_mapping = lt::port_mapping_t{};
+    session->udp_mapped = false;
+    session->udp_external_port = 0;
+    session->udp_map_transport.clear();
+    session->udp_mapping = lt::port_mapping_t{};
+    session->tcp_portmap_error.clear();
+    session->udp_portmap_error.clear();
+    session->portmap_error.clear();
+}
+
+void apply_link_settings(lt::settings_pack& settings,
+                         int download_limit_bytes,
+                         int upload_limit_bytes,
+                         int enable_dht,
+                         int enable_upnp,
+                         int enable_lsd)
+{
+    settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));
+    settings.set_int(lt::settings_pack::upload_rate_limit, (std::max)(0, upload_limit_bytes));
+    settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
+    settings.set_bool(lt::settings_pack::enable_upnp, enable_upnp != 0);
+    settings.set_bool(lt::settings_pack::enable_natpmp, enable_upnp != 0);
+    settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
+}
+
+int add_torrent_common(vt_session* session,
+                       lt::add_torrent_params& params,
+                       const char* save_path,
+                       int paused,
+                       int sequential)
+{
+    params.save_path = prepared_save_path(
+        save_path && *save_path ? save_path : session->default_save_path,
+        session->default_save_path);
+    params.flags |= lt::torrent_flags::duplicate_is_error;
+    params.flags &= ~lt::torrent_flags::auto_managed;
+    // add_torrent_params::default_flags includes `paused`: clear it unless requested.
+    if (paused)
+        params.flags |= lt::torrent_flags::paused;
+    else
+        params.flags &= ~lt::torrent_flags::paused;
+    if (sequential)
+        params.flags |= lt::torrent_flags::sequential_download;
+
+    auto const added_id = to_hex(params.info_hashes.get_best());
+    lt::error_code add_ec;
+    session->session->add_torrent(std::move(params), add_ec);
+    if (add_ec)
+    {
+        session->last_error = add_ec.message();
+        return -1;
+    }
+    unmark_removed(session, added_id);
+    return 0;
+}
+
 bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params)
 {
     try
@@ -330,45 +391,6 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
 
 extern "C" {
 
-vt_session* vt_session_create(const char* download_dir,
-                             const char* resume_dir,
-                             int listen_port,
-                             int download_limit_bytes,
-                             int upload_limit_bytes,
-                             int enable_dht)
-{
-    return vt_session_create_ex(
-        download_dir,
-        resume_dir,
-        listen_port,
-        download_limit_bytes,
-        upload_limit_bytes,
-        enable_dht,
-        1,
-        1);
-}
-
-vt_session* vt_session_create_ex(const char* download_dir,
-                                 const char* resume_dir,
-                                 int listen_port,
-                                 int download_limit_bytes,
-                                 int upload_limit_bytes,
-                                 int enable_dht,
-                                 int enable_pex,
-                                 int enable_lsd)
-{
-    return vt_session_create_full(
-        download_dir,
-        resume_dir,
-        listen_port,
-        download_limit_bytes,
-        upload_limit_bytes,
-        enable_dht,
-        enable_pex,
-        enable_lsd,
-        1);
-}
-
 vt_session* vt_session_create_full(const char* download_dir,
                                    const char* resume_dir,
                                    int listen_port,
@@ -403,15 +425,11 @@ vt_session* vt_session_create_full(const char* download_dir,
         settings.set_str(lt::settings_pack::listen_interfaces,
                          "0.0.0.0:" + std::to_string(session->listen_port) +
                              ",[::]:" + std::to_string(session->listen_port));
-        settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
-        settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
-        settings.set_bool(lt::settings_pack::enable_upnp, enable_upnp != 0);
-        settings.set_bool(lt::settings_pack::enable_natpmp, enable_upnp != 0);
+        apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
+                            enable_dht, enable_upnp, enable_lsd);
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
                          "dht.transmissionbt.com:6881,router.utorrent.com:6881");
-        settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));
-        settings.set_int(lt::settings_pack::upload_rate_limit, (std::max)(0, upload_limit_bytes));
         settings.set_int(lt::settings_pack::connections_limit, 400);
         settings.set_int(lt::settings_pack::active_limit, 100);
         settings.set_int(lt::settings_pack::alert_queue_size, 1000);
@@ -907,29 +925,7 @@ int vt_add_magnet(vt_session* session,
             return -1;
         }
 
-        params.save_path = prepared_save_path(
-            save_path && *save_path ? save_path : session->default_save_path,
-            session->default_save_path);
-        params.flags |= lt::torrent_flags::duplicate_is_error;
-        params.flags &= ~lt::torrent_flags::auto_managed;
-        // add_torrent_params::default_flags includes `paused`: clear it unless requested.
-        if (paused)
-            params.flags |= lt::torrent_flags::paused;
-        else
-            params.flags &= ~lt::torrent_flags::paused;
-        if (sequential)
-            params.flags |= lt::torrent_flags::sequential_download;
-
-        auto const added_id = to_hex(params.info_hashes.get_best());
-        lt::error_code add_ec;
-        session->session->add_torrent(std::move(params), add_ec);
-        if (add_ec)
-        {
-            session->last_error = add_ec.message();
-            return -1;
-        }
-        unmark_removed(session, added_id);
-        return 0;
+        return add_torrent_common(session, params, save_path, paused, sequential);
     }
     catch (std::exception const& e)
     {
@@ -962,29 +958,7 @@ int vt_add_torrent_file(vt_session* session,
             return -1;
         }
 
-        params.save_path = prepared_save_path(
-            save_path && *save_path ? save_path : session->default_save_path,
-            session->default_save_path);
-        params.flags |= lt::torrent_flags::duplicate_is_error;
-        params.flags &= ~lt::torrent_flags::auto_managed;
-        // add_torrent_params::default_flags includes `paused`: clear it unless requested.
-        if (paused)
-            params.flags |= lt::torrent_flags::paused;
-        else
-            params.flags &= ~lt::torrent_flags::paused;
-        if (sequential)
-            params.flags |= lt::torrent_flags::sequential_download;
-
-        auto const added_id = to_hex(params.info_hashes.get_best());
-        lt::error_code add_ec;
-        session->session->add_torrent(std::move(params), add_ec);
-        if (add_ec)
-        {
-            session->last_error = add_ec.message();
-            return -1;
-        }
-        unmark_removed(session, added_id);
-        return 0;
+        return add_torrent_common(session, params, save_path, paused, sequential);
     }
     catch (std::exception const& e)
     {
@@ -1077,21 +1051,13 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
         {
             handle.unset_flags(lt::torrent_flags::sequential_download);
         }
-        else if (command == "remove")
+        else if (command == "remove" || command == "remove_files")
         {
             mark_removed(session, torrent_id_value);
-            session->session->remove_torrent(handle);
-            if (!session->resume_dir.empty())
-            {
-                std::error_code ec;
-                fs::remove(fs::path(session->resume_dir) / (std::string(torrent_id_value) + ".resume"),
-                           ec);
-            }
-        }
-        else if (command == "remove_files")
-        {
-            mark_removed(session, torrent_id_value);
-            session->session->remove_torrent(handle, lt::session::delete_files);
+            if (command == "remove_files")
+                session->session->remove_torrent(handle, lt::session::delete_files);
+            else
+                session->session->remove_torrent(handle);
             if (!session->resume_dir.empty())
             {
                 std::error_code ec;
@@ -1147,23 +1113,6 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
     }
 }
 
-int vt_apply_settings(vt_session* session,
-                      int listen_port,
-                      int download_limit_bytes,
-                      int upload_limit_bytes,
-                      int enable_dht,
-                      int enable_upnp)
-{
-    return vt_apply_settings_ex(
-        session,
-        listen_port,
-        download_limit_bytes,
-        upload_limit_bytes,
-        enable_dht,
-        enable_upnp,
-        1);
-}
-
 int vt_apply_settings_ex(vt_session* session,
                          int listen_port,
                          int download_limit_bytes,
@@ -1181,17 +1130,7 @@ int vt_apply_settings_ex(vt_session* session,
         if (listen_port > 0 && listen_port != session->listen_port)
         {
             session->listen_port = listen_port;
-            session->tcp_mapped = false;
-            session->tcp_external_port = 0;
-            session->tcp_map_transport.clear();
-            session->tcp_mapping = lt::port_mapping_t{};
-            session->udp_mapped = false;
-            session->udp_external_port = 0;
-            session->udp_map_transport.clear();
-            session->udp_mapping = lt::port_mapping_t{};
-            session->tcp_portmap_error.clear();
-            session->udp_portmap_error.clear();
-            session->portmap_error.clear();
+            reset_portmap_state(session);
             settings.set_str(lt::settings_pack::listen_interfaces,
                              "0.0.0.0:" + std::to_string(listen_port) +
                                  ",[::]:" + std::to_string(listen_port));
@@ -1199,24 +1138,10 @@ int vt_apply_settings_ex(vt_session* session,
         if ((enable_upnp != 0) != session->upnp_enabled)
         {
             session->upnp_enabled = enable_upnp != 0;
-            session->tcp_mapped = false;
-            session->tcp_external_port = 0;
-            session->tcp_map_transport.clear();
-            session->tcp_mapping = lt::port_mapping_t{};
-            session->udp_mapped = false;
-            session->udp_external_port = 0;
-            session->udp_map_transport.clear();
-            session->udp_mapping = lt::port_mapping_t{};
-            session->tcp_portmap_error.clear();
-            session->udp_portmap_error.clear();
-            session->portmap_error.clear();
+            reset_portmap_state(session);
         }
-        settings.set_int(lt::settings_pack::download_rate_limit, (std::max)(0, download_limit_bytes));
-        settings.set_int(lt::settings_pack::upload_rate_limit, (std::max)(0, upload_limit_bytes));
-        settings.set_bool(lt::settings_pack::enable_dht, enable_dht != 0);
-        settings.set_bool(lt::settings_pack::enable_upnp, enable_upnp != 0);
-        settings.set_bool(lt::settings_pack::enable_natpmp, enable_upnp != 0);
-        settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
+        apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
+                            enable_dht, enable_upnp, enable_lsd);
         session->session->apply_settings(settings);
         return 0;
     }

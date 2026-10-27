@@ -208,7 +208,7 @@ final class BridgeSession {
 
         let created = downloadDirectory.path.withCString { downloadPath in
             resumeDirectory.path.withCString { resumePath in
-                vt_session_create_ex(
+                vt_session_create_full(
                     downloadPath,
                     resumePath,
                     Int32(port),
@@ -216,12 +216,13 @@ final class BridgeSession {
                     0,
                     enableDHT ? 1 : 0,
                     enablePEX ? 1 : 0,
-                    enableLSD ? 1 : 0
+                    enableLSD ? 1 : 0,
+                    0
                 )
             }
         }
         guard let created else {
-            throw IntegrationTestError.bridge("vt_session_create ha restituito nil")
+            throw IntegrationTestError.bridge("vt_session_create_full ha restituito nil")
         }
         self.pointer = created
 
