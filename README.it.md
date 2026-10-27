@@ -299,6 +299,7 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 - `Tests/Fixtures` — torrent deterministici v1/v2 usati dai test d'integrazione.
 - `.github/workflows/ci.yml` — workflow di CI/CD: build e test su push/PR, release solo su tag.
 - `Scripts/run-tests.sh` — esegue la suite con coverage LLVM e produce report JUnit/LCOV.
+- `Scripts/app.env` — nome dell'app, versione minima di macOS e architettura condivisi da tutti gli script di build e release.
 - `Scripts/deps.env` — versioni e checksum SHA-256 delle dipendenze del motore.
 - `Scripts/toolchain.env` — Xcode, CMake, macOS e immagine runner canoniche per la release.
 - `Scripts/check-toolchain.sh` — confronta la macchina corrente con il toolchain canonico.
@@ -306,6 +307,7 @@ L'app non è sandboxed e accede alle cartelle scelte e alla cartella di download
 - `Scripts/verify-bundle.sh` — verifica autosufficienza, `minos`, architettura e firma del bundle.
 - `Scripts/make-icon.swift` — genera l'icona `.icns` con CoreGraphics.
 - `Scripts/make-dmg.sh` — crea la DMG distribuibile con checksum SHA-256.
+- `Scripts/check-localization.sh` — verifica che le tabelle di stringhe italiana e inglese espongano le stesse chiavi.
 - `Resources/Info.plist` — bundle, associazione `.torrent`, versione minima.
 - `Resources/en.lproj`, `Resources/it.lproj` — stringhe UI e InfoPlist in inglese e italiano.
 - `Resources/Licenses/` — testi delle licenze incluse nel bundle.

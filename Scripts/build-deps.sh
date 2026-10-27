@@ -15,6 +15,8 @@ cd "$ROOT"
 source "$ROOT/Scripts/deps.env"
 # shellcheck source=Scripts/toolchain.env
 source "$ROOT/Scripts/toolchain.env"
+# shellcheck source=Scripts/lib/macho.sh
+source "$ROOT/Scripts/lib/macho.sh"
 
 PREFIX="${VERTEX_DEPS_PREFIX:-$ROOT/.build/vertex-deps}"
 SRC="${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}"
@@ -135,21 +137,6 @@ fetch() {
 
 archive_root() {
     tar -tf "$1" | head -n 1 | cut -d/ -f1
-}
-
-macho_minos() {
-    otool -l "$1" | awk '/LC_BUILD_VERSION/{found=1} found && /minos/{print $2; exit}'
-}
-
-version_gt() {
-    awk -v a="$1" -v b="$2" 'BEGIN {
-        split(a, x, "."); split(b, y, ".");
-        for (i = 1; i <= 3; i++) {
-            if ((x[i] + 0) > (y[i] + 0)) exit 0;
-            if ((x[i] + 0) < (y[i] + 0)) exit 1;
-        }
-        exit 1;
-    }'
 }
 
 check_macho() {

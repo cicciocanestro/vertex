@@ -4,6 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$PWD"
 
+# shellcheck source=Scripts/app.env
+source "$ROOT/Scripts/app.env"
+
 CONFIG="release"
 REBUILD_DEPS=0
 
@@ -38,7 +41,7 @@ fi
 export VERTEX_DEPS_PREFIX
 DEPS_PREFIX="$VERTEX_DEPS_PREFIX"
 
-APP_NAME="Vertex"
+APP_NAME="$VERTEX_APP_NAME"
 APP_PATH="dist/${APP_NAME}.app"
 APP_BIN="${APP_PATH}/Contents/MacOS/${APP_NAME}"
 FRAMEWORKS="${APP_PATH}/Contents/Frameworks"

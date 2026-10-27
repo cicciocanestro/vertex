@@ -2,6 +2,21 @@
 
 ## [Non rilasciato]
 
+### Manutenzione
+- Preferenze con un'unica fonte (`PrefDefault`) condivisa da registrazione dei default,
+  `@AppStorage` e tema.
+- Stato dell'interfaccia unificato: selezione del torrent nell'engine, modali in un solo
+  `ActiveModal`, snapshot del polling in un unico `PollState` e conteggi dei filtri in una
+  passata.
+- Applicazione delle impostazioni con debounce e flush immediato alla chiusura del pannello.
+- Pipeline di filtro, ricerca e ordinamento spostata nei modelli e coperta dai test.
+- Bridge C++: helper condivisi per aggiunta torrent, impostazioni di rete e reset del
+  port mapping; rimossi `vt_session_create`, `vt_session_create_ex` e `vt_apply_settings`
+  in favore di `vt_session_create_full` e `vt_apply_settings_ex`.
+- Parametri dell'app centralizzati in `Scripts/app.env` e usati da build, DMG, verifica del
+  bundle e CI. Nuovo controllo di parità delle localizzazioni in CI.
+- Rimossi codice morto e API non più usate; README e fixture allineati.
+
 ### Test
 - Nuova suite `EngineTests` con sessioni libtorrent isolate: aggiunta da magnet e file,
   selezione e dettaglio, priorità dei file, pausa/ripresa, comandi su torrent rimossi,

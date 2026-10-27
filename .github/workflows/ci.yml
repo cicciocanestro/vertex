@@ -31,8 +31,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Verify arm64 runner
-        run: test "$(uname -m)" = arm64
+      - name: Verify runner architecture
+        run: |
+          source Scripts/app.env
+          test "$(uname -m)" = "$VERTEX_ARCH"
 
       - name: Select canonical Xcode
         run: |
@@ -55,6 +57,9 @@ jobs:
           else
             ./Scripts/check-toolchain.sh --warn
           fi
+
+      - name: Verify localization parity
+        run: ./Scripts/check-localization.sh
 
       - name: Cache pinned engine dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -94,15 +99,18 @@ jobs:
         run: ./build.sh release
 
       - name: Verify self-contained bundle
-        run: ./Scripts/verify-bundle.sh dist/Vertex.app 15.0 arm64
+        run: |
+          source Scripts/app.env
+          ./Scripts/verify-bundle.sh "dist/${VERTEX_APP_NAME}.app"
 
       - name: Create DMG and checksum
         run: ./Scripts/make-dmg.sh --no-build
 
       - name: Verify DMG checksum
         run: |
+          source Scripts/app.env
           cd dist
-          shasum -a 256 -c Vertex-*.dmg.sha256
+          shasum -a 256 -c "${VERTEX_APP_NAME}-"*.dmg.sha256
 
       - name: Verify tag matches app version
         if: startsWith(github.ref, 'refs/tags/v')

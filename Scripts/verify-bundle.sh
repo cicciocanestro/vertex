@@ -19,11 +19,17 @@ set -euo pipefail
 #   - the architectures are inconsistent;
 #   - the ad-hoc signature is invalid.
 
-APP="${1:-dist/Vertex.app}"
-EXPECTED_MIN="${2:-}"
-EXPECTED_ARCH="${3:-}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=Scripts/app.env
+source "$SCRIPT_DIR/app.env"
+# shellcheck source=Scripts/lib/macho.sh
+source "$SCRIPT_DIR/lib/macho.sh"
+
+APP="${1:-dist/${VERTEX_APP_NAME}.app}"
+EXPECTED_MIN="${2:-$VERTEX_MIN_MACOS}"
+EXPECTED_ARCH="${3:-$VERTEX_ARCH}"
 INFO="$APP/Contents/Info.plist"
-BIN="$APP/Contents/MacOS/Vertex"
+BIN="$APP/Contents/MacOS/${VERTEX_APP_NAME}"
 
 if [ ! -d "$APP" ]; then
     echo "✗ Bundle non trovato: $APP" >&2
@@ -40,30 +46,16 @@ if [ -z "$DECLARED_MIN" ]; then
     exit 1
 fi
 
+DECLARED_EXEC="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO")"
+if [ "$DECLARED_EXEC" != "$VERTEX_APP_NAME" ]; then
+    echo "✗ Info.plist dichiara l'eseguibile '$DECLARED_EXEC', atteso '$VERTEX_APP_NAME'" >&2
+    exit 1
+fi
+
 if [ -n "$EXPECTED_MIN" ] && [ "$DECLARED_MIN" != "$EXPECTED_MIN" ]; then
     echo "✗ Info.plist dichiara macOS $DECLARED_MIN, atteso $EXPECTED_MIN" >&2
     exit 1
 fi
-
-macho_minos() {
-    local minos
-    minos="$(otool -l "$1" | awk '/LC_BUILD_VERSION/{found=1} found && /minos/{print $2; exit}')"
-    if [ -z "$minos" ]; then
-        minos="$(otool -l "$1" | awk '/LC_VERSION_MIN_MACOSX/{found=1} found && /version/{print $2; exit}')"
-    fi
-    printf '%s' "$minos"
-}
-
-version_gt() {
-    awk -v a="$1" -v b="$2" 'BEGIN {
-        split(a, x, "."); split(b, y, ".");
-        for (i = 1; i <= 3; i++) {
-            if ((x[i] + 0) > (y[i] + 0)) exit 0;
-            if ((x[i] + 0) < (y[i] + 0)) exit 1;
-        }
-        exit 1;
-    }'
-}
 
 MACHOS=()
 while IFS= read -r -d '' file; do
