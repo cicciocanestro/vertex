@@ -111,23 +111,33 @@ struct AmbientBackground: View {
     }
 }
 
+private final class DotGridCache: ObservableObject {
+    var path = Path()
+    var size: CGSize = .zero
+}
+
 struct DotGrid: View {
     let color: Color
+    @StateObject private var cache = DotGridCache()
 
     var body: some View {
         Canvas { context, size in
-            let step: CGFloat = 28
-            var path = Path()
-            var x: CGFloat = step / 2
-            while x < size.width {
-                var y: CGFloat = step / 2
-                while y < size.height {
-                    path.addEllipse(in: CGRect(x: x, y: y, width: 1.2, height: 1.2))
-                    y += step
+            if cache.size != size {
+                let step: CGFloat = 28
+                var path = Path()
+                var x: CGFloat = step / 2
+                while x < size.width {
+                    var y: CGFloat = step / 2
+                    while y < size.height {
+                        path.addEllipse(in: CGRect(x: x, y: y, width: 1.2, height: 1.2))
+                        y += step
+                    }
+                    x += step
                 }
-                x += step
+                cache.path = path
+                cache.size = size
             }
-            context.fill(path, with: .color(color))
+            context.fill(cache.path, with: .color(color))
         }
         .allowsHitTesting(false)
     }

@@ -39,7 +39,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     package let sequential: Bool
     package let hasMetadata: Bool
     package let savePath: String
-    package let files: Int
     package let ratio: Double
     package let added: Int64
     package let error: String
@@ -63,7 +62,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         sequential: Bool,
         hasMetadata: Bool,
         savePath: String,
-        files: Int,
         ratio: Double,
         added: Int64,
         error: String
@@ -86,7 +84,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.sequential = sequential
         self.hasMetadata = hasMetadata
         self.savePath = savePath
-        self.files = files
         self.ratio = ratio
         self.added = added
         self.error = error
@@ -100,7 +97,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         case finished, seeding, paused, sequential
         case hasMetadata = "has_metadata"
         case savePath = "save_path"
-        case files, ratio, added, error
+        case ratio, added, error
     }
 
     package var displayProgress: Double {
@@ -164,8 +161,6 @@ package struct PortMapSnapshot: Decodable, Equatable {
 package struct SessionStats: Equatable {
     package var downloadRate: Int64 = 0
     package var uploadRate: Int64 = 0
-    package var totalDownload: Int64 = 0
-    package var totalUpload: Int64 = 0
     package var active: Int = 0
     package var paused: Int = 0
     package var dhtNodes: Int = 0
@@ -177,8 +172,6 @@ package struct SessionStats: Equatable {
     package init(
         downloadRate: Int64 = 0,
         uploadRate: Int64 = 0,
-        totalDownload: Int64 = 0,
-        totalUpload: Int64 = 0,
         active: Int = 0,
         paused: Int = 0,
         dhtNodes: Int = 0,
@@ -189,8 +182,6 @@ package struct SessionStats: Equatable {
     ) {
         self.downloadRate = downloadRate
         self.uploadRate = uploadRate
-        self.totalDownload = totalDownload
-        self.totalUpload = totalUpload
         self.active = active
         self.paused = paused
         self.dhtNodes = dhtNodes
@@ -205,8 +196,6 @@ package struct VertexSnapshot: Decodable {
     package let torrents: [Torrent]
     package let downloadRate: Int64
     package let uploadRate: Int64
-    package let totalDownload: Int64
-    package let totalUpload: Int64
     package let active: Int
     package let pausedCount: Int
     package let dhtNodes: Int
@@ -219,8 +208,6 @@ package struct VertexSnapshot: Decodable {
         case torrents
         case downloadRate = "download_rate"
         case uploadRate = "upload_rate"
-        case totalDownload = "total_download"
-        case totalUpload = "total_upload"
         case active
         case pausedCount = "paused_count"
         case dhtNodes = "dht_nodes"
@@ -234,8 +221,6 @@ package struct VertexSnapshot: Decodable {
         SessionStats(
             downloadRate: downloadRate,
             uploadRate: uploadRate,
-            totalDownload: totalDownload,
-            totalUpload: totalUpload,
             active: active,
             paused: pausedCount,
             dhtNodes: dhtNodes,
@@ -335,6 +320,11 @@ package enum TorrentSort: String, CaseIterable, Identifiable {
     }
 }
 
+package struct TorrentListResult {
+    package let torrents: [Torrent]
+    package let counts: [TorrentFilter: Int]
+}
+
 /// Filtering and sorting applied by the torrent list. It lives in the model
 /// layer so the behaviour can be tested without rendering `RootView`.
 package enum TorrentListPipeline {
@@ -344,13 +334,35 @@ package enum TorrentListPipeline {
         search: String,
         sort: TorrentSort
     ) -> [Torrent] {
-        var list = torrents.filter { filter.matches($0) }
+        applyWithCounts(to: torrents, filter: filter, search: search, sort: sort).torrents
+    }
 
-        if !search.isEmpty {
-            list = list.filter {
-                $0.name.localizedCaseInsensitiveContains(search) ||
-                $0.id.localizedCaseInsensitiveContains(search)
+    /// Returns the visible torrents and the per-filter counts in a single pass
+    /// over the list, so `FilterBar` does not traverse it again.
+    package static func applyWithCounts(
+        to torrents: [Torrent],
+        filter: TorrentFilter,
+        search: String,
+        sort: TorrentSort
+    ) -> TorrentListResult {
+        var counts = Dictionary(
+            uniqueKeysWithValues: TorrentFilter.allCases.map { ($0, 0) }
+        )
+        var list: [Torrent] = []
+        list.reserveCapacity(torrents.count)
+
+        for torrent in torrents {
+            for filterCase in TorrentFilter.allCases where filterCase.matches(torrent) {
+                counts[filterCase, default: 0] += 1
             }
+
+            guard filter.matches(torrent) else { continue }
+            if !search.isEmpty,
+               !torrent.name.localizedCaseInsensitiveContains(search),
+               !torrent.id.localizedCaseInsensitiveContains(search) {
+                continue
+            }
+            list.append(torrent)
         }
 
         switch sort {
@@ -366,7 +378,7 @@ package enum TorrentListPipeline {
             list.sort { $0.downloadRate > $1.downloadRate }
         }
 
-        return list
+        return TorrentListResult(torrents: list, counts: counts)
     }
 }
 

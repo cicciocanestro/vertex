@@ -8,9 +8,9 @@ struct StatusBarView: View {
         engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
     }
 
-    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = true
-    @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = 0
-    @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = 0
+    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
+    @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
+    @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
 
     @Environment(\.colorScheme) private var scheme
 

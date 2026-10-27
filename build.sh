@@ -46,6 +46,10 @@ APP_PATH="dist/${APP_NAME}.app"
 APP_BIN="${APP_PATH}/Contents/MacOS/${APP_NAME}"
 FRAMEWORKS="${APP_PATH}/Contents/Frameworks"
 TARGET_MIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)
+if [ "$TARGET_MIN" != "$VERTEX_MIN_MACOS" ]; then
+    echo "✗ Info.plist dichiara macOS $TARGET_MIN, Scripts/app.env dichiara $VERTEX_MIN_MACOS" >&2
+    exit 1
+fi
 
 if [ "$REBUILD_DEPS" -eq 1 ]; then
     "$ROOT/Scripts/build-deps.sh" --force

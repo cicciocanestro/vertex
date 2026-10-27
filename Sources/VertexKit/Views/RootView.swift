@@ -237,10 +237,11 @@ package struct RootView: View {
 
     private var mainColumn: some View {
         let palette = Palette(scheme: scheme)
-        let visible = filteredTorrents
+        let result = listResult
+        let visible = result.torrents
         return VStack(spacing: 0) {
             headerBar
-            filterBar
+            filterBar(counts: result.counts)
 
             HStack(spacing: 0) {
                 content(palette, torrents: visible)
@@ -265,16 +266,15 @@ package struct RootView: View {
             search: $search.value,
             searchFocused: $searchFocused,
             onAdd: openAddSheet,
-            onAddFile: chooseTorrentFile,
             onSettings: { activeModal.value = .settings }
         )
     }
 
-    private var filterBar: some View {
+    private func filterBar(counts: [TorrentFilter: Int]) -> some View {
         FilterBar(
             filter: $filter.value,
             sort: $sort.value,
-            torrents: engine.torrents
+            counts: counts
         )
     }
 
@@ -344,8 +344,8 @@ package struct RootView: View {
         activeModal.value != nil
     }
 
-    private var filteredTorrents: [Torrent] {
-        TorrentListPipeline.apply(
+    private var listResult: TorrentListResult {
+        TorrentListPipeline.applyWithCounts(
             to: engine.torrents,
             filter: filter.value,
             search: search.value,
@@ -400,7 +400,7 @@ package struct RootView: View {
     private func toggleInspector() {
         if engine.selectedID != nil {
             select(nil)
-        } else if let first = filteredTorrents.first {
+        } else if let first = listResult.torrents.first {
             select(first)
         }
     }

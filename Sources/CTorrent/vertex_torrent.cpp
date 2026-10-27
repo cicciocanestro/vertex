@@ -4,7 +4,6 @@
 #include <libtorrent/address.hpp>
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/announce_entry.hpp>
-#include <libtorrent/hex.hpp>
 #include <libtorrent/load_torrent.hpp>
 #include <libtorrent/portmap.hpp>
 #include <libtorrent/magnet_uri.hpp>
@@ -16,6 +15,7 @@
 #include <libtorrent/extensions/ut_pex.hpp>
 #include <libtorrent/session_stats.hpp>
 #include <libtorrent/settings_pack.hpp>
+#include <libtorrent/socket.hpp>
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/torrent_info.hpp>
@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -137,20 +138,6 @@ bool has_flag(lt::torrent_flags_t flags, lt::torrent_flags_t flag)
     return bool(flags & flag);
 }
 
-std::string state_string(lt::torrent_status::state_t state)
-{
-    switch (state)
-    {
-    case lt::torrent_status::checking_files: return "checking";
-    case lt::torrent_status::downloading_metadata: return "metadata";
-    case lt::torrent_status::downloading: return "downloading";
-    case lt::torrent_status::finished: return "finished";
-    case lt::torrent_status::seeding: return "seeding";
-    case lt::torrent_status::checking_resume_data: return "checking";
-    default: return "queued";
-    }
-}
-
 std::string portmap_transport_string(lt::portmap_transport transport)
 {
     return transport == lt::portmap_transport::upnp ? "UPnP" : "NAT-PMP";
@@ -200,8 +187,7 @@ lt::torrent_handle find_handle(vt_session* session, std::string const& id)
     {
         try
         {
-            auto status = handle.status(lt::torrent_handle::query_name | lt::torrent_handle::query_save_path);
-            if (torrent_id(status) == id)
+            if (to_hex(handle.info_hashes().get_best()) == id)
                 return handle;
         }
         catch (...)
@@ -305,16 +291,26 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
         if (id.empty())
             return false;
 
-        fs::create_directories(resume_dir);
         fs::path final_path = fs::path(resume_dir) / (id + ".resume");
         fs::path tmp_path = final_path;
         tmp_path += ".tmp";
 
-        {
+        auto write_file = [&]() -> bool {
             std::ofstream file(tmp_path, std::ios::binary | std::ios::trunc);
             if (!file)
                 return false;
             file.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            return bool(file);
+        };
+
+        // The directory is created once with the session; recreate it only if
+        // it disappeared, so the periodic save does not hit the filesystem.
+        if (!write_file())
+        {
+            std::error_code dir_ec;
+            fs::create_directories(resume_dir, dir_ec);
+            if (dir_ec || !write_file())
+                return false;
         }
 
         std::error_code ec;
@@ -334,14 +330,9 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
 
 void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status)
 {
-    auto info = status.torrent_file.lock();
-    std::int64_t size = info ? info->total_size() : status.total;
+    std::int64_t size = status.total;
     if (size <= 0)
         size = status.total_done;
-
-    int files = 0;
-    if (info)
-        files = info->num_files();
 
     std::int64_t wanted = status.total_wanted > 0 ? status.total_wanted : size;
     std::int64_t remaining = (std::max)(std::int64_t(0), wanted - status.total_wanted_done);
@@ -360,7 +351,6 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
     out << "{";
     out << "\"id\":\"" << torrent_id(status) << "\",";
     out << "\"name\":\"" << json_escape(status.name) << "\",";
-    out << "\"state\":\"" << state_string(status.state) << "\",";
     out << "\"state_code\":" << static_cast<int>(status.state) << ",";
     out << "\"progress\":" << std::fixed << std::setprecision(5) << double(status.progress) << ",";
     out << "\"size\":" << size << ",";
@@ -377,7 +367,6 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
     out << "\"sequential\":" << (has_flag(status.flags, lt::torrent_flags::sequential_download) ? "true" : "false") << ",";
     out << "\"has_metadata\":" << (status.has_metadata ? "true" : "false") << ",";
     out << "\"save_path\":\"" << json_escape(status.save_path) << "\",";
-    out << "\"files\":" << files << ",";
     out << "\"ratio\":" << std::fixed << std::setprecision(3) << ratio << ",";
     out << "\"added\":" << static_cast<long long>(status.added_time) << ",";
     std::string error_message;
@@ -703,8 +692,6 @@ char* vt_snapshot_json(vt_session* session)
 
         std::int64_t download_rate = 0;
         std::int64_t upload_rate = 0;
-        std::int64_t total_download = 0;
-        std::int64_t total_upload = 0;
         int active = 0;
         int paused = 0;
 
@@ -718,12 +705,9 @@ char* vt_snapshot_json(vt_session* session)
                 // accurate counters so progress/ETA don't jump by whole pieces.
                 auto status = handle.status(lt::torrent_handle::query_name
                                             | lt::torrent_handle::query_save_path
-                                            | lt::torrent_handle::query_torrent_file
                                             | lt::torrent_handle::query_accurate_download_counters);
                 download_rate += status.download_payload_rate;
                 upload_rate += status.upload_payload_rate;
-                total_download += status.all_time_download;
-                total_upload += status.all_time_upload;
                 bool is_paused = has_flag(status.flags, lt::torrent_flags::paused);
                 if (is_paused)
                     ++paused;
@@ -742,8 +726,6 @@ char* vt_snapshot_json(vt_session* session)
         out << "],";
         out << "\"download_rate\":" << download_rate << ",";
         out << "\"upload_rate\":" << upload_rate << ",";
-        out << "\"total_download\":" << total_download << ",";
-        out << "\"total_upload\":" << total_upload << ",";
         out << "\"active\":" << active << ",";
         out << "\"paused_count\":" << paused << ",";
         out << "\"dht_nodes\":" << session->dht_nodes << ",";
@@ -897,7 +879,29 @@ char* vt_magnet_uri(vt_session* session, const char* torrent_id_value)
         auto handle = find_handle(session, torrent_id_value);
         if (!handle.is_valid())
             return ::strdup("");
-        auto uri = lt::make_magnet_uri(handle.get_resume_data());
+
+        // Build only the fields a magnet link needs instead of serializing the
+        // whole resume data. The torrent_handle overload of make_magnet_uri is
+        // deprecated in libtorrent 2.1.
+        lt::add_torrent_params params;
+        params.info_hashes = handle.info_hashes();
+        try
+        {
+            params.name = handle.status(lt::torrent_handle::query_name).name;
+        }
+        catch (...)
+        {
+        }
+        try
+        {
+            for (auto const& tracker : handle.trackers())
+                params.trackers.push_back(tracker.url);
+        }
+        catch (...)
+        {
+        }
+
+        auto uri = lt::make_magnet_uri(params);
         return ::strdup(uri.c_str());
     }
     catch (...)

@@ -5,7 +5,6 @@ struct HeaderBar: View {
     @Binding var search: String
     var searchFocused: FocusState<Bool>.Binding
     let onAdd: () -> Void
-    let onAddFile: () -> Void
     let onSettings: () -> Void
 
     @Environment(\.colorScheme) private var scheme
@@ -60,7 +59,6 @@ struct HeaderBar: View {
                 .font(.system(size: 12))
                 .foregroundStyle(palette.text)
                 .focused(searchFocused)
-                .onSubmit {}
 
             if !search.isEmpty {
                 Button {
@@ -93,13 +91,12 @@ struct HeaderBar: View {
 struct FilterBar: View {
     @Binding var filter: TorrentFilter
     @Binding var sort: TorrentSort
-    let torrents: [Torrent]
+    let counts: [TorrentFilter: Int]
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         let palette = Palette(scheme: scheme)
-        let counts = filterCounts()
         HStack(spacing: 6) {
             ForEach(TorrentFilter.allCases) { option in
                 FilterChip(
@@ -147,19 +144,5 @@ struct FilterBar: View {
         .padding(.horizontal, 18)
         .padding(.top, 3)
         .padding(.bottom, 11)
-    }
-
-    /// Counts every filter in one pass over the list instead of running a
-    /// separate `filter` for each chip on every render.
-    private func filterCounts() -> [TorrentFilter: Int] {
-        var counts = Dictionary(
-            uniqueKeysWithValues: TorrentFilter.allCases.map { ($0, 0) }
-        )
-        for torrent in torrents {
-            for filter in TorrentFilter.allCases where filter.matches(torrent) {
-                counts[filter, default: 0] += 1
-            }
-        }
-        return counts
     }
 }

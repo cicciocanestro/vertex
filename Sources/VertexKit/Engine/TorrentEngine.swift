@@ -579,8 +579,6 @@ package final class TorrentEngine: ObservableObject {
         detail = nil
         if let id {
             loadDetail(id)
-        } else {
-            detail = nil
         }
     }
 
@@ -843,8 +841,6 @@ package final class TorrentEngine: ObservableObject {
         var stats = SessionStats(
             downloadRate: down,
             uploadRate: up,
-            totalDownload: list.reduce(Int64(0)) { $0 + $1.downloaded },
-            totalUpload: list.reduce(Int64(0)) { $0 + $1.uploaded },
             active: list.filter { !$0.paused }.count,
             paused: list.filter { $0.paused }.count,
             dhtNodes: 284,

@@ -125,11 +125,7 @@ extension AppDelegate {
                 }
             }
 
-            #if DEBUG
             exit(0)
-            #else
-            NSApp.terminate(nil)
-            #endif
         }
     }
 }

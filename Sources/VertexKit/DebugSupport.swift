@@ -32,7 +32,6 @@ enum DemoData {
                 sequential: false,
                 hasMetadata: true,
                 savePath: demoDownloadPath,
-                files: 3,
                 ratio: 0.15,
                 added: Int64(Date().timeIntervalSince1970) - 1_200,
                 error: ""
@@ -56,7 +55,6 @@ enum DemoData {
                 sequential: false,
                 hasMetadata: false,
                 savePath: demoDownloadPath,
-                files: 0,
                 ratio: 0,
                 added: Int64(Date().timeIntervalSince1970) - 640,
                 error: ""
@@ -80,7 +78,6 @@ enum DemoData {
                 sequential: false,
                 hasMetadata: true,
                 savePath: demoDownloadPath,
-                files: 1,
                 ratio: 3.12,
                 added: Int64(Date().timeIntervalSince1970) - 86_400,
                 error: ""
@@ -104,7 +101,6 @@ enum DemoData {
                 sequential: false,
                 hasMetadata: true,
                 savePath: demoDownloadPath,
-                files: 2,
                 ratio: 0.06,
                 added: Int64(Date().timeIntervalSince1970) - 172_800,
                 error: ""
@@ -128,7 +124,6 @@ enum DemoData {
                 sequential: true,
                 hasMetadata: true,
                 savePath: demoDownloadPath,
-                files: 48,
                 ratio: 0.38,
                 added: Int64(Date().timeIntervalSince1970) - 604_800,
                 error: ""
@@ -143,14 +138,13 @@ enum DemoData {
         }
     }
 }
-#endif
 
-#if DEBUG
 extension DemoData {
     static func detail(for torrent: Torrent?) -> TorrentDetail? {
         guard let torrent, torrent.hasMetadata else { return nil }
         let files: [TorrentFile]
-        if torrent.files > 1 {
+        let hasMultipleFiles = torrent.name.hasSuffix(".mkv") || torrent.name.hasSuffix(".zip")
+        if hasMultipleFiles {
             files = [
                 TorrentFile(index: 0, path: "video/main-feature.mkv", size: Int64(Double(torrent.size) * 0.82), progress: torrent.finished ? 1 : torrent.progress, priority: 4),
                 TorrentFile(index: 1, path: "audio/italian.ac3", size: Int64(Double(torrent.size) * 0.12), progress: torrent.finished ? 1 : torrent.progress, priority: 4),

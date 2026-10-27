@@ -174,7 +174,6 @@ extension Torrent {
         sequential: Bool = false,
         hasMetadata: Bool = true,
         savePath: String = "/tmp",
-        files: Int = 1,
         ratio: Double = 0.0,
         added: Int64 = 0,
         error: String = ""
@@ -198,7 +197,6 @@ extension Torrent {
             sequential: sequential,
             hasMetadata: hasMetadata,
             savePath: savePath,
-            files: files,
             ratio: ratio,
             added: added,
             error: error

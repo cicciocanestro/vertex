@@ -26,10 +26,7 @@ enum IntegrationFixture {
     case v2
 
     var rootName: String {
-        switch self {
-        case .v1: return "vertex-fixture-v1"
-        case .v2: return "vertex-fixture-v2"
-        }
+        "vertex-\(name)"
     }
 
     var torrentURL: URL {
@@ -182,7 +179,6 @@ final class BridgeSession {
     let pointer: OpaquePointer
     let downloadDirectory: URL
     let resumeDirectory: URL
-    let requestedPort: Int
     private var closed = false
 
     init(
@@ -195,7 +191,6 @@ final class BridgeSession {
     ) throws {
         self.downloadDirectory = downloadDirectory
         self.resumeDirectory = resumeDirectory
-        self.requestedPort = port
 
         try FileManager.default.createDirectory(
             at: downloadDirectory,

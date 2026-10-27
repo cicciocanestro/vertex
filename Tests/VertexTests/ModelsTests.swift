@@ -10,8 +10,6 @@ enum ModelsTests {
             {
                 "download_rate": 1048576,
                 "upload_rate": 524288,
-                "total_download": 524288000,
-                "total_upload": 104857600,
                 "active": 2,
                 "paused_count": 1,
                 "dht_nodes": 128,
@@ -27,7 +25,6 @@ enum ModelsTests {
                     {
                         "id": "abc123def456",
                         "name": "Ubuntu 24.04 LTS Desktop",
-                        "state": "downloading",
                         "state_code": 3,
                         "progress": 0.65,
                         "size": 4294967296,
@@ -44,7 +41,6 @@ enum ModelsTests {
                         "sequential": true,
                         "has_metadata": true,
                         "save_path": "/Users/test/Downloads/Vertex",
-                        "files": 1,
                         "ratio": 0.037,
                         "added": 1729600000,
                         "error": ""
@@ -212,6 +208,19 @@ enum ModelsTests {
             let paused = Torrent.test(id: "P", name: "Paused", paused: true)
             let filtered = TorrentListPipeline.apply(to: [tA, paused], filter: .paused, search: "", sort: .name)
             try TestRunner.assertEqual(filtered.map(\.id), ["P"])
+
+            let result = TorrentListPipeline.applyWithCounts(
+                to: [tA, paused],
+                filter: .all,
+                search: "",
+                sort: .name
+            )
+            try TestRunner.assertEqual(result.torrents.map(\.id), ["A", "P"])
+            try TestRunner.assertEqual(result.counts[.all, default: -1], 2)
+            try TestRunner.assertEqual(result.counts[.downloading, default: -1], 1)
+            try TestRunner.assertEqual(result.counts[.paused, default: -1], 1)
+            try TestRunner.assertEqual(result.counts[.completed, default: -1], 0)
+            try TestRunner.assertEqual(result.counts[.seeding, default: -1], 0)
         }
     }
 }

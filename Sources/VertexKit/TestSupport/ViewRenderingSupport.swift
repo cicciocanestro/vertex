@@ -38,7 +38,12 @@ package enum ViewRenderingSupport {
             FilterBar(
                 filter: .constant(.all),
                 sort: .constant(.recent),
-                torrents: torrents
+                counts: TorrentListPipeline.applyWithCounts(
+                    to: torrents,
+                    filter: .all,
+                    search: "",
+                    sort: .recent
+                ).counts
             ),
             width: 900,
             height: 44
@@ -157,8 +162,6 @@ package enum ViewRenderingSupport {
         let base = SessionStats(
             downloadRate: 1_200_000,
             uploadRate: 240_000,
-            totalDownload: 1_000_000_000,
-            totalUpload: 500_000_000,
             active: 2,
             paused: 1,
             dhtNodes: 42,

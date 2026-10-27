@@ -22,7 +22,7 @@ enum AppCommandsTests {
             try rootEventRejectsInvalidInput()
         }
         TestRunner.run("AppCommands: costruzione dell'albero dei menu") {
-            try menuConstruction()
+            menuConstruction()
         }
     }
 
@@ -189,8 +189,8 @@ enum AppCommandsTests {
 
     // MARK: - Helpers
 
-    private static func menuConstruction() throws {
-        try MainActor.assumeIsolated {
+    private static func menuConstruction() {
+        MainActor.assumeIsolated {
             // Building the command tree must not require a running app or
             // execute any notification. This covers the menu definitions that
             // are otherwise only reached when SwiftUI creates the main menu.
