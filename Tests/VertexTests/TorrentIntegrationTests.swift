@@ -62,6 +62,13 @@ enum TorrentIntegrationTests {
         for file in fixture.files {
             try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: file.path)
         }
+
+        // The v2 fixture also exercises the detail JSON path for a v2-only
+        // torrent, including the tracker-stats selection in the bridge.
+        let detail = try leech.session.detail(torrentID: leech.torrentID)
+        try TestRunner.assertEqual(detail.metadata, true)
+        try TestRunner.assertEqual(detail.files.count, 2)
+        try TestRunner.assertTrue(detail.trackers.isEmpty, "I fixture non hanno tracker")
     }
 
     private static func pauseAndResume() throws {
@@ -407,6 +414,15 @@ enum TorrentIntegrationTests {
             vt_set_file_priority(session.pointer, id, 0, 0)
         }
         try TestRunner.assertTrue(invalidPriority != 0, "Una priorità su un torrent inesistente deve fallire")
+
+        let outOfRangePriority = "missing-torrent-id".withCString { id in
+            vt_set_file_priority(session.pointer, id, 0, 8)
+        }
+        try TestRunner.assertTrue(outOfRangePriority != 0, "Una priorità fuori range deve fallire")
+        try TestRunner.assertTrue(
+            session.lastError().contains("Parametri non validi"),
+            "Una priorità fuori range deve produrre un errore esplicito"
+        )
 
         let readonly = try workspace.directory("readonly")
         try FileManager.default.setAttributes(

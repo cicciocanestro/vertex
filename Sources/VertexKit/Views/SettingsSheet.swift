@@ -61,7 +61,13 @@ struct SettingsSheet: View {
             AmbientBackground(ignoresSafeArea: false)
 
             VStack(spacing: 0) {
-                header(palette)
+                ModalHeader(
+                    icon: "gearshape.fill",
+                    title: "Impostazioni",
+                    subtitle: L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)",
+                    iconSize: 36,
+                    onClose: onClose
+                )
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
@@ -78,7 +84,7 @@ struct SettingsSheet: View {
                                 suffix: "KB/s",
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             numericRow(
                                 icon: "arrow.up",
                                 title: "Limite upload",
@@ -87,7 +93,7 @@ struct SettingsSheet: View {
                                 suffix: "KB/s",
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             numericRow(
                                 icon: "network",
                                 title: "Porta di ascolto",
@@ -106,7 +112,7 @@ struct SettingsSheet: View {
                                 isOn: $dhtEnabled,
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             toggleRow(
                                 icon: "person.2",
                                 title: "Peer Exchange (PEX)",
@@ -114,7 +120,7 @@ struct SettingsSheet: View {
                                 isOn: $pexEnabled,
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             toggleRow(
                                 icon: "dot.radiowaves.left.and.right",
                                 title: "Local Service Discovery (LSD)",
@@ -122,7 +128,7 @@ struct SettingsSheet: View {
                                 isOn: $lsdEnabled,
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             toggleRow(
                                 icon: "wifi.router",
                                 title: "UPnP / NAT-PMP",
@@ -130,7 +136,7 @@ struct SettingsSheet: View {
                                 isOn: $upnpEnabled,
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             diagnosticsRow(palette)
                         }
                         .disabled(engine.isRestartingSession)
@@ -143,7 +149,7 @@ struct SettingsSheet: View {
                                 isOn: $startPaused,
                                 palette: palette
                             )
-                            rowDivider(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             toggleRow(
                                 icon: "arrow.down.to.line",
                                 title: "Download sequenziale",
@@ -168,7 +174,19 @@ struct SettingsSheet: View {
                 }
                 .scrollIndicators(.hidden)
 
-                footer(palette)
+                ModalFooterBar(palette: palette) {
+                    Text(engine.isRestartingSession
+                        ? L("Riavvio del motore BitTorrent…")
+                        : L("Le modifiche di rete vengono applicate automaticamente."))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(palette.tertiary)
+                } trailing: {
+                    Button("Fine") {
+                        onClose()
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                }
             }
         }
         .frame(width: 560, height: 700)
@@ -192,38 +210,6 @@ struct SettingsSheet: View {
         .onDisappear { engine.applySettingsNow() }
     }
 
-    private func header(_ palette: Palette) -> some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.accentGradient)
-                .frame(width: 36, height: 36)
-                .overlay(
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x061014).opacity(0.85))
-                )
-                .shadow(color: Theme.mint.opacity(0.2), radius: 10, y: 4)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Impostazioni")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(palette.text)
-                Text(L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(palette.secondary)
-            }
-
-            Spacer()
-
-            IconButton(icon: "xmark", help: "Chiudi", size: 26) {
-                onClose()
-            }
-        }
-        .padding(.horizontal, 22)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
-    }
-
     private func section<Content: View>(
         _ title: String,
         _ palette: Palette,
@@ -236,15 +222,7 @@ struct SettingsSheet: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(palette.card)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(palette.stroke, lineWidth: 1)
-                    .allowsHitTesting(false)
-            )
+            .vertexCard(palette, radius: 12)
         }
     }
 
@@ -430,13 +408,6 @@ struct SettingsSheet: View {
         )
     }
 
-    private func rowDivider(_ palette: Palette) -> some View {
-        Rectangle()
-            .fill(palette.stroke)
-            .frame(height: 1)
-            .padding(.leading, 28)
-    }
-
     private func versionRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle")
@@ -458,41 +429,8 @@ struct SettingsSheet: View {
         .padding(.vertical, 8)
     }
 
-    private func footer(_ palette: Palette) -> some View {
-        HStack {
-            Text(engine.isRestartingSession
-                ? L("Riavvio del motore BitTorrent…")
-                : L("Le modifiche di rete vengono applicate automaticamente."))
-                .font(.system(size: 9.5))
-                .foregroundStyle(palette.tertiary)
-
-            Spacer()
-
-            Button("Fine") {
-                onClose()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 14)
-        .background(palette.panel)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(palette.stroke)
-                .frame(height: 1)
-                .allowsHitTesting(false)
-        }
-    }
-
     private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = L("Scegli")
-        panel.directoryURL = URL(fileURLWithPath: downloadPath)
+        let panel = OpenPanelFactory.directory(startingAt: downloadPath)
         if panel.runModal() == .OK, let url = panel.url {
             downloadPath = url.path
             engine.applySettingsNow()

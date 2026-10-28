@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.0] — 2026-10-28
+
+### Modifiche
+- Filtri della lista esclusivi: ogni torrent ha una sola categoria, con "In pausa" che
+  prevale; un torrent in seed non è più contato anche in "Completati".
+- Diagnostica: `vt_set_file_priority` valida indice e priorità, `vt_apply_settings_ex` e il
+  catch-all della priorità valorizzano `last_error`, le statistiche tracker usano anche V2.
+- Duplicazione: input magnet/.torrent, drag&drop, pannelli di scelta, stato portmap,
+  normalizzazione dei percorsi e chrome delle modali sono centralizzati.
+- Performance: tutte le chiamate `vt_*` passano da una coda seriale; il poll non blocca più
+  il main actor e i risultati obsoleti vengono ignorati.
+- Pulizia: rimosse forward declaration, parametri e chiavi plist inutilizzati; hash di build
+  calcolati una volta; helper condiviso per gli stub dei test.
+- Test: smoke di carico con 5.000 torrent sintetici e 100 poll consecutivi.
+
 ## [1.3.9] — 2026-10-27
 
 Release di manutenzione focalizzata sul payload dello snapshot e sul costo del

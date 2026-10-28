@@ -6,10 +6,7 @@ enum DemoData {
         ProcessInfo.processInfo.environment["VERTEX_DEMO"] == "1"
     }
 
-    private static let demoDownloadPath: String = {
-        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("Vertex", isDirectory: true).path ?? "/tmp/Vertex"
-    }()
+    private static let demoDownloadPath: String = Preferences.suggestedDownloadPath
 
     static func torrents() -> [Torrent] {
         [

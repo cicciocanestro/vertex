@@ -41,6 +41,12 @@ enum EngineTests {
             onMain { engine.select(nil) }
             try TestRunner.assertNil(onMain { engine.detail })
 
+            // Load smoke test for the serialized snapshot path.
+            for _ in 0..<100 {
+                onMain { engine.pollNowForTesting() }
+            }
+            try TestRunner.assertEqual(onMain { engine.torrents.count }, 1)
+
             let invalidError = onMain {
                 engine.addMagnet(
                     "https://example.com/not-a-magnet",

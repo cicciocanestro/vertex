@@ -23,6 +23,14 @@ SRC="${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}"
 DOWNLOADS="${VERTEX_DEPS_DOWNLOADS:-$ROOT/.build/vertex-deps-downloads}"
 TARGET="$VERTEX_DEPS_TARGET"
 ARCH="$VERTEX_DEPS_ARCH"
+case "$ARCH" in
+    arm64) OPENSSL_TARGET="darwin64-arm64-cc" ;;
+    x86_64) OPENSSL_TARGET="darwin64-x86_64-cc" ;;
+    *)
+        echo "✗ Architettura OpenSSL non supportata: $ARCH" >&2
+        exit 1
+        ;;
+esac
 JOBS="${JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 STAMP="$PREFIX/.vertex-deps-stamp"
 FORCE=0
@@ -59,11 +67,11 @@ toolchain_fingerprint() {
     printf 'swift=%s\n' "$({ swift --version 2>/dev/null || true; } | tr '\n' ' ')"
 }
 TOOLCHAIN_HASH="$(toolchain_fingerprint | shasum -a 256 | awk '{print $1}')"
+LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
+SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
 
 if [ "$FORCE" -eq 0 ] && [ -f "$STAMP" ]; then
     CURRENT_STAMP="$(cat "$STAMP")"
-    LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
-    SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
     EXPECTED_STAMP="lock=$LOCK_HASH script=$SCRIPT_HASH toolchain=$TOOLCHAIN_HASH target=$TARGET arch=$ARCH"
     if [ "$CURRENT_STAMP" = "$EXPECTED_STAMP" ] \
         && [ -n "$(find "$PREFIX/lib" -maxdepth 1 -name 'libtorrent-rasterbar*.dylib' -print -quit)" ] \
@@ -170,7 +178,7 @@ tar -xf "$OPENSSL_ARCHIVE" -C "$SRC"
 echo "→ Compilazione OpenSSL $OPENSSL_VERSION"
 (
     cd "$OPENSSL_SRC"
-    ./Configure darwin64-arm64-cc shared no-tests \
+    ./Configure "$OPENSSL_TARGET" shared no-tests \
         --prefix="$PREFIX" \
         --openssldir="$PREFIX/ssl" \
         -mmacosx-version-min="$TARGET"
@@ -256,8 +264,6 @@ for file in "$SSL_LIB" "$CRYPTO_LIB" "$LIBTORRENT_LIB"; do
     done < <(otool -L "$file" | tail -n +2 | awk '{print $1}')
 done
 
-LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
-SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
 printf 'lock=%s script=%s toolchain=%s target=%s arch=%s\n' \
     "$LOCK_HASH" "$SCRIPT_HASH" "$TOOLCHAIN_HASH" "$TARGET" "$ARCH" > "$STAMP"
 

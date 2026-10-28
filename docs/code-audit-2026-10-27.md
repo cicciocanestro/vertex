@@ -481,8 +481,79 @@ Data: 2026-10-27. Approvate e applicate: **Fase A + Fase B**.
 - `./Scripts/check-localization.sh`: 206/206 chiavi allineate;
 - `shellcheck -S warning build.sh Scripts/*.sh`: nessun avviso.
 
-### Ancora aperte
+### Ancora aperte (alla 2026-10-27)
 
 - **Fase C**: propagazione `last_error` in `vt_apply_settings_ex`/`vt_set_file_priority`, validazione priorità, tracker V2, OpenSSL target derivato da `VERTEX_ARCH`. La propagazione `last_error` e la validazione priorità sono state volutamente ripristinate per non uscire dall'approvazione A+B.
 - **Fase D**: refactoring UI/test e rimozione delle duplicazioni.
 - **Fase E**: coda seriale per il poll e test di carico.
+
+---
+
+## Aggiornamento 2026-10-28
+
+Approvate e applicate anche RED-01, Fase C, Fase D, Fase E e la pulizia a basso rischio.
+Il lavoro è stato pubblicato nella release **1.4.0** (build 17).
+
+### RED-01 — filtri esclusivi
+
+`TorrentFilter.matches` usa `Torrent.phase` come unica fonte: ogni torrent appartiene a
+una sola categoria, la pausa prevale, un torrent in seed sta in "Seed" e non in
+"Completati"; "Download" include metadati e verifica. La somma dei badge coincide con il
+numero di torrent. Test aggiornati con un caso per ogni fase e verifica di partizione.
+
+### Fase C — correttezza e diagnostica
+
+- `vt_set_file_priority` valida `file_index` e `priority` (0...7) e valorizza `last_error`
+  nel catch-all;
+- `vt_apply_settings_ex` valorizza `last_error` con il messaggio dell'eccezione;
+- `vt_detail_json` sceglie le statistiche tracker V2 quando V1 non ha dati o quando V2 ha
+  scrape disponibili;
+- `Scripts/build-deps.sh` deriva il target OpenSSL da `VERTEX_ARCH` e fallisce su
+  architetture non supportate;
+- aggiunte asserzioni sul dettaglio del fixture V2 e sulla priorità fuori range.
+
+### Fase D — duplicazione
+
+- `TorrentInput` centralizza il riconoscimento magnet/.torrent;
+- `TorrentDropHandler` condivide il drag&drop tra finestra e sheet;
+- `OpenPanelFactory` centralizza i quattro `NSOpenPanel`;
+- `Preferences.startPaused`/`sequentialDefault` eliminano le letture dirette duplicate;
+- `portmap_state` in C++ raggruppa stato, mapping ed errore TCP/UDP;
+- `normalized_save_path` condivide la normalizzazione C++ tra add e resume;
+- `ModalHeader`, `ModalFooterBar`, `Hairline` e `vertexCard` riducono il chrome duplicato;
+- `SessionStats.effectivePort`, `AppInfo` e `Preferences.suggestedDownloadPath` eliminano
+  altri duplicati;
+- helper condiviso per gli stub HTTP dei test.
+
+### Fase E — performance
+
+`TorrentEngine` usa un'unica coda seriale per tutte le chiamate `vt_*`. Il poll esegue
+`vt_session_poll`, serializzazione e decodifica fuori dal main actor; i risultati vengono
+pubblicati sul main con un identificatore di poll e una generazione di sessione, così i
+risultati obsoleti non sovrascrivono lo stato. Le operazioni sincrone (add, controlli,
+impostazioni, dettaglio) sono serializzate sulla stessa coda. Aggiunti uno smoke test con
+5.000 torrent sintetici sulla pipeline e 100 poll consecutivi nel test dell'engine.
+
+### Pulizia a basso rischio
+
+- rimosse le forward declaration inutilizzate in `vertex_torrent.cpp`;
+- rimosso il parametro `palette` non usato da `RootView.content`;
+- rimosse `NSHighResolutionCapable` e `NSSupportsAutomaticGraphicsSwitching` da `Info.plist`;
+- `build-deps.sh` calcola una sola volta gli hash di lock e script;
+- `NetworkDiagnosticsView` riusa `isTesting` invece di ripetere `if case .running`.
+
+### Verifica
+
+- `swift build -c debug`: riuscita, nessun warning del codice;
+- `./build.sh test`: **51/51** test superati;
+- `./build.sh`: release e bundle verificati (`macOS 15.0`, `arm64`);
+- `./Scripts/check-localization.sh`: 206/206 chiavi allineate;
+- `shellcheck -S warning build.sh Scripts/*.sh`: nessun avviso;
+- screenshot demo di Impostazioni e Diagnostica catturati e controllati dopo il refactor
+  del chrome.
+
+### Ancora aperte
+
+`DUP-07`, `DUP-08`, `DUP-10`, `RED-02`, `RED-03`, `RED-05`, `RED-06` (parte concorrente),
+`RED-07`, `RED-10`, `OPT-01`, `OPT-02`, `OPT-04`, `OPT-05`, `OPT-06`, `OPT-07`; restano
+anche typography/SegmentedPicker e un confronto screenshot completo su tutte le varianti.

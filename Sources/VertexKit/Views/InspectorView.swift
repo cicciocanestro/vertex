@@ -58,10 +58,7 @@ struct InspectorView: View {
         .frame(maxHeight: .infinity)
         .background(palette.panel)
         .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(palette.stroke)
-                .frame(width: 1)
-                .allowsHitTesting(false)
+            Hairline(palette: palette, axis: .vertical)
         }
     }
 
@@ -203,15 +200,7 @@ struct InspectorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(palette.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(palette.stroke, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
+        .vertexCard(palette, radius: 10)
     }
 
     private func tabs(_ palette: Palette) -> some View {

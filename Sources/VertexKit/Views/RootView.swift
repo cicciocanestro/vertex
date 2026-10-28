@@ -236,7 +236,6 @@ package struct RootView: View {
     }
 
     private var mainColumn: some View {
-        let palette = Palette(scheme: scheme)
         let result = listResult
         let visible = result.torrents
         return VStack(spacing: 0) {
@@ -244,7 +243,7 @@ package struct RootView: View {
             filterBar(counts: result.counts)
 
             HStack(spacing: 0) {
-                content(palette, torrents: visible)
+                content(torrents: visible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let torrent = selectedTorrent {
@@ -311,7 +310,7 @@ package struct RootView: View {
     }
 
     @ViewBuilder
-    private func content(_ palette: Palette, torrents: [Torrent]) -> some View {
+    private func content(torrents: [Torrent]) -> some View {
         if engine.torrents.isEmpty && search.value.isEmpty {
             EmptyStateView(
                 onAdd: openAddSheet,
@@ -409,14 +408,14 @@ package struct RootView: View {
         let clipboard = NSPasteboard.general.string(forType: .string)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let clipboard, clipboard.lowercased().hasPrefix("magnet:") else {
+        guard let clipboard, TorrentInput.isMagnet(clipboard) else {
             engine.showToast(L("Nessun link magnet negli appunti"), kind: .info)
             activeModal.value = .add(.magnet)
             return
         }
 
-        let paused = UserDefaults.standard.bool(forKey: PrefKey.startPaused)
-        let sequential = UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
+        let paused = Preferences.startPaused
+        let sequential = Preferences.sequentialDefault
         _ = engine.addMagnet(
             clipboard,
             destination: nil,
@@ -426,19 +425,15 @@ package struct RootView: View {
     }
 
     private func chooseTorrentFile() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = true
-        panel.prompt = L("Aggiungi")
-        if let type = UTType(filenameExtension: "torrent") {
-            panel.allowedContentTypes = [type]
-        }
+        let panel = OpenPanelFactory.torrent(
+            allowMultiple: true,
+            prompt: L("Aggiungi")
+        )
 
         guard panel.runModal() == .OK else { return }
 
-        let paused = UserDefaults.standard.bool(forKey: PrefKey.startPaused)
-        let sequential = UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
+        let paused = Preferences.startPaused
+        let sequential = Preferences.sequentialDefault
         for url in panel.urls {
             _ = engine.addTorrentFile(
                 url,
@@ -454,42 +449,29 @@ package struct RootView: View {
             return false
         }
 
-        let paused = UserDefaults.standard.bool(forKey: PrefKey.startPaused)
-        let sequential = UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
-        var handled = false
+        let paused = Preferences.startPaused
+        let sequential = Preferences.sequentialDefault
 
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url, url.pathExtension.lowercased() == "torrent" else { return }
-                    Task { @MainActor in
-                        _ = engine.addTorrentFile(
-                            url,
-                            destination: nil,
-                            startPaused: paused,
-                            sequential: sequential
-                        )
-                    }
-                }
-            } else if provider.canLoadObject(ofClass: NSString.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                    guard let text = object as? String,
-                          text.lowercased().hasPrefix("magnet:") else { return }
-                    Task { @MainActor in
-                        _ = engine.addMagnet(
-                            text,
-                            destination: nil,
-                            startPaused: paused,
-                            sequential: sequential
-                        )
-                    }
+        return TorrentDropHandler.handle(providers) { item in
+            Task { @MainActor in
+                switch item {
+                case .torrent(let url):
+                    _ = engine.addTorrentFile(
+                        url,
+                        destination: nil,
+                        startPaused: paused,
+                        sequential: sequential
+                    )
+                case .magnet(let text):
+                    _ = engine.addMagnet(
+                        text,
+                        destination: nil,
+                        startPaused: paused,
+                        sequential: sequential
+                    )
                 }
             }
         }
-
-        return handled
     }
 }
 

@@ -4,10 +4,6 @@ struct StatusBarView: View {
     @ObservedObject var engine: TorrentEngine
     var onOpenDiagnostics: () -> Void = {}
 
-    private var displayPort: Int {
-        engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
-    }
-
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
     @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
     @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
@@ -33,7 +29,7 @@ struct StatusBarView: View {
                     .foregroundStyle(palette.secondary)
             }
 
-            divider(palette)
+            Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
             HStack(spacing: 7) {
                 SpeedText(value: engine.stats.downloadRate, upload: false)
@@ -77,13 +73,13 @@ struct StatusBarView: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.secondary)
 
-            divider(palette)
+            Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
             Button(action: onOpenDiagnostics) {
                 HStack(spacing: 4) {
                     Image(systemName: "network")
                         .font(.system(size: 8.5, weight: .semibold))
-                    Text(LF("Porta %ld", displayPort))
+                    Text(LF("Porta %ld", engine.stats.effectivePort))
                         .font(.system(size: 9.5, weight: .regular, design: .rounded))
                         .monospacedDigit()
                 }
@@ -112,9 +108,4 @@ struct StatusBarView: View {
         return L("DHT · connessione")
     }
 
-    private func divider(_ palette: Palette) -> some View {
-        Rectangle()
-            .fill(palette.stroke)
-            .frame(width: 1, height: 14)
-    }
 }

@@ -160,27 +160,38 @@ enum ModelsTests {
             let activeDownloading = Torrent.test(id: "1", name: "T1", finished: false, paused: false)
             let pausedTorrent = Torrent.test(id: "2", name: "T2", finished: false, paused: true)
             let seedingTorrent = Torrent.test(id: "3", name: "T3", finished: true, seeding: true, paused: false)
-            let completedTorrent = Torrent.test(id: "4", name: "T4", finished: true, seeding: false, paused: true)
+            let pausedCompleted = Torrent.test(id: "4", name: "T4", finished: true, seeding: false, paused: true)
+            let completedOnly = Torrent.test(id: "5", name: "T5", finished: true, seeding: false, paused: false)
+            let checking = Torrent.test(id: "6", name: "T6", stateCode: 1, hasMetadata: true)
 
-            let all = [activeDownloading, pausedTorrent, seedingTorrent, completedTorrent]
+            let all = [
+                activeDownloading,
+                pausedTorrent,
+                seedingTorrent,
+                pausedCompleted,
+                completedOnly,
+                checking
+            ]
 
             let filteredDownloading = all.filter { TorrentFilter.downloading.matches($0) }
-            try TestRunner.assertEqual(filteredDownloading.count, 1)
-            try TestRunner.assertEqual(filteredDownloading.first?.id, "1")
+            try TestRunner.assertEqual(filteredDownloading.map(\.id), ["1", "6"])
 
             let filteredPaused = all.filter { TorrentFilter.paused.matches($0) }
-            try TestRunner.assertEqual(filteredPaused.count, 2)
-            try TestRunner.assertTrue(filteredPaused.contains { $0.id == "2" })
-            try TestRunner.assertTrue(filteredPaused.contains { $0.id == "4" })
+            try TestRunner.assertEqual(filteredPaused.map(\.id), ["2", "4"])
 
             let filteredSeeding = all.filter { TorrentFilter.seeding.matches($0) }
-            try TestRunner.assertEqual(filteredSeeding.count, 1)
-            try TestRunner.assertEqual(filteredSeeding.first?.id, "3")
+            try TestRunner.assertEqual(filteredSeeding.map(\.id), ["3"])
 
             let filteredCompleted = all.filter { TorrentFilter.completed.matches($0) }
-            try TestRunner.assertEqual(filteredCompleted.count, 2)
-            try TestRunner.assertTrue(filteredCompleted.contains { $0.id == "3" })
-            try TestRunner.assertTrue(filteredCompleted.contains { $0.id == "4" })
+            try TestRunner.assertEqual(filteredCompleted.map(\.id), ["5"])
+
+            // Every torrent belongs to exactly one filter: pause prevails, and
+            // a seeding torrent is not also counted as completed.
+            let exclusive = filteredDownloading + filteredPaused + filteredSeeding + filteredCompleted
+            try TestRunner.assertEqual(exclusive.count, all.count)
+            try TestRunner.assertEqual(Set(exclusive.map(\.id)), Set(all.map(\.id)))
+            try TestRunner.assertFalse(filteredCompleted.contains { $0.id == "3" || $0.id == "4" })
+            try TestRunner.assertFalse(filteredSeeding.contains { $0.id == "4" || $0.id == "5" })
         }
 
         TestRunner.run("TorrentListPipeline: filtro, ricerca e ordinamento") {
@@ -221,6 +232,37 @@ enum ModelsTests {
             try TestRunner.assertEqual(result.counts[.paused, default: -1], 1)
             try TestRunner.assertEqual(result.counts[.completed, default: -1], 0)
             try TestRunner.assertEqual(result.counts[.seeding, default: -1], 0)
+
+            // Load smoke test: the list pipeline must stay linear enough for a
+            // realistic library and keep the exclusive counts consistent.
+            var many: [Torrent] = []
+            many.reserveCapacity(5_000)
+            for index in 0..<5_000 {
+                many.append(Torrent.test(
+                    id: String(index),
+                    name: "Torrent \(index)",
+                    progress: Double(index % 100) / 100,
+                    size: Int64(index),
+                    downloadRate: Int64(index % 7),
+                    finished: index % 3 == 0,
+                    paused: index % 5 == 0,
+                    added: Int64(index)
+                ))
+            }
+            let started = Date()
+            let load = TorrentListPipeline.applyWithCounts(
+                to: many,
+                filter: .all,
+                search: "Torrent",
+                sort: .name
+            )
+            let elapsed = Date().timeIntervalSince(started)
+            try TestRunner.assertEqual(load.torrents.count, 5_000)
+            try TestRunner.assertEqual(load.counts[.all, default: -1], 5_000)
+            try TestRunner.assertTrue(
+                elapsed < 5,
+                "La pipeline di 5000 torrent ha impiegato \(elapsed)s"
+            )
         }
     }
 }

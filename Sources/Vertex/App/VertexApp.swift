@@ -48,8 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        let paused = UserDefaults.standard.bool(forKey: PrefKey.startPaused)
-        let sequential = UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
+        let paused = Preferences.startPaused
+        let sequential = Preferences.sequentialDefault
         Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
             if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
@@ -57,14 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             for url in urls {
-                if url.scheme?.lowercased() == "magnet" {
+                if TorrentInput.isMagnet(url.absoluteString) {
                     _ = TorrentEngine.shared.addMagnet(
                         url.absoluteString,
                         destination: nil,
                         startPaused: paused,
                         sequential: sequential
                     )
-                } else if url.isFileURL, url.pathExtension.lowercased() == "torrent" {
+                } else if TorrentInput.isTorrentFile(url) {
                     _ = TorrentEngine.shared.addTorrentFile(
                         url,
                         destination: nil,

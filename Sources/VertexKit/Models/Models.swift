@@ -1,6 +1,6 @@
 import Foundation
 
-enum TorrentPhase {
+enum TorrentPhase: Equatable {
     case downloading
     case metadata
     case checking
@@ -169,6 +169,10 @@ package struct SessionStats: Equatable {
     package var isListening: Bool = false
     package var portmap = PortMapSnapshot()
 
+    package var effectivePort: Int {
+        actualPort > 0 ? actualPort : port
+    }
+
     package init(
         downloadRate: Int64 = 0,
         uploadRate: Int64 = 0,
@@ -279,13 +283,26 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Filters are mutually exclusive: every torrent belongs to exactly one
+    /// category. `Torrent.phase` is the single source of truth, and it gives
+    /// pause precedence over every other state. A seeding torrent is counted
+    /// in "Seed", not in "Completati"; a paused finished torrent is only
+    /// "In pausa"; "Download" includes metadata and verification.
     package func matches(_ torrent: Torrent) -> Bool {
         switch self {
-        case .all: return true
-        case .downloading: return !torrent.finished && !torrent.paused
-        case .seeding: return torrent.seeding && !torrent.paused
-        case .completed: return torrent.finished
-        case .paused: return torrent.paused
+        case .all:
+            return true
+        case .downloading:
+            switch torrent.phase {
+            case .downloading, .metadata, .checking: return true
+            case .seeding, .completed, .paused: return false
+            }
+        case .seeding:
+            return torrent.phase == .seeding
+        case .completed:
+            return torrent.phase == .completed
+        case .paused:
+            return torrent.phase == .paused
         }
     }
 }

@@ -13,21 +13,25 @@ struct NetworkDiagnosticsView: View {
     @StateObject private var localIP = UIState(LocalNetwork.primaryIPv4Address() ?? "—")
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
 
-    private var port: Int {
-        engine.stats.actualPort > 0 ? engine.stats.actualPort : engine.stats.port
-    }
-
     /// Port to probe from outside: the NAT-mapped external TCP port if any, otherwise the listen port.
     private var testPort: Int {
         let mapping = engine.stats.portmap.tcp
-        return mapping.mapped && mapping.externalPort > 0 ? mapping.externalPort : port
+        return mapping.mapped && mapping.externalPort > 0
+            ? mapping.externalPort
+            : engine.stats.effectivePort
     }
 
     var body: some View {
         let palette = Palette(scheme: scheme)
 
         VStack(spacing: 0) {
-            header(palette)
+            ModalHeader(
+                icon: "network",
+                title: "Diagnostica rete",
+                subtitle: "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna",
+                iconSize: 38,
+                onClose: onClose
+            )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
@@ -42,44 +46,22 @@ struct NetworkDiagnosticsView: View {
             }
             .scrollIndicators(.hidden)
 
-            footer(palette)
+            ModalFooterBar(palette: palette) {
+                Button("Impostazioni rete") {
+                    onOpenSettings()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            } trailing: {
+                Button("Chiudi") {
+                    onClose()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+            }
         }
         .frame(width: 620, height: 650)
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
         .onChange(of: testPort) { _, _ in tester.reset() }
-    }
-
-    private func header(_ palette: Palette) -> some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.accentGradient)
-                .frame(width: 38, height: 38)
-                .overlay(
-                    Image(systemName: "network")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x061014).opacity(0.85))
-                )
-                .shadow(color: Theme.mint.opacity(0.2), radius: 10, y: 4)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Diagnostica rete")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(palette.text)
-                Text("Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna")
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(palette.secondary)
-            }
-
-            Spacer()
-
-            IconButton(icon: "xmark", help: "Chiudi", size: 26) {
-                onClose()
-            }
-        }
-        .padding(.horizontal, 22)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
     }
 
     private func statusGrid(_ palette: Palette) -> some View {
@@ -97,7 +79,7 @@ struct NetworkDiagnosticsView: View {
 
             statusCard(
                 title: "Porta",
-                value: port > 0 ? "\(port)" : "—",
+                value: engine.stats.effectivePort > 0 ? "\(engine.stats.effectivePort)" : "—",
                 detail: engine.stats.actualPort > 0 && engine.stats.actualPort != engine.stats.port
                     ? LF("configurata %ld", engine.stats.port)
                     : L("TCP e UDP"),
@@ -154,15 +136,7 @@ struct NetworkDiagnosticsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(palette.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(palette.stroke, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
+        .vertexCard(palette, radius: 11)
     }
 
     private func mappingCard(_ palette: Palette) -> some View {
@@ -171,11 +145,11 @@ struct NetworkDiagnosticsView: View {
 
             VStack(spacing: 0) {
                 mappingRow("TCP", info: engine.stats.portmap.tcp, palette: palette)
-                rowDivider(palette)
+                Hairline(palette: palette)
                 mappingRow("UDP", info: engine.stats.portmap.udp, palette: palette)
 
                 if !engine.stats.portmap.error.isEmpty {
-                    rowDivider(palette)
+                    Hairline(palette: palette)
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 9))
@@ -189,15 +163,7 @@ struct NetworkDiagnosticsView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(palette.card)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(palette.stroke, lineWidth: 1)
-                    .allowsHitTesting(false)
-            )
+            .vertexCard(palette, radius: 12)
 
             if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
                 && !engine.stats.portmap.hasError {
@@ -274,7 +240,7 @@ struct NetworkDiagnosticsView: View {
 
                     Spacer(minLength: 4)
 
-                    if case .running = tester.state {
+                    if isTesting {
                         ProgressView()
                             .controlSize(.small)
                     }
@@ -323,15 +289,7 @@ struct NetworkDiagnosticsView: View {
                 }
             }
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(palette.card)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(palette.stroke, lineWidth: 1)
-                    .allowsHitTesting(false)
-            )
+            .vertexCard(palette, radius: 12)
         }
     }
 
@@ -390,7 +348,7 @@ struct NetworkDiagnosticsView: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionLabel(text: "Se la porta risulta chiusa")
 
-            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", port, localIP.value), palette)
+            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
             instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
             instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }
@@ -409,34 +367,4 @@ struct NetworkDiagnosticsView: View {
         }
     }
 
-    private func footer(_ palette: Palette) -> some View {
-        HStack(spacing: 9) {
-            Button("Impostazioni rete") {
-                onOpenSettings()
-            }
-            .buttonStyle(SecondaryButtonStyle())
-
-            Spacer()
-
-            Button("Chiudi") {
-                onClose()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-        }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 14)
-        .background(palette.panel)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(palette.stroke)
-                .frame(height: 1)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func rowDivider(_ palette: Palette) -> some View {
-        Rectangle()
-            .fill(palette.stroke)
-            .frame(height: 1)
-    }
 }

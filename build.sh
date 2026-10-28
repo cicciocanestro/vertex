@@ -62,8 +62,9 @@ if [ "$CONFIG" = "test" ]; then
 fi
 
 echo "→ Compilazione ($CONFIG)…"
+BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 swift build -c "$CONFIG"
-BIN_PATH="$(swift build -c "$CONFIG" --show-bin-path)/${APP_NAME}"
+BIN_PATH="${BIN_DIR}/${APP_NAME}"
 
 echo "→ Creazione del bundle…"
 rm -rf "$APP_PATH"

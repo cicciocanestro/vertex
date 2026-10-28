@@ -17,8 +17,8 @@ final class PortReachabilityTester: ObservableObject {
     @Published private(set) var publicIP: String?
 
     private static let userAgent: String = {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        return "Vertex/\(version)"
+        let version = AppInfo.version
+        return "Vertex/\(version == "—" ? "1.0" : version)"
     }()
 
     private let load: Loader

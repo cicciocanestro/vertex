@@ -83,6 +83,14 @@ package enum Preferences {
         resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
     }
 
+    package static var startPaused: Bool {
+        UserDefaults.standard.bool(forKey: PrefKey.startPaused)
+    }
+
+    package static var sequentialDefault: Bool {
+        UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
+    }
+
     package static var resumeDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
@@ -218,11 +226,18 @@ package final class TorrentEngine: ObservableObject {
     private var sessionPexEnabled = true
     private var shutdownCompletion: (() -> Void)?
     private var isShutdownComplete = false
-    private let sessionLifecycleQueue = DispatchQueue(
-        label: "com.vertex.session.lifecycle",
+    /// All `vt_*` calls run on this serial queue. Creating, polling, reading
+    /// details and destroying a session are therefore ordered, and the poll no
+    /// longer blocks the main actor.
+    private let sessionQueue = DispatchQueue(
+        label: "com.vertex.session",
         qos: .userInitiated
     )
     private let decoder = JSONDecoder()
+    private var isPollInFlight = false
+    private var sessionGeneration = 0
+    private var nextPollID = 0
+    private var lastAppliedPollID = 0
     private var configurationOverride: SessionConfiguration?
 
     private init() {
@@ -351,6 +366,8 @@ package final class TorrentEngine: ObservableObject {
     ) {
         guard !isRestartingSession, !isShuttingDown else { return }
         isRestartingSession = true
+        sessionGeneration += 1
+        isPollInFlight = false
 
         let previousSession = SessionPointerBox(session)
         session = nil
@@ -362,7 +379,7 @@ package final class TorrentEngine: ObservableObject {
 
         showToast(L("Riavvio del motore BitTorrent…"), kind: .info)
 
-        sessionLifecycleQueue.async { [self] in
+        sessionQueue.async { [self] in
             previousSession.destroy()
 
             let newSession = SessionPointerBox(Self.makeSession(configuration))
@@ -396,7 +413,7 @@ package final class TorrentEngine: ObservableObject {
 
         if isShuttingDown {
             let pointer = SessionPointerBox(newSession ?? fallbackSession)
-            sessionLifecycleQueue.async { [self] in
+            sessionQueue.async { [self] in
                 pointer.destroy()
                 DispatchQueue.main.async { self.completeShutdown() }
             }
@@ -463,9 +480,9 @@ package final class TorrentEngine: ObservableObject {
         startPaused: Bool,
         sequential: Bool
     ) -> String? {
-        guard let session else { return L("Motore non disponibile.") }
+        guard session != nil else { return L("Motore non disponibile.") }
         let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.lowercased().hasPrefix("magnet:") else {
+        guard TorrentInput.isMagnet(trimmed) else {
             let message = L("Il link magnet non è valido.")
             showToast(message, kind: .error)
             return message
@@ -478,17 +495,20 @@ package final class TorrentEngine: ObservableObject {
             return message
         }
 
-        let result = trimmed.withCString { uriPointer in
-            path.withCString { pathPointer in
-                vt_add_magnet(
-                    session,
-                    uriPointer,
-                    pathPointer,
-                    startPaused ? 1 : 0,
-                    sequential ? 1 : 0
-                )
+        let result = withSession { session in
+            trimmed.withCString { uriPointer in
+                path.withCString { pathPointer in
+                    vt_add_magnet(
+                        session,
+                        uriPointer,
+                        pathPointer,
+                        startPaused ? 1 : 0,
+                        sequential ? 1 : 0
+                    )
+                }
             }
         }
+        guard let result else { return L("Motore non disponibile.") }
 
         if result != 0 {
             let message = localizedError(takeLastError())
@@ -507,7 +527,7 @@ package final class TorrentEngine: ObservableObject {
         startPaused: Bool,
         sequential: Bool
     ) -> String? {
-        guard let session else { return L("Motore non disponibile.") }
+        guard session != nil else { return L("Motore non disponibile.") }
         let prepared = preparedDestination(destination)
         guard let path = prepared.path else {
             let message = prepared.error ?? L("Cartella di destinazione non valida.")
@@ -515,17 +535,20 @@ package final class TorrentEngine: ObservableObject {
             return message
         }
 
-        let result = url.path.withCString { filePointer in
-            path.withCString { pathPointer in
-                vt_add_torrent_file(
-                    session,
-                    filePointer,
-                    pathPointer,
-                    startPaused ? 1 : 0,
-                    sequential ? 1 : 0
-                )
+        let result = withSession { session in
+            url.path.withCString { filePointer in
+                path.withCString { pathPointer in
+                    vt_add_torrent_file(
+                        session,
+                        filePointer,
+                        pathPointer,
+                        startPaused ? 1 : 0,
+                        sequential ? 1 : 0
+                    )
+                }
             }
         }
+        guard let result else { return L("Motore non disponibile.") }
 
         if result != 0 {
             let message = localizedError(takeLastError())
@@ -583,10 +606,13 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func setFilePriority(_ file: TorrentFile, wanted: Bool, torrentID: String) {
-        guard let session else { return }
-        let result = torrentID.withCString { idPointer in
-            vt_set_file_priority(session, idPointer, Int32(file.index), wanted ? 4 : 0)
+        guard session != nil else { return }
+        let result = withSession { session in
+            torrentID.withCString { idPointer in
+                vt_set_file_priority(session, idPointer, Int32(file.index), wanted ? 4 : 0)
+            }
         }
+        guard let result else { return }
         if result != 0 {
             showToast(localizedError(takeLastError()), kind: .error)
         }
@@ -595,9 +621,12 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func magnetURI(for torrent: Torrent) -> String {
-        guard let session else { return "" }
-        let pointer = torrent.id.withCString { vt_magnet_uri(session, $0) }
-        return string(from: pointer) ?? ""
+        withSession { session in
+            let pointer = torrent.id.withCString { vt_magnet_uri(session, $0) }
+            guard let pointer else { return "" }
+            defer { vt_free_string(pointer) }
+            return String(cString: pointer)
+        } ?? ""
     }
 
     func copyMagnet(for torrent: Torrent) {
@@ -639,7 +668,7 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func applySettings() {
-        guard !isShuttingDown, !isRestartingSession, let session else { return }
+        guard !isShuttingDown, !isRestartingSession, session != nil else { return }
 
         let configuration: SessionConfiguration
         if let configurationOverride {
@@ -674,24 +703,26 @@ package final class TorrentEngine: ObservableObject {
 
         // Keep the C++ fallback destination in sync with the preferences. It is
         // used by resume-data loading and by callers that omit a save path.
-        _ = configuration.downloadPath.withCString {
-            vt_set_default_save_path(session, $0)
+        let result = withSession { session -> Int32 in
+            _ = configuration.downloadPath.withCString {
+                vt_set_default_save_path(session, $0)
+            }
+            return vt_apply_settings_ex(
+                session,
+                configuration.port,
+                configuration.downloadLimit,
+                configuration.uploadLimit,
+                configuration.dht ? 1 : 0,
+                configuration.upnp ? 1 : 0,
+                configuration.lsd ? 1 : 0
+            )
         }
-
-        let result = vt_apply_settings_ex(
-            session,
-            configuration.port,
-            configuration.downloadLimit,
-            configuration.uploadLimit,
-            configuration.dht ? 1 : 0,
-            configuration.upnp ? 1 : 0,
-            configuration.lsd ? 1 : 0
-        )
+        guard let result else { return }
         if result != 0 {
             showToast(
                 L("Impostazioni non applicate"),
                 kind: .error,
-                detail: L("Il motore BitTorrent ha rifiutato la configurazione.")
+                detail: localizedError(takeLastError())
             )
         }
         poll()
@@ -726,6 +757,8 @@ package final class TorrentEngine: ObservableObject {
         }
 
         isShuttingDown = true
+        sessionGeneration += 1
+        isPollInFlight = false
         shutdownCompletion = completion
         pollTask?.cancel()
         pollTask = nil
@@ -740,7 +773,7 @@ package final class TorrentEngine: ObservableObject {
         let previousSession = SessionPointerBox(session)
         session = nil
         isReady = false
-        sessionLifecycleQueue.async { [self] in
+        sessionQueue.async { [self] in
             previousSession.destroy()
             DispatchQueue.main.async { self.completeShutdown() }
         }
@@ -766,18 +799,32 @@ package final class TorrentEngine: ObservableObject {
         }
         #endif
 
-        guard !isShuttingDown, let session else { return }
-        vt_session_poll(session)
+        guard !isShuttingDown, !isPollInFlight, let session else { return }
+        isPollInFlight = true
+        nextPollID += 1
+        let pollID = nextPollID
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
 
-        guard let pointer = vt_snapshot_json(session) else { return }
-        let json = String(cString: pointer)
-        vt_free_string(pointer)
+        sessionQueue.async { [weak self] in
+            let snapshot = pointer.value.flatMap { Self.readSnapshot($0) }
+            DispatchQueue.main.async {
+                self?.finishPoll(snapshot, id: pollID, generation: generation)
+            }
+        }
+    }
 
-        guard let data = json.data(using: .utf8),
-              let snapshot = try? decoder.decode(VertexSnapshot.self, from: data) else {
+    private func finishPoll(_ snapshot: VertexSnapshot?, id: Int, generation: Int) {
+        isPollInFlight = false
+        guard generation == sessionGeneration, id >= lastAppliedPollID, !isShuttingDown else {
             return
         }
+        lastAppliedPollID = id
+        guard let snapshot else { return }
+        apply(snapshot)
+    }
 
+    private func apply(_ snapshot: VertexSnapshot) {
         // Notify only for torrents we have seen actively unfinished (not while verifying),
         // so resumed torrents settling after launch don't trigger a false "completed" toast.
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))
@@ -871,17 +918,22 @@ package final class TorrentEngine: ObservableObject {
     #endif
 
     private func loadDetail(_ id: String) {
-        guard selectedID == id else { return }
-        guard let session else {
-            detail = nil
+        guard selectedID == id, !isShuttingDown, let session else {
+            if selectedID == id {
+                detail = nil
+            }
             return
         }
-        let pointer = id.withCString { vt_detail_json(session, $0) }
-        applyDetailJSON(string(from: pointer), id: id)
+        let generation = sessionGeneration
+        let json = sessionQueue.sync { Self.readDetailJSON(session, id: id) }
+        applyDetailJSON(json, id: id, generation: generation)
     }
 
-    private func applyDetailJSON(_ json: String?, id: String) {
+    private func applyDetailJSON(_ json: String?, id: String, generation: Int? = nil) {
         guard selectedID == id else { return }
+        if let generation, generation != sessionGeneration {
+            return
+        }
         guard let json,
               let data = json.data(using: .utf8),
               let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
@@ -897,7 +949,12 @@ package final class TorrentEngine: ObservableObject {
 
     #if DEBUG
     package func pollNowForTesting() {
-        poll()
+        guard !isShuttingDown, let session else { return }
+        nextPollID += 1
+        let pollID = nextPollID
+        let generation = sessionGeneration
+        let snapshot = sessionQueue.sync { Self.readSnapshot(session) }
+        finishPoll(snapshot, id: pollID, generation: generation)
     }
 
     package func applyDetailJSONForTesting(_ json: String?, id: String) {
@@ -919,14 +976,44 @@ package final class TorrentEngine: ObservableObject {
 
     // MARK: - Helpers
 
+    /// Serializes a synchronous bridge call with the background poll.
+    private func withSession<T>(_ body: (OpaquePointer) -> T) -> T? {
+        guard let session else { return nil }
+        return sessionQueue.sync {
+            body(session)
+        }
+    }
+
+    nonisolated private static func readSnapshot(_ session: OpaquePointer) -> VertexSnapshot? {
+        vt_session_poll(session)
+        guard let pointer = vt_snapshot_json(session) else { return nil }
+        let json = String(cString: pointer)
+        vt_free_string(pointer)
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(VertexSnapshot.self, from: data)
+    }
+
+    nonisolated private static func readDetailJSON(
+        _ session: OpaquePointer,
+        id: String
+    ) -> String? {
+        let pointer = id.withCString { vt_detail_json(session, $0) }
+        guard let pointer else { return nil }
+        defer { vt_free_string(pointer) }
+        return String(cString: pointer)
+    }
+
     @discardableResult
     private func control(_ action: String, id: String) -> Bool {
-        guard let session else { return false }
-        let result = id.withCString { idPointer in
-            action.withCString { actionPointer in
-                vt_control(session, idPointer, actionPointer)
+        guard session != nil else { return false }
+        let result = withSession { session in
+            id.withCString { idPointer in
+                action.withCString { actionPointer in
+                    vt_control(session, idPointer, actionPointer)
+                }
             }
         }
+        guard let result else { return false }
         if result != 0 {
             showToast(localizedError(takeLastError()), kind: .error)
             return false
@@ -959,15 +1046,14 @@ package final class TorrentEngine: ObservableObject {
     }
 
     private func takeLastError() -> String {
-        guard let session else { return L("Errore sconosciuto.") }
-        let pointer = vt_last_error(session)
-        return string(from: pointer) ?? L("Errore sconosciuto.")
-    }
-
-    private func string(from pointer: UnsafeMutablePointer<CChar>?) -> String? {
-        guard let pointer else { return nil }
-        defer { vt_free_string(pointer) }
-        return String(cString: pointer)
+        let raw = withSession { session -> String in
+            guard let pointer = vt_last_error(session) else { return "" }
+            defer { vt_free_string(pointer) }
+            return String(cString: pointer)
+        } ?? ""
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? L("Errore sconosciuto.")
+            : raw
     }
 
     private func localizedError(_ raw: String) -> String {

@@ -22,8 +22,8 @@ struct AddTorrentSheet: View {
     @Environment(\.colorScheme) private var scheme
     // Per-torrent choices: initialised from the saved defaults, never written back to them.
     @StateObject private var downloadPath = UIState(Preferences.downloadPath)
-    @StateObject private var startPaused = UIState(UserDefaults.standard.bool(forKey: PrefKey.startPaused))
-    @StateObject private var sequential = UIState(UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault))
+    @StateObject private var startPaused = UIState(Preferences.startPaused)
+    @StateObject private var sequential = UIState(Preferences.sequentialDefault)
 
     @StateObject private var mode = UIState<AddTorrentMode>(.magnet)
     @StateObject private var magnet = UIState("")
@@ -337,15 +337,7 @@ struct AddTorrentSheet: View {
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(palette.card)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(palette.stroke, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
+        .vertexCard(palette, radius: 11)
     }
 
     private func toggles(_ palette: Palette) -> some View {
@@ -385,7 +377,7 @@ struct AddTorrentSheet: View {
         switch mode.value {
         case .magnet:
             let value = magnet.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return value.lowercased().hasPrefix("magnet:")
+            return TorrentInput.isMagnet(value)
         case .file:
             return fileURL.value != nil
         }
@@ -422,47 +414,27 @@ struct AddTorrentSheet: View {
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        var handled = false
-
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                handled = true
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url, url.pathExtension.lowercased() == "torrent" else { return }
-                    DispatchQueue.main.async {
-                        fileURL.value = url
-                        mode.value = .file
-                        errorMessage.value = nil
-                    }
-                }
-            } else if provider.canLoadObject(ofClass: NSString.self) {
-                handled = true
-                _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                    guard let text = object as? String,
-                          text.lowercased().hasPrefix("magnet:") else { return }
-                    DispatchQueue.main.async {
-                        magnet.value = text
-                        mode.value = .magnet
-                        errorMessage.value = nil
-                    }
-                }
+        TorrentDropHandler.handle(providers) { item in
+            switch item {
+            case .torrent(let url):
+                fileURL.value = url
+                mode.value = .file
+                errorMessage.value = nil
+            case .magnet(let text):
+                magnet.value = text
+                mode.value = .magnet
+                errorMessage.value = nil
             }
         }
-
-        return handled
     }
 
     private func chooseFile() {
         NSApp.activate(ignoringOtherApps: true)
-        let panel = NSOpenPanel()
-        panel.level = .modalPanel
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = L("Scegli")
-        if let type = UTType(filenameExtension: "torrent") {
-            panel.allowedContentTypes = [type]
-        }
+        let panel = OpenPanelFactory.torrent(
+            allowMultiple: false,
+            prompt: L("Scegli"),
+            modal: true
+        )
         if panel.runModal() == .OK, let url = panel.url {
             fileURL.value = url
             errorMessage.value = nil
@@ -471,14 +443,10 @@ struct AddTorrentSheet: View {
 
     private func chooseDestination() {
         NSApp.activate(ignoringOtherApps: true)
-        let panel = NSOpenPanel()
-        panel.level = .modalPanel
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = L("Scegli")
-        panel.directoryURL = URL(fileURLWithPath: downloadPath.value)
+        let panel = OpenPanelFactory.directory(
+            startingAt: downloadPath.value,
+            modal: true
+        )
         if panel.runModal() == .OK, let url = panel.url {
             downloadPath.value = url.path
         }

@@ -93,7 +93,10 @@ std::string torrent_id(lt::torrent_status const& status)
     return to_hex(status.info_hashes.get_best());
 }
 
-std::string prepared_save_path(std::string const& requested, std::string const& fallback)
+// Mirrors Preferences.resolvedDownloadPath on the Swift side. The C++ copy is
+// the last-resort safety net for resume data and callers without a save path;
+// keep the two rule sets aligned and covered by the path tests.
+std::string normalized_save_path(std::string const& requested, std::string const& fallback)
 {
     namespace fs = std::filesystem;
     std::string candidate = requested.empty() ? fallback : requested;
@@ -103,11 +106,7 @@ std::string prepared_save_path(std::string const& requested, std::string const& 
     auto status = fs::status(path, ec);
     if (!ec)
     {
-        if (fs::is_directory(status))
-        {
-            // ok as-is
-        }
-        else if (fs::is_regular_file(status))
+        if (fs::is_regular_file(status))
         {
             // A file was used as destination (often a .torrent): use its folder.
             candidate = path.parent_path().string();
@@ -118,18 +117,22 @@ std::string prepared_save_path(std::string const& requested, std::string const& 
         candidate = path.parent_path().string();
     }
 
-    if (candidate.empty())
+    return candidate.empty() ? fallback : candidate;
+}
+
+bool is_usable_directory(std::string const& path)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(path, ec);
+    return !ec && ::access(path.c_str(), W_OK) == 0;
+}
+
+std::string prepared_save_path(std::string const& requested, std::string const& fallback)
+{
+    std::string candidate = normalized_save_path(requested, fallback);
+    if (!is_usable_directory(candidate) && is_usable_directory(fallback))
         candidate = fallback;
-
-    fs::create_directories(candidate, ec);
-    if (ec || ::access(candidate.c_str(), W_OK) != 0)
-    {
-        std::error_code fallback_ec;
-        fs::create_directories(fallback, fallback_ec);
-        if (!fallback_ec && ::access(fallback.c_str(), W_OK) == 0)
-            candidate = fallback;
-    }
-
     return candidate;
 }
 
@@ -143,10 +146,43 @@ std::string portmap_transport_string(lt::portmap_transport transport)
     return transport == lt::portmap_transport::upnp ? "UPnP" : "NAT-PMP";
 }
 
-bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params);
-void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status);
-
 } // namespace
+
+struct portmap_state
+{
+    bool mapped = false;
+    int external_port = 0;
+    std::string transport;
+    lt::port_mapping_t mapping{};
+    std::string error;
+
+    void reset()
+    {
+        mapped = false;
+        external_port = 0;
+        transport.clear();
+        mapping = lt::port_mapping_t{};
+        error.clear();
+    }
+
+    void mark_mapped(int port, std::string const& transport_name, lt::port_mapping_t map)
+    {
+        mapped = true;
+        external_port = port;
+        transport = transport_name;
+        mapping = map;
+        error.clear();
+    }
+
+    void mark_failed(std::string const& message)
+    {
+        mapped = false;
+        external_port = 0;
+        transport.clear();
+        mapping = lt::port_mapping_t{};
+        error = message;
+    }
+};
 
 struct vt_session
 {
@@ -160,16 +196,8 @@ struct vt_session
     int actual_listen_port = 0;
     bool listening = false;
     bool upnp_enabled = true;
-    bool tcp_mapped = false;
-    int tcp_external_port = 0;
-    std::string tcp_map_transport;
-    lt::port_mapping_t tcp_mapping{};
-    bool udp_mapped = false;
-    int udp_external_port = 0;
-    std::string udp_map_transport;
-    lt::port_mapping_t udp_mapping{};
-    std::string tcp_portmap_error;
-    std::string udp_portmap_error;
+    portmap_state tcp;
+    portmap_state udp;
     // Error whose TCP/UDP protocol could not be determined from the alert.
     std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
@@ -223,16 +251,8 @@ void unmark_removed(vt_session* session, std::string const& id)
 
 void reset_portmap_state(vt_session* session)
 {
-    session->tcp_mapped = false;
-    session->tcp_external_port = 0;
-    session->tcp_map_transport.clear();
-    session->tcp_mapping = lt::port_mapping_t{};
-    session->udp_mapped = false;
-    session->udp_external_port = 0;
-    session->udp_map_transport.clear();
-    session->udp_mapping = lt::port_mapping_t{};
-    session->tcp_portmap_error.clear();
-    session->udp_portmap_error.clear();
+    session->tcp.reset();
+    session->udp.reset();
     session->portmap_error.clear();
 }
 
@@ -607,19 +627,11 @@ void vt_session_poll(vt_session* session)
                 std::string transport = portmap_transport_string(mapped->map_transport);
                 if (mapped->map_protocol == lt::portmap_protocol::tcp)
                 {
-                    session->tcp_mapped = true;
-                    session->tcp_external_port = mapped->external_port;
-                    session->tcp_map_transport = transport;
-                    session->tcp_mapping = mapped->mapping;
-                    session->tcp_portmap_error.clear();
+                    session->tcp.mark_mapped(mapped->external_port, transport, mapped->mapping);
                 }
                 else if (mapped->map_protocol == lt::portmap_protocol::udp)
                 {
-                    session->udp_mapped = true;
-                    session->udp_external_port = mapped->external_port;
-                    session->udp_map_transport = transport;
-                    session->udp_mapping = mapped->mapping;
-                    session->udp_portmap_error.clear();
+                    session->udp.mark_mapped(mapped->external_port, transport, mapped->mapping);
                 }
             }
             else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
@@ -630,24 +642,16 @@ void vt_session_poll(vt_session* session)
                 std::string const transport = portmap_transport_string(map_error->map_transport);
                 std::string const message = transport + ": " + map_error->error.message();
                 bool attributed = false;
-                if (session->tcp_mapped && map_error->mapping == session->tcp_mapping
-                    && transport == session->tcp_map_transport)
+                if (session->tcp.mapped && map_error->mapping == session->tcp.mapping
+                    && transport == session->tcp.transport)
                 {
-                    session->tcp_mapped = false;
-                    session->tcp_external_port = 0;
-                    session->tcp_map_transport.clear();
-                    session->tcp_mapping = lt::port_mapping_t{};
-                    session->tcp_portmap_error = message;
+                    session->tcp.mark_failed(message);
                     attributed = true;
                 }
-                if (session->udp_mapped && map_error->mapping == session->udp_mapping
-                    && transport == session->udp_map_transport)
+                if (session->udp.mapped && map_error->mapping == session->udp.mapping
+                    && transport == session->udp.transport)
                 {
-                    session->udp_mapped = false;
-                    session->udp_external_port = 0;
-                    session->udp_map_transport.clear();
-                    session->udp_mapping = lt::port_mapping_t{};
-                    session->udp_portmap_error = message;
+                    session->udp.mark_failed(message);
                     attributed = true;
                 }
                 if (!attributed)
@@ -657,9 +661,9 @@ void vt_session_poll(vt_session* session)
                     // the first attempt fails before any portmap_alert arrives.
                     int const slot = static_cast<int>(map_error->mapping);
                     if (slot == 0)
-                        session->tcp_portmap_error = message;
+                        session->tcp.mark_failed(message);
                     else if (slot == 1)
-                        session->udp_portmap_error = message;
+                        session->udp.mark_failed(message);
                     else
                         session->portmap_error = message;
                 }
@@ -744,14 +748,14 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"listen_actual_port\":" << session->actual_listen_port << ",";
         out << "\"listening\":" << (session->listening ? "true" : "false") << ",";
         out << "\"portmap\":{";
-        out << "\"tcp\":{\"mapped\":" << (session->tcp_mapped ? "true" : "false")
-            << ",\"external_port\":" << session->tcp_external_port
-            << ",\"transport\":\"" << json_escape(session->tcp_map_transport)
-            << "\",\"error\":\"" << json_escape(session->tcp_portmap_error) << "\"},";
-        out << "\"udp\":{\"mapped\":" << (session->udp_mapped ? "true" : "false")
-            << ",\"external_port\":" << session->udp_external_port
-            << ",\"transport\":\"" << json_escape(session->udp_map_transport)
-            << "\",\"error\":\"" << json_escape(session->udp_portmap_error) << "\"},";
+        out << "\"tcp\":{\"mapped\":" << (session->tcp.mapped ? "true" : "false")
+            << ",\"external_port\":" << session->tcp.external_port
+            << ",\"transport\":\"" << json_escape(session->tcp.transport)
+            << "\",\"error\":\"" << json_escape(session->tcp.error) << "\"},";
+        out << "\"udp\":{\"mapped\":" << (session->udp.mapped ? "true" : "false")
+            << ",\"external_port\":" << session->udp.external_port
+            << ",\"transport\":\"" << json_escape(session->udp.transport)
+            << "\",\"error\":\"" << json_escape(session->udp.error) << "\"},";
         out << "\"error\":\"" << json_escape(session->portmap_error) << "\"},";
         out << "\"port\":" << session->listen_port;
         out << "}";
@@ -815,6 +819,13 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
         if (handle.is_valid())
         {
             auto trackers = handle.trackers();
+            auto const hashes = handle.info_hashes();
+            auto const has_scrape = [](lt::announce_infohash const& info) {
+                return info.scrape_complete >= 0 || info.scrape_incomplete >= 0;
+            };
+            auto const has_stats = [&](lt::announce_infohash const& info) {
+                return has_scrape(info) || !info.message.empty() || info.fails > 0;
+            };
             bool first = true;
             for (auto const& tracker : trackers)
             {
@@ -824,11 +835,20 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
                 int seeds = -1;
                 if (!tracker.endpoints.empty())
                 {
-                    auto const& infohash = tracker.endpoints.front().info_hashes[lt::protocol_version::V1];
-                    message = infohash.message;
-                    fails = infohash.fails;
-                    peers = infohash.scrape_incomplete;
-                    seeds = infohash.scrape_complete;
+                    auto const& endpoint = tracker.endpoints.front();
+                    auto const& v1 = endpoint.info_hashes[lt::protocol_version::V1];
+                    auto const& v2 = endpoint.info_hashes[lt::protocol_version::V2];
+                    auto const* infohash = &v1;
+                    if (!hashes.has_v1())
+                        infohash = &v2;
+                    else if (hashes.has_v2() && !has_scrape(v1) && has_scrape(v2))
+                        infohash = &v2;
+                    else if (hashes.has_v2() && !has_stats(v1) && has_stats(v2))
+                        infohash = &v2;
+                    message = infohash->message;
+                    fails = infohash->fails;
+                    peers = infohash->scrape_incomplete;
+                    seeds = infohash->scrape_complete;
                 }
 
                 if (!first)
@@ -1091,8 +1111,13 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
 int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int file_index, int priority)
 {
-    if (!session || !torrent_id_value)
+    if (!session)
         return -1;
+    if (!torrent_id_value || file_index < 0 || priority < 0 || priority > 7)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     try
     {
@@ -1113,6 +1138,7 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
     }
     catch (...)
     {
+        session->last_error = "Errore sconosciuto";
         return -1;
     }
 }
@@ -1149,8 +1175,14 @@ int vt_apply_settings_ex(vt_session* session,
         session->session->apply_settings(settings);
         return 0;
     }
+    catch (std::exception const& e)
+    {
+        session->last_error = e.what();
+        return -1;
+    }
     catch (...)
     {
+        session->last_error = "Errore sconosciuto";
         return -1;
     }
 }

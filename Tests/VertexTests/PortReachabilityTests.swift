@@ -45,19 +45,10 @@ enum PortReachabilityTests {
 
     private static func openPort() throws {
         let (tester, stub) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-1","nodes":{"node-1":{},"node-2":{}}}"#.utf8))
-                case "/check-result/req-1":
-                    return (200, Data(#"{"node-1":[{"time":0.12}],"node-2":[{"time":0.34}]}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(
+                check: #"{"ok":1,"request_id":"req-1","nodes":{"node-1":{},"node-2":{}}}"#,
+                result: #"{"node-1":[{"time":0.12}],"node-2":[{"time":0.34}]}"#
+            )
         }
         defer { onMain { tester.reset() } }
 
@@ -93,19 +84,10 @@ enum PortReachabilityTests {
 
     private static func closedPort() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-2","nodes":{"node-1":{},"node-2":{}}}"#.utf8))
-                case "/check-result/req-2":
-                    return (200, Data(#"{"node-1":[{"error":"timeout"}],"node-2":[{"error":"refused"}]}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(
+                check: #"{"ok":1,"request_id":"req-2","nodes":{"node-1":{},"node-2":{}}}"#,
+                result: #"{"node-1":[{"error":"timeout"}],"node-2":[{"error":"refused"}]}"#
+            )
         }
         defer { onMain { tester.reset() } }
 
@@ -120,17 +102,7 @@ enum PortReachabilityTests {
 
     private static func invalidServiceResponse() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":0}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(check: #"{"ok":0}"#)
         }
         defer { onMain { tester.reset() } }
 
@@ -160,17 +132,7 @@ enum PortReachabilityTests {
 
     private static func noNodes() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-3","nodes":{}}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(check: #"{"ok":1,"request_id":"req-3","nodes":{}}"#)
         }
         defer { onMain { tester.reset() } }
 
@@ -182,19 +144,10 @@ enum PortReachabilityTests {
 
     private static func partialOpen() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-4","nodes":{"node-1":{},"node-2":{}}}"#.utf8))
-                case "/check-result/req-4":
-                    return (200, Data(#"{"node-1":[{"time":0.1}]}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(
+                check: #"{"ok":1,"request_id":"req-4","nodes":{"node-1":{},"node-2":{}}}"#,
+                result: #"{"node-1":[{"time":0.1}]}"#
+            )
         }
         defer { onMain { tester.reset() } }
 
@@ -209,19 +162,10 @@ enum PortReachabilityTests {
 
     private static func partialClosed() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-5","nodes":{"node-1":{},"node-2":{}}}"#.utf8))
-                case "/check-result/req-5":
-                    return (200, Data(#"{"node-1":[{"error":"timeout"}]}"#.utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(
+                check: #"{"ok":1,"request_id":"req-5","nodes":{"node-1":{},"node-2":{}}}"#,
+                result: #"{"node-1":[{"error":"timeout"}]}"#
+            )
         }
         defer { onMain { tester.reset() } }
 
@@ -254,12 +198,7 @@ enum PortReachabilityTests {
 
     private static func emptyPublicIP() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":""}"#.utf8))
-                }
-                return (404, Data())
-            }
+            makeTester(ip: "", check: "")
         }
         defer { onMain { tester.reset() } }
 
@@ -297,19 +236,10 @@ enum PortReachabilityTests {
 
     private static func malformedResult() throws {
         let (tester, _) = onMain {
-            makeTester { request in
-                if request.url?.host == "api.ipify.org" {
-                    return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
-                }
-                switch request.url?.path {
-                case "/check-tcp":
-                    return (200, Data(#"{"ok":1,"request_id":"req-6","nodes":{"node-1":{}}}"#.utf8))
-                case "/check-result/req-6":
-                    return (200, Data("not-json".utf8))
-                default:
-                    return (404, Data())
-                }
-            }
+            makeTester(
+                check: #"{"ok":1,"request_id":"req-6","nodes":{"node-1":{}}}"#,
+                result: "not-json"
+            )
         }
         defer { onMain { tester.reset() } }
 
@@ -344,6 +274,32 @@ enum PortReachabilityTests {
         let stub = HTTPStub(handler: handler)
         let tester = PortReachabilityTester(load: stub.load, pollInterval: pollInterval)
         return (tester, stub)
+    }
+
+    /// Builds the common IP → check-tcp → check-result flow. Tests that need a
+    /// different transport (HTTP error, non-HTTP response, reset) keep their
+    /// own loader.
+    @MainActor
+    private static func makeTester(
+        ip: String = "203.0.113.5",
+        check: String,
+        result: String? = nil,
+        pollInterval: UInt64 = 1_000_000
+    ) -> (tester: PortReachabilityTester, stub: HTTPStub) {
+        makeTester(pollInterval: pollInterval) { request in
+            if request.url?.host == "api.ipify.org" {
+                return (200, Data("{\"ip\":\"\(ip)\"}".utf8))
+            }
+            switch request.url?.path {
+            case "/check-tcp":
+                return (200, Data(check.utf8))
+            case let path where path?.hasPrefix("/check-result/") == true:
+                guard let result else { return (404, Data()) }
+                return (200, Data(result.utf8))
+            default:
+                return (404, Data())
+            }
+        }
     }
 
     @MainActor
