@@ -67,9 +67,9 @@ cd vertex
 open dist/Vertex.app
 ```
 
-Per compilare servono Xcode Command Line Tools con Swift 6.x e CMake 3.20+. La prima build
-compila le dipendenze fissate in `Scripts/deps.env`; le build successive riusano
-`.build/vertex-deps`. Non serve alcuna libreria Homebrew a runtime.
+Per compilare servono Xcode Command Line Tools con Swift 5.10+ (testato con Swift 6.4) e
+CMake 3.20+. La prima build compila le dipendenze fissate in `Scripts/deps.env`; le build
+successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a runtime.
 
 ```bash
 ./build.sh          # build release
@@ -96,8 +96,8 @@ compila le dipendenze fissate in `Scripts/deps.env`; le build successive riusano
   del magnet e download sequenziale.
 - Selezionando un torrent si apre il pannello dettagli con statistiche, priorità dei file e
   tracker.
-- In caso di errore, il messaggio reale e il percorso sono visibili nella riga e nel
-  pannello dettagli.
+- In caso di errore, il messaggio reale è visibile nella riga; messaggio e percorso sono
+  nel pannello dettagli.
 
 ### Diagnostica rete
 
@@ -235,9 +235,9 @@ Le build DEBUG offrono dati demo e cattura finestra (`VERTEX_DEMO=1`,
   per entrambe le architetture.
 - Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper.
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
-- Client volutamente minimale: niente RSS, ricerca torrent integrata, scheduler o limite
-  automatico di rapporto.
-- Il seed continua finché il torrent non viene messo in pausa.
+- Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
+- Non c'è un limite di rapporto: il seed continua finché non metti in pausa o rimuovi il
+  torrent.
 - Non è supportato lo spostamento dei dati di un torrent già aggiunto.
 - La DMG è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).
 
