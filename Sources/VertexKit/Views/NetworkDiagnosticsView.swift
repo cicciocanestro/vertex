@@ -36,6 +36,7 @@ struct NetworkDiagnosticsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     statusGrid(palette)
+                    listenErrorCard(palette)
                     mappingCard(palette)
                     reachabilityCard(palette)
                     instructions(palette)
@@ -87,9 +88,11 @@ struct NetworkDiagnosticsView: View {
             )
 
             statusCard(
-                title: "IP locale",
-                value: localIP.value,
-                detail: L("interfaccia di rete principale"),
+                title: engine.stats.isBoundToAddress ? "Indirizzo associato" : "IP locale",
+                value: engine.stats.isBoundToAddress ? engine.stats.bindAddress : localIP.value,
+                detail: engine.stats.isBoundToAddress
+                    ? L("solo questa interfaccia")
+                    : L("interfaccia di rete principale"),
                 palette: palette
             )
 
@@ -137,6 +140,38 @@ struct NetworkDiagnosticsView: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
         .vertexCard(palette, radius: 11)
+    }
+
+    /// Shown only when the pinned address cannot be used: that is what happens
+    /// when the VPN tunnel is down and the engine refuses to fall back to the
+    /// physical interface.
+    @ViewBuilder
+    private func listenErrorCard(_ palette: Palette) -> some View {
+        if !engine.stats.listenError.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(text: "Ascolto non disponibile")
+
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.coral)
+                        Text(engine.stats.listenError)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(palette.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text(L("L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce."))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(palette.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .vertexCard(palette, radius: 12)
+            }
+        }
     }
 
     private func mappingCard(_ palette: Palette) -> some View {
@@ -348,8 +383,13 @@ struct NetworkDiagnosticsView: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionLabel(text: "Se la porta risulta chiusa")
 
-            instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
-            instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
+            if engine.stats.isBoundToAddress {
+                instruction(LF("Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.", engine.stats.bindAddress, engine.stats.effectivePort), palette)
+                instruction(L("Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta."), palette)
+            } else {
+                instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
+                instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
+            }
             instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }
     }

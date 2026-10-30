@@ -51,6 +51,9 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - Search, filters, sorting and an inspector with statistics, files/priorities and trackers.
 - Pause/resume, sequential download, resume data and visible error details.
 - Global speed limits, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
+- **Interface binding**: pin the engine to one local address, so traffic only leaves through
+  it. It is what makes the client usable behind CGNAT together with a WireGuard tunnel and
+  port forwarding on a VPS.
 - **Network diagnostics**: effective port, local IP, mapping state and TCP reachability.
 - Italian or English interface based on the system language.
 - **No telemetry**. The only network traffic is BitTorrent and, when you start the port
@@ -107,10 +110,19 @@ needed at runtime.
   when you start the test. UDP/uTP is not tested.
 - If the port is closed, enable UPnP/NAT-PMP or forward TCP/UDP to the local IP; check
   whether you are behind CGNAT.
+- When an interface is bound, the panel shows that address instead of the LAN one and names
+  the transport that failed. A binding whose address is no longer available is reported
+  explicitly: the engine does not fall back to the physical interface.
 
 ### Settings
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
+- **Network interface**: binding the client to one local IPv4 address (for example the
+  address of a WireGuard tunnel) sets both the listening socket and the outgoing source, and
+  libtorrent rejects traffic arriving on the other interfaces. Removing the binding restores
+  the default of listening on every interface. Only literal IPv4 addresses are accepted; if
+  the address disappears while the client runs, listening fails and the diagnostics panel
+  reports why.
 - Start-paused and sequential defaults for new torrents; per-torrent choices stay local to
   the add window.
 - Dark, light or system appearance.

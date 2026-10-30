@@ -77,7 +77,9 @@ struct StatusBarView: View {
 
             Button(action: onOpenDiagnostics) {
                 HStack(spacing: 4) {
-                    Image(systemName: "network")
+                    Image(systemName: engine.stats.isBoundToAddress
+                        ? "lock.shield.fill"
+                        : "network")
                         .font(.system(size: 8.5, weight: .semibold))
                     Text(LF("Porta %ld", engine.stats.effectivePort))
                         .font(.system(size: 9.5, weight: .regular, design: .rounded))
@@ -89,7 +91,9 @@ struct StatusBarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Diagnostica rete")
+            .help(engine.stats.isBoundToAddress
+                ? LF("Diagnostica rete · associato a %@", engine.stats.bindAddress)
+                : L("Diagnostica rete"))
         }
         .padding(.horizontal, 18)
         .frame(height: 38)

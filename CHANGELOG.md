@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.5.0] — 2026-10-30
+
+### Aggiunte
+- **Associazione a un indirizzo locale**: la nuova impostazione «Interfaccia di rete» vincola
+  il motore a un solo indirizzo IPv4, impostando sia `listen_interfaces` sia
+  `outgoing_interfaces`. libtorrent rifiuta il traffico in arrivo sulle altre interfacce,
+  quindi il client resta utilizzabile dietro CGNAT con un tunnel WireGuard e il port
+  forwarding su un VPS.
+- Diagnostica: mostra l'indirizzo associato e, quando l'ascolto fallisce (per esempio perché
+  il tunnel è spento), riporta il messaggio di `listen_failed_alert`. Il client non ripiega
+  sulle altre interfacce.
+- Bridge: `vt_session_create_full` e `vt_apply_settings_ex` accettano `bind_address`; lo
+  snapshot espone `bind_address` e `listen_error`.
+- Barra di stato: l'icona della porta diventa uno scudo quando il client è associato a un
+  indirizzo.
+
+### Test
+- 55 test, tutti superati: ascolto su un indirizzo locale, errore su un indirizzo non
+  disponibile, rimozione dell'associazione a caldo, normalizzazione della preferenza e
+  rendering della diagnostica associata.
+
 ## [1.4.0] — 2026-10-28
 
 ### Modifiche

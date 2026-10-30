@@ -237,3 +237,17 @@
 "Impossibile creare la cartella di destinazione." = "Unable to create the destination folder.";
 "La destinazione non è una cartella." = "The destination is not a folder.";
 "La cartella di destinazione non è scrivibile." = "The destination folder is not writable.";
+
+/* Network interface binding */
+"Interfaccia di rete" = "Network interface";
+"Il traffico esce solo da questo indirizzo" = "Traffic leaves only through this address";
+"Automatica" = "Automatic";
+"%@ (non disponibile)" = "%@ (unavailable)";
+"Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta." = "With a bound address Vertex rejects traffic on the other interfaces. If the address disappears, for example because the tunnel is down, the port is not opened.";
+"Indirizzo associato" = "Bound address";
+"solo questa interfaccia" = "this interface only";
+"Ascolto non disponibile" = "Listening unavailable";
+"L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce." = "The bound address cannot be used: the tunnel is down or the interface changed. Vertex does not fall back to the other interfaces.";
+"Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo." = "Vertex is bound to %@: on the public server forward TCP and UDP %ld to this address.";
+"Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta." = "If the address is no longer listed among the interfaces, the tunnel is down and Vertex does not open the port.";
+"Diagnostica rete · associato a %@" = "Network diagnostics · bound to %@";

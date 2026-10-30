@@ -19,7 +19,8 @@ enum CTorrentBridgeTests {
                     512 * 1024,
                     0,
                     0,
-                    0
+                    0,
+                    nil
                 )
                 try TestRunner.assertEqual(settingsResult, 0, "vt_apply_settings_ex deve restituire 0 per successo")
 
@@ -112,9 +113,86 @@ enum CTorrentBridgeTests {
                 )
             }
         }
+        TestRunner.run("Binding: ascolto limitato a un indirizzo locale") {
+            let port = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: port, bindAddress: "127.0.0.1") { session, _, _, _ in
+                try TestsSupport.waitFor("ascolto su 127.0.0.1", timeout: 5) {
+                    try snapshot(of: session).listening
+                }
+                let snapshot = try snapshot(of: session)
+                try TestRunner.assertEqual(snapshot.bindAddress, "127.0.0.1")
+                try TestRunner.assertEqual(snapshot.listenError, "")
+                try TestRunner.assertEqual(snapshot.listenActualPort, Int(port))
+            }
+        }
+
+        TestRunner.run("Binding: indirizzo non locale segnala l'errore di ascolto") {
+            let port = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: port, bindAddress: "203.0.113.9") { session, _, _, _ in
+                try TestsSupport.waitFor("errore di ascolto", timeout: 5) {
+                    try !snapshot(of: session).listenError.isEmpty
+                }
+                let snapshot = try snapshot(of: session)
+                try TestRunner.assertEqual(snapshot.bindAddress, "203.0.113.9")
+                try TestRunner.assertFalse(
+                    snapshot.listening,
+                    "Un indirizzo non locale non deve aprire il socket"
+                )
+                try TestRunner.assertTrue(
+                    snapshot.listenError.contains("203.0.113.9"),
+                    "L'errore deve citare l'indirizzo non disponibile: \(snapshot.listenError)"
+                )
+            }
+        }
+
+        TestRunner.run("Binding: rimozione dell'associazione riapre tutte le interfacce") {
+            let port = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: port, bindAddress: "127.0.0.1") { session, _, _, _ in
+                try TestsSupport.waitFor("ascolto associato", timeout: 5) {
+                    try snapshot(of: session).listening
+                }
+
+                let reopened = vt_apply_settings_ex(
+                    session,
+                    port,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    nil
+                )
+                try TestRunner.assertEqual(reopened, 0)
+
+                try TestsSupport.waitFor("ascolto su tutte le interfacce", timeout: 5) {
+                    let snapshot = try snapshot(of: session)
+                    return snapshot.bindAddress.isEmpty && snapshot.listening
+                }
+                let snapshot = try snapshot(of: session)
+                try TestRunner.assertEqual(snapshot.bindAddress, "")
+                try TestRunner.assertFalse(snapshot.stats.isBoundToAddress)
+            }
+        }
+
         TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
             try upnpSmoke()
         }
+    }
+
+    /// Decodes the session snapshot through the same model the UI uses, so the
+    /// binding tests also cover the JSON contract.
+    private static func snapshot(of session: OpaquePointer) throws -> VertexSnapshot {
+        vt_session_poll(session)
+        guard let pointer = vt_snapshot_json(session) else {
+            throw TestFailure(
+                message: "vt_snapshot_json ha restituito un puntatore nullo",
+                file: #file,
+                line: #line
+            )
+        }
+        let json = String(cString: pointer)
+        vt_free_string(pointer)
+        return try JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
     }
 
     /// Best-effort router test. It never requires a successful mapping: the
@@ -172,6 +250,7 @@ enum CTorrentBridgeTests {
     private static func withRawSession(
         port: Int32,
         upnp: Bool = false,
+        bindAddress: String? = nil,
         _ body: (OpaquePointer, IntegrationWorkspace, URL, URL) throws -> Void
     ) throws {
         let workspace = try IntegrationWorkspace()
@@ -181,7 +260,14 @@ enum CTorrentBridgeTests {
 
         let session = download.path.withCString { dlPath in
             resume.path.withCString { resPath in
-                vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, upnp ? 1 : 0)
+                if let bindAddress {
+                    return bindAddress.withCString { bindPath in
+                        vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
+                                               upnp ? 1 : 0, bindPath)
+                    }
+                }
+                return vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
+                                              upnp ? 1 : 0, nil)
             }
         }
         guard let session else {

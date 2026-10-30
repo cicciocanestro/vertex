@@ -40,6 +40,26 @@ enum PreferencesTests {
             try TestRunner.assertFalse(Preferences.isValidPort(65536))
         }
 
+        TestRunner.run("BindAddress: solo indirizzi IPv4 letterali") {
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress(nil), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress(""), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("   "), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("10.8.0.2"), "10.8.0.2")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress(" 10.8.0.2 "), "10.8.0.2")
+            // Nomi di interfaccia, hostname e IPv6 non sono accettati: il
+            // bridge riceve il valore così com'è e solo un indirizzo letterale
+            // vincola sia il socket in ascolto sia la sorgente in uscita.
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("utun3"), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("localhost"), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("::1"), "")
+            try TestRunner.assertEqual(Preferences.normalizedBindAddress("10.8.0.256"), "")
+
+            try TestRunner.assertTrue(Preferences.isValidIPv4("192.168.1.10"))
+            try TestRunner.assertTrue(Preferences.isValidIPv4("0.0.0.0"))
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1"))
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1.10.1"))
+        }
+
         TestRunner.run("Defaults: unica fonte per i valori registrati") {
             let defaults = PrefDefault.dictionary
             let expectedKeys: Set<String> = [
@@ -47,6 +67,7 @@ enum PreferencesTests {
                 PrefKey.downloadLimitKB,
                 PrefKey.uploadLimitKB,
                 PrefKey.listenPort,
+                PrefKey.bindAddress,
                 PrefKey.dhtEnabled,
                 PrefKey.pexEnabled,
                 PrefKey.lsdEnabled,
@@ -58,6 +79,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
             try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
             try TestRunner.assertEqual(defaults[PrefKey.listenPort] as? Int, 6881)
+            try TestRunner.assertEqual(defaults[PrefKey.bindAddress] as? String, "")
             try TestRunner.assertEqual(defaults[PrefKey.downloadLimitKB] as? Int, 0)
             try TestRunner.assertEqual(defaults[PrefKey.uploadLimitKB] as? Int, 0)
             try TestRunner.assertEqual(defaults[PrefKey.dhtEnabled] as? Bool, true)

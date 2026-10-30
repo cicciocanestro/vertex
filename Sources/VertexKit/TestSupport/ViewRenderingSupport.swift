@@ -210,6 +210,19 @@ package enum ViewRenderingSupport {
             height: 640
         )
 
+        // Pinned to a tunnel address that is no longer available: this is the
+        // state the client shows when the VPN is down and the engine refuses to
+        // fall back to the physical interface.
+        var bound = base
+        bound.bindAddress = "10.8.0.2"
+        bound.listenError = "listening on 10.8.0.2:6881 failed: Can't assign requested address"
+        engine.setStatsForTesting(bound)
+        results["DiagnosticsBound"] = render(
+            NetworkDiagnosticsView(engine: engine, onClose: {}, onOpenSettings: {}),
+            width: 760,
+            height: 640
+        )
+
         return results
     }
 

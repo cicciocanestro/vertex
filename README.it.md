@@ -52,6 +52,9 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file/priorità e tracker.
 - Pausa/ripresa, download sequenziale, resume data ed errori visibili.
 - Limiti globali di velocità, porta, DHT, PEX, LSD e UPnP/NAT-PMP.
+- **Associazione all'interfaccia**: il motore può essere vincolato a un solo indirizzo
+  locale, così il traffico esce solo da lì. È la configurazione che rende utilizzabile il
+  client dietro CGNAT insieme a un tunnel WireGuard e al port forwarding su un VPS.
 - **Diagnostica rete**: porta effettiva, IP locale, stato dei mapping e raggiungibilità TCP.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
 - **Nessuna telemetria**. Le uniche connessioni sono quelle BitTorrent e, solo quando avvii
@@ -109,11 +112,20 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
   viene inviato solo quando avvii il test. Il traffico UDP/uTP non è verificato.
 - Se la porta risulta chiusa, abilita UPnP/NAT-PMP o inoltra TCP/UDP verso l'IP locale;
   controlla anche di non essere dietro CGNAT.
+- Con un'interfaccia associata il pannello mostra quell'indirizzo invece di quello della LAN
+  e riporta il trasporto che ha fallito. Se l'indirizzo non è più disponibile lo dice
+  esplicitamente: il motore non ripiega sull'interfaccia fisica.
 
 ### Impostazioni
 
 - Cartella di download, limiti globali di velocità, porta di ascolto, DHT, PEX, LSD,
   UPnP/NAT-PMP.
+- **Interfaccia di rete**: vincolando il client a un indirizzo IPv4 locale (per esempio
+  quello di un tunnel WireGuard) il motore usa quell'indirizzo sia per il socket in ascolto
+  sia come sorgente delle connessioni in uscita, e libtorrent rifiuta il traffico che arriva
+  sulle altre interfacce. Togliendo l'associazione torna il comportamento predefinito su
+  tutte le interfacce. Sono accettati solo indirizzi IPv4 letterali; se l'indirizzo sparisce
+  mentre il client è in esecuzione l'ascolto fallisce e la diagnostica spiega perché.
 - Avvio in pausa e sequenziale predefiniti per i nuovi torrent; le scelte nella finestra di
   aggiunta restano valide solo per quel torrent.
 - Tema scuro, chiaro o di sistema.

@@ -1,5 +1,6 @@
 import AppKit
 import CTorrent
+import Darwin
 import Foundation
 
 package enum PrefKey {
@@ -7,6 +8,7 @@ package enum PrefKey {
     package static let downloadLimitKB = "downloadLimitKB"
     package static let uploadLimitKB = "uploadLimitKB"
     package static let listenPort = "listenPort"
+    package static let bindAddress = "bindAddress"
     package static let dhtEnabled = "dhtEnabled"
     package static let pexEnabled = "pexEnabled"
     package static let lsdEnabled = "lsdEnabled"
@@ -79,6 +81,24 @@ package enum Preferences {
         isValidPort(value) ? Int32(value) : 6881
     }
 
+    /// Whether a value is a literal IPv4 address. Device names ("utun3") and
+    /// hostnames are rejected on purpose: the engine passes the value straight
+    /// to libtorrent, and only a literal address pins both the listening socket
+    /// and the outgoing source.
+    package static func isValidIPv4(_ value: String) -> Bool {
+        var address = in_addr()
+        return value.withCString { inet_pton(AF_INET, $0, &address) } == 1
+    }
+
+    /// Normalizes the interface-binding preference. Anything that is not a
+    /// literal IPv4 address falls back to an empty string, which means "bind to
+    /// every interface".
+    package static func normalizedBindAddress(_ raw: String?) -> String {
+        let value = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidIPv4(value) else { return "" }
+        return value
+    }
+
     package static var downloadPath: String {
         resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
     }
@@ -106,6 +126,9 @@ package enum PrefDefault {
     package static let downloadLimitKB = 0
     package static let uploadLimitKB = 0
     package static let listenPort = 6881
+    /// Empty means every interface. Otherwise a literal IPv4 address, usually
+    /// the tunnel address, so the client only exchanges traffic through it.
+    package static let bindAddress = ""
     package static let dhtEnabled = true
     package static let pexEnabled = true
     package static let lsdEnabled = true
@@ -120,6 +143,7 @@ package enum PrefDefault {
             PrefKey.downloadLimitKB: downloadLimitKB,
             PrefKey.uploadLimitKB: uploadLimitKB,
             PrefKey.listenPort: listenPort,
+            PrefKey.bindAddress: bindAddress,
             PrefKey.dhtEnabled: dhtEnabled,
             PrefKey.pexEnabled: pexEnabled,
             PrefKey.lsdEnabled: lsdEnabled,
@@ -141,6 +165,8 @@ package struct SessionConfiguration: Sendable {
     package var pex: Bool
     package var lsd: Bool
     package var upnp: Bool
+    /// Local address the session is pinned to; empty means every interface.
+    package var bindAddress: String
 
     package init(
         downloadPath: String,
@@ -151,7 +177,8 @@ package struct SessionConfiguration: Sendable {
         dht: Bool = false,
         pex: Bool = false,
         lsd: Bool = false,
-        upnp: Bool = false
+        upnp: Bool = false,
+        bindAddress: String = ""
     ) {
         self.downloadPath = downloadPath
         self.resumePath = resumePath
@@ -162,6 +189,7 @@ package struct SessionConfiguration: Sendable {
         self.pex = pex
         self.lsd = lsd
         self.upnp = upnp
+        self.bindAddress = bindAddress
     }
 }
 
@@ -311,6 +339,12 @@ package final class TorrentEngine: ObservableObject {
             defaults.set(Int(uploadLimit) / 1024, forKey: PrefKey.uploadLimitKB)
         }
 
+        let rawBind = defaults.string(forKey: PrefKey.bindAddress)
+        let bindAddress = Preferences.normalizedBindAddress(rawBind)
+        if rawBind != bindAddress {
+            defaults.set(bindAddress, forKey: PrefKey.bindAddress)
+        }
+
         return SessionConfiguration(
             downloadPath: downloadPath,
             resumePath: Preferences.resumeDirectory.path,
@@ -320,7 +354,8 @@ package final class TorrentEngine: ObservableObject {
             dht: defaults.bool(forKey: PrefKey.dhtEnabled),
             pex: defaults.bool(forKey: PrefKey.pexEnabled),
             lsd: defaults.bool(forKey: PrefKey.lsdEnabled),
-            upnp: defaults.bool(forKey: PrefKey.upnpEnabled)
+            upnp: defaults.bool(forKey: PrefKey.upnpEnabled),
+            bindAddress: bindAddress
         )
     }
 
@@ -342,17 +377,20 @@ package final class TorrentEngine: ObservableObject {
 
         return configuration.downloadPath.withCString { downloadPath in
             configuration.resumePath.withCString { resumePath in
-                vt_session_create_full(
-                    downloadPath,
-                    resumePath,
-                    configuration.port,
-                    configuration.downloadLimit,
-                    configuration.uploadLimit,
-                    configuration.dht ? 1 : 0,
-                    configuration.pex ? 1 : 0,
-                    configuration.lsd ? 1 : 0,
-                    configuration.upnp ? 1 : 0
-                )
+                configuration.bindAddress.withCString { bindAddress in
+                    vt_session_create_full(
+                        downloadPath,
+                        resumePath,
+                        configuration.port,
+                        configuration.downloadLimit,
+                        configuration.uploadLimit,
+                        configuration.dht ? 1 : 0,
+                        configuration.pex ? 1 : 0,
+                        configuration.lsd ? 1 : 0,
+                        configuration.upnp ? 1 : 0,
+                        bindAddress
+                    )
+                }
             }
         }
     }
@@ -707,15 +745,18 @@ package final class TorrentEngine: ObservableObject {
             _ = configuration.downloadPath.withCString {
                 vt_set_default_save_path(session, $0)
             }
-            return vt_apply_settings_ex(
-                session,
-                configuration.port,
-                configuration.downloadLimit,
-                configuration.uploadLimit,
-                configuration.dht ? 1 : 0,
-                configuration.upnp ? 1 : 0,
-                configuration.lsd ? 1 : 0
-            )
+            return configuration.bindAddress.withCString { bindAddress in
+                vt_apply_settings_ex(
+                    session,
+                    configuration.port,
+                    configuration.downloadLimit,
+                    configuration.uploadLimit,
+                    configuration.dht ? 1 : 0,
+                    configuration.upnp ? 1 : 0,
+                    configuration.lsd ? 1 : 0,
+                    bindAddress
+                )
+            }
         }
         guard let result else { return }
         if result != 0 {

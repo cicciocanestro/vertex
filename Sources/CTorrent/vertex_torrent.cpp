@@ -146,6 +146,20 @@ std::string portmap_transport_string(lt::portmap_transport transport)
     return transport == lt::portmap_transport::upnp ? "UPnP" : "NAT-PMP";
 }
 
+// listen_interfaces expects "ip:port" pairs, with IPv6 literals in brackets.
+// An empty bind address keeps the historical behaviour: every interface, IPv4
+// and IPv6.
+std::string listen_interfaces_setting(int listen_port, std::string const& bind_address)
+{
+    if (bind_address.empty())
+        return "0.0.0.0:" + std::to_string(listen_port) +
+               ",[::]:" + std::to_string(listen_port);
+
+    if (bind_address.find(':') == std::string::npos)
+        return bind_address + ":" + std::to_string(listen_port);
+    return "[" + bind_address + "]:" + std::to_string(listen_port);
+}
+
 } // namespace
 
 struct portmap_state
@@ -190,6 +204,11 @@ struct vt_session
     std::string default_save_path;
     std::string resume_dir;
     int listen_port = 6881;
+    // Local address the session is pinned to. Empty means every interface.
+    std::string bind_address;
+    // Last listen_failed_alert, cleared by the next listen_succeeded_alert. It
+    // is what tells the UI that the bound address disappeared (tunnel down).
+    std::string listen_error;
     int dht_metric_index = -1;
     int dht_nodes = 0;
     std::string last_error;
@@ -408,7 +427,8 @@ vt_session* vt_session_create_full(const char* download_dir,
                                    int enable_dht,
                                    int enable_pex,
                                    int enable_lsd,
-                                   int enable_upnp)
+                                   int enable_upnp,
+                                   const char* bind_address)
 {
     try
     {
@@ -416,6 +436,7 @@ vt_session* vt_session_create_full(const char* download_dir,
         session->default_save_path = download_dir ? download_dir : "";
         session->resume_dir = resume_dir ? resume_dir : "";
         session->listen_port = listen_port > 0 ? listen_port : 6881;
+        session->bind_address = bind_address ? bind_address : "";
         session->upnp_enabled = enable_upnp != 0;
 
         if (!session->default_save_path.empty())
@@ -432,8 +453,11 @@ vt_session* vt_session_create_full(const char* download_dir,
                                                         lt::alert_category::status |
                                                         lt::alert_category::port_mapping)));
         settings.set_str(lt::settings_pack::listen_interfaces,
-                         "0.0.0.0:" + std::to_string(session->listen_port) +
-                             ",[::]:" + std::to_string(session->listen_port));
+                         listen_interfaces_setting(session->listen_port, session->bind_address));
+        if (!session->bind_address.empty())
+        {
+            settings.set_str(lt::settings_pack::outgoing_interfaces, session->bind_address);
+        }
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             enable_dht, enable_upnp, enable_lsd);
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
@@ -622,6 +646,18 @@ void vt_session_poll(vt_session* session)
                     session->dht_nodes = int(counters[session->dht_metric_index]);
                 }
             }
+            else if (auto* listen_failed = lt::alert_cast<lt::listen_failed_alert>(alert))
+            {
+                // Only meaningful when the session is pinned to an address: with
+                // the default 0.0.0.0/[::] pair a missing IPv6 stack would
+                // report a failure the user cannot act on.
+                if (!session->bind_address.empty())
+                    session->listen_error = listen_failed->message();
+            }
+            else if (lt::alert_cast<lt::listen_succeeded_alert>(alert))
+            {
+                session->listen_error.clear();
+            }
             else if (auto* mapped = lt::alert_cast<lt::portmap_alert>(alert))
             {
                 std::string transport = portmap_transport_string(mapped->map_transport);
@@ -747,6 +783,8 @@ char* vt_snapshot_json(vt_session* session)
 
         out << "\"listen_actual_port\":" << session->actual_listen_port << ",";
         out << "\"listening\":" << (session->listening ? "true" : "false") << ",";
+        out << "\"bind_address\":\"" << json_escape(session->bind_address) << "\",";
+        out << "\"listen_error\":\"" << json_escape(session->listen_error) << "\",";
         out << "\"portmap\":{";
         out << "\"tcp\":{\"mapped\":" << (session->tcp.mapped ? "true" : "false")
             << ",\"external_port\":" << session->tcp.external_port
@@ -1149,7 +1187,8 @@ int vt_apply_settings_ex(vt_session* session,
                          int upload_limit_bytes,
                          int enable_dht,
                          int enable_upnp,
-                         int enable_lsd)
+                         int enable_lsd,
+                         const char* bind_address)
 {
     if (!session || !session->session)
         return -1;
@@ -1157,13 +1196,21 @@ int vt_apply_settings_ex(vt_session* session,
     try
     {
         lt::settings_pack settings;
-        if (listen_port > 0 && listen_port != session->listen_port)
+        std::string const requested_bind = bind_address ? bind_address : "";
+        bool const port_changed = listen_port > 0 && listen_port != session->listen_port;
+        if (port_changed || requested_bind != session->bind_address)
         {
-            session->listen_port = listen_port;
+            if (listen_port > 0)
+                session->listen_port = listen_port;
+            session->bind_address = requested_bind;
+            // A port mapping belongs to the address that requested it.
             reset_portmap_state(session);
+            session->listen_error.clear();
             settings.set_str(lt::settings_pack::listen_interfaces,
-                             "0.0.0.0:" + std::to_string(listen_port) +
-                                 ",[::]:" + std::to_string(listen_port));
+                             listen_interfaces_setting(session->listen_port,
+                                                       session->bind_address));
+            settings.set_str(lt::settings_pack::outgoing_interfaces,
+                             session->bind_address);
         }
         if ((enable_upnp != 0) != session->upnp_enabled)
         {

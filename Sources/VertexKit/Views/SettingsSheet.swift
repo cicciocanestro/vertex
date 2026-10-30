@@ -34,6 +34,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
     @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
     @AppStorage(PrefKey.listenPort) private var listenPort = PrefDefault.listenPort
+    @AppStorage(PrefKey.bindAddress) private var bindAddress = PrefDefault.bindAddress
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
     @AppStorage(PrefKey.pexEnabled) private var pexEnabled = PrefDefault.pexEnabled
     @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = PrefDefault.lsdEnabled
@@ -41,6 +42,10 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
     @AppStorage(PrefKey.appearance) private var appearance = PrefDefault.appearance
+
+    /// Interfaces are read once per presentation instead of on every render;
+    /// the menu is reopened when the user changes the network.
+    @StateObject private var interfaces = UIState(LocalNetwork.ipv4Interfaces())
 
     let onClose: () -> Void
     let onOpenDiagnostics: () -> Void
@@ -105,6 +110,8 @@ struct SettingsSheet: View {
                         }
 
                         section("Rete", palette) {
+                            bindingRow(palette)
+                            Hairline(palette: palette).padding(.leading, 28)
                             toggleRow(
                                 icon: "globe",
                                 title: "DHT",
@@ -140,6 +147,14 @@ struct SettingsSheet: View {
                             diagnosticsRow(palette)
                         }
                         .disabled(engine.isRestartingSession)
+
+                        if !bindAddress.isEmpty {
+                            Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
+                                .font(.system(size: 9.2))
+                                .foregroundStyle(palette.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.horizontal, 4)
+                        }
 
                         section("Comportamento", palette) {
                             toggleRow(
@@ -191,6 +206,7 @@ struct SettingsSheet: View {
         }
         .frame(width: 560, height: 700)
         .onAppear {
+            interfaces.value = LocalNetwork.ipv4Interfaces()
             let resolved = Preferences.resolvedDownloadPath(downloadPath)
             if resolved != downloadPath {
                 downloadPath = resolved
@@ -202,6 +218,7 @@ struct SettingsSheet: View {
         .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
         .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
         .onChange(of: listenPort) { engine.applySettingsSoon() }
+        .onChange(of: bindAddress) { engine.applySettingsNow() }
         .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }
         .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
@@ -306,6 +323,93 @@ struct SettingsSheet: View {
             )
         }
         .padding(.vertical, 8)
+    }
+
+    private func bindingRow(_ palette: Palette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "shield.lefthalf.filled")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Interfaccia di rete")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(palette.text)
+                Text(L("Il traffico esce solo da questo indirizzo"))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(palette.tertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            Menu {
+                Button {
+                    bindAddress = ""
+                } label: {
+                    if bindAddress.isEmpty {
+                        Label(L("Automatica"), systemImage: "checkmark")
+                    } else {
+                        Text(L("Automatica"))
+                    }
+                }
+
+                if !interfaces.value.isEmpty {
+                    Divider()
+                    ForEach(interfaces.value) { interface in
+                        Button {
+                            bindAddress = interface.address
+                        } label: {
+                            if bindAddress == interface.address {
+                                Label(interface.label, systemImage: "checkmark")
+                            } else {
+                                Text(interface.label)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                bindingLabel(palette)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func bindingLabel(_ palette: Palette) -> some View {
+        HStack(spacing: 5) {
+            Text(bindingText)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(palette.text)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 170, alignment: .trailing)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 7.5, weight: .semibold))
+                .foregroundStyle(palette.tertiary)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(palette.input)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(palette.stroke, lineWidth: 1)
+                .allowsHitTesting(false)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private var bindingText: String {
+        guard !bindAddress.isEmpty else { return L("Automatica") }
+        if let match = interfaces.value.first(where: { $0.address == bindAddress }) {
+            return match.label
+        }
+        return LF("%@ (non disponibile)", bindAddress)
     }
 
     private func diagnosticsRow(_ palette: Palette) -> some View {

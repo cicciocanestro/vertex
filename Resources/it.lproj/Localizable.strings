@@ -206,3 +206,17 @@
 "Impossibile creare la cartella di destinazione." = "Impossibile creare la cartella di destinazione.";
 "La destinazione non è una cartella." = "La destinazione non è una cartella.";
 "La cartella di destinazione non è scrivibile." = "La cartella di destinazione non è scrivibile.";
+
+/* Interfaccia di rete e binding */
+"Interfaccia di rete" = "Interfaccia di rete";
+"Il traffico esce solo da questo indirizzo" = "Il traffico esce solo da questo indirizzo";
+"Automatica" = "Automatica";
+"%@ (non disponibile)" = "%@ (non disponibile)";
+"Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta." = "Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta.";
+"Indirizzo associato" = "Indirizzo associato";
+"solo questa interfaccia" = "solo questa interfaccia";
+"Ascolto non disponibile" = "Ascolto non disponibile";
+"L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce." = "L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce.";
+"Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo." = "Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.";
+"Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta." = "Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta.";
+"Diagnostica rete · associato a %@" = "Diagnostica rete · associato a %@";

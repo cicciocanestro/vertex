@@ -168,10 +168,16 @@ package struct SessionStats: Equatable {
     package var actualPort: Int = 0
     package var isListening: Bool = false
     package var portmap = PortMapSnapshot()
+    /// Local address the engine is pinned to. Empty means every interface.
+    package var bindAddress: String = ""
+    /// Last listen failure reported by libtorrent, empty when the socket is open.
+    package var listenError: String = ""
 
     package var effectivePort: Int {
         actualPort > 0 ? actualPort : port
     }
+
+    package var isBoundToAddress: Bool { !bindAddress.isEmpty }
 
     package init(
         downloadRate: Int64 = 0,
@@ -182,7 +188,9 @@ package struct SessionStats: Equatable {
         port: Int = 0,
         actualPort: Int = 0,
         isListening: Bool = false,
-        portmap: PortMapSnapshot = PortMapSnapshot()
+        portmap: PortMapSnapshot = PortMapSnapshot(),
+        bindAddress: String = "",
+        listenError: String = ""
     ) {
         self.downloadRate = downloadRate
         self.uploadRate = uploadRate
@@ -193,6 +201,8 @@ package struct SessionStats: Equatable {
         self.actualPort = actualPort
         self.isListening = isListening
         self.portmap = portmap
+        self.bindAddress = bindAddress
+        self.listenError = listenError
     }
 }
 
@@ -207,6 +217,8 @@ package struct VertexSnapshot: Decodable {
     package let listenActualPort: Int
     package let listening: Bool
     package let portmap: PortMapSnapshot
+    package let bindAddress: String
+    package let listenError: String
 
     enum CodingKeys: String, CodingKey {
         case torrents
@@ -219,6 +231,8 @@ package struct VertexSnapshot: Decodable {
         case listenActualPort = "listen_actual_port"
         case listening
         case portmap
+        case bindAddress = "bind_address"
+        case listenError = "listen_error"
     }
 
     package var stats: SessionStats {
@@ -231,7 +245,9 @@ package struct VertexSnapshot: Decodable {
             port: port,
             actualPort: listenActualPort,
             isListening: listening,
-            portmap: portmap
+            portmap: portmap,
+            bindAddress: bindAddress,
+            listenError: listenError
         )
     }
 }

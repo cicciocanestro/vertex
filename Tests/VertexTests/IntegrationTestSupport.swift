@@ -212,7 +212,8 @@ final class BridgeSession {
                     enableDHT ? 1 : 0,
                     enablePEX ? 1 : 0,
                     enableLSD ? 1 : 0,
-                    0
+                    0,
+                    nil
                 )
             }
         }
@@ -229,7 +230,8 @@ final class BridgeSession {
             0,
             enableDHT ? 1 : 0,
             0,
-            enableLSD ? 1 : 0
+            enableLSD ? 1 : 0,
+            nil
         )
     }
 

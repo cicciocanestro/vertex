@@ -15,6 +15,8 @@ enum ModelsTests {
                 "dht_nodes": 128,
                 "listen_actual_port": 6881,
                 "listening": true,
+                "bind_address": "10.8.0.2",
+                "listen_error": "",
                 "portmap": {
                     "tcp": {"mapped": true, "external_port": 6881, "transport": "UPnP", "error": ""},
                     "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
@@ -65,6 +67,10 @@ enum ModelsTests {
             try TestRunner.assertEqual(snapshot.listenActualPort, 6881)
             try TestRunner.assertEqual(snapshot.portmap.tcp.mapped, true)
             try TestRunner.assertEqual(snapshot.portmap.tcp.externalPort, 6881)
+            try TestRunner.assertEqual(snapshot.bindAddress, "10.8.0.2")
+            try TestRunner.assertEqual(snapshot.listenError, "")
+            try TestRunner.assertTrue(snapshot.stats.isBoundToAddress)
+            try TestRunner.assertEqual(snapshot.stats.bindAddress, "10.8.0.2")
             try TestRunner.assertEqual(snapshot.torrents.count, 1)
 
             let t = snapshot.torrents[0]
