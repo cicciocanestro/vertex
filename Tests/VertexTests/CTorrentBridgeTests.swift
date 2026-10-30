@@ -117,12 +117,12 @@ enum CTorrentBridgeTests {
             let port = Int32(try TestsSupport.freeTCPPort())
             try withRawSession(port: port, bindAddress: "127.0.0.1") { session, _, _, _ in
                 try TestsSupport.waitFor("ascolto su 127.0.0.1", timeout: 5) {
-                    try snapshot(of: session).listening
+                    try sessionSnapshot(of: session).listening
                 }
-                let snapshot = try snapshot(of: session)
-                try TestRunner.assertEqual(snapshot.bindAddress, "127.0.0.1")
-                try TestRunner.assertEqual(snapshot.listenError, "")
-                try TestRunner.assertEqual(snapshot.listenActualPort, Int(port))
+                let state = try sessionSnapshot(of: session)
+                try TestRunner.assertEqual(state.bindAddress, "127.0.0.1")
+                try TestRunner.assertEqual(state.listenError, "")
+                try TestRunner.assertEqual(state.listenActualPort, Int(port))
             }
         }
 
@@ -130,17 +130,17 @@ enum CTorrentBridgeTests {
             let port = Int32(try TestsSupport.freeTCPPort())
             try withRawSession(port: port, bindAddress: "203.0.113.9") { session, _, _, _ in
                 try TestsSupport.waitFor("errore di ascolto", timeout: 5) {
-                    try !snapshot(of: session).listenError.isEmpty
+                    try !sessionSnapshot(of: session).listenError.isEmpty
                 }
-                let snapshot = try snapshot(of: session)
-                try TestRunner.assertEqual(snapshot.bindAddress, "203.0.113.9")
+                let state = try sessionSnapshot(of: session)
+                try TestRunner.assertEqual(state.bindAddress, "203.0.113.9")
                 try TestRunner.assertFalse(
-                    snapshot.listening,
+                    state.listening,
                     "Un indirizzo non locale non deve aprire il socket"
                 )
                 try TestRunner.assertTrue(
-                    snapshot.listenError.contains("203.0.113.9"),
-                    "L'errore deve citare l'indirizzo non disponibile: \(snapshot.listenError)"
+                    state.listenError.contains("203.0.113.9"),
+                    "L'errore deve citare l'indirizzo non disponibile: \(state.listenError)"
                 )
             }
         }
@@ -149,7 +149,7 @@ enum CTorrentBridgeTests {
             let port = Int32(try TestsSupport.freeTCPPort())
             try withRawSession(port: port, bindAddress: "127.0.0.1") { session, _, _, _ in
                 try TestsSupport.waitFor("ascolto associato", timeout: 5) {
-                    try snapshot(of: session).listening
+                    try sessionSnapshot(of: session).listening
                 }
 
                 let reopened = vt_apply_settings_ex(
@@ -165,12 +165,12 @@ enum CTorrentBridgeTests {
                 try TestRunner.assertEqual(reopened, 0)
 
                 try TestsSupport.waitFor("ascolto su tutte le interfacce", timeout: 5) {
-                    let snapshot = try snapshot(of: session)
-                    return snapshot.bindAddress.isEmpty && snapshot.listening
+                    let inner = try sessionSnapshot(of: session)
+                    return inner.bindAddress.isEmpty && inner.listening
                 }
-                let snapshot = try snapshot(of: session)
-                try TestRunner.assertEqual(snapshot.bindAddress, "")
-                try TestRunner.assertFalse(snapshot.stats.isBoundToAddress)
+                let state = try sessionSnapshot(of: session)
+                try TestRunner.assertEqual(state.bindAddress, "")
+                try TestRunner.assertFalse(state.stats.isBoundToAddress)
             }
         }
 
@@ -181,7 +181,7 @@ enum CTorrentBridgeTests {
 
     /// Decodes the session snapshot through the same model the UI uses, so the
     /// binding tests also cover the JSON contract.
-    private static func snapshot(of session: OpaquePointer) throws -> VertexSnapshot {
+    private static func sessionSnapshot(of session: OpaquePointer) throws -> VertexSnapshot {
         vt_session_poll(session)
         guard let pointer = vt_snapshot_json(session) else {
             throw TestFailure(
