@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.5.1] — 2026-11-02
+
+### Correzioni
+- **Rete**: `LocalNetwork` applica la stessa regola di esclusione (loopback e
+  link-local `169.254.x.x`) sia al menu di associazione sia alla diagnostica,
+  così un indirizzo non usabile non può più filtrare in nessuna delle due liste.
+- **Engine**: il contatore `lastAppliedPollID` viene azzerato quando la sessione
+  viene ricreata (es. per il cambio di PEX), così la guardia dei poll obsoleti
+  rimane significativa invece di contare sul fatto che il contatore sia monotono.
+- **Bridge**: `find_handle` risolve un id SHA-1 in O(1) tramite `session::find_torrent`
+  invece di scorrere tutti i torrent e allocare una stringa hex per ciascuno; i
+  hash V2 (64 caratteri) scivolano nel percorso generale.
+- **Bridge**: `removed_ids` mantiene un `unordered_set` accanto al deque, così i
+  test di appartenenza e la rimozione sono O(1) invece di essere lineari.
+
+### Duplicazione
+- **UI**: `SegmentedPicker` è ora un componente generico in
+  `Sources/VertexKit/Design/SegmentedPicker.swift`, riutilizzato dalle tre viste
+  che lo avevano duplicato (InspectorView, SettingsSheet, AddTorrentSheet).
+- **Preferenze**: `currentConfiguration()` scrive su `UserDefaults` solo quando la
+  normalizzazione modifica effettivamente il valore, non a ogni chiamata.
+- **Stato**: i codici libtorrent `1`/`2`/`7` sono sostituiti dall'enum
+  `LibtorrentStateCode` in `Models.swift`, usato sia in `Torrent.phase` sia nel
+  toast di completamento.
+
+### Prestazioni
+- **Poll in idle**: `PollState` è `Equatable` e il poll salta la pubblicazione
+  quando il payload è identico a quello precedente; gli storici dei grafici
+  si fermano in idle invece di appendere a ogni poll.
+- **Impostazioni**: `vt_set_default_save_path` viene chiamato solo quando la
+  cartella di download è cambiata, evitando un syscall `create_directories` +
+  `access(W_OK)` a ogni debounce di un campo non correlato.
+
+### Documentazione
+- `HANDOFF.txt` §17 sincronizzato con lo stato reale del debito tecnico: 12 voci
+  segnate come risolte o parzialmente risolte dai punti precedenti.
+
+### Test
+- 55 test, tutti superati.
+
 ## [1.5.0] — 2026-10-30
 
 ### Aggiunte
