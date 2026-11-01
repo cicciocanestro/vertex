@@ -406,6 +406,11 @@ package final class TorrentEngine: ObservableObject {
         isRestartingSession = true
         sessionGeneration += 1
         isPollInFlight = false
+        // The new session is a different libtorrent instance: poll IDs from
+        // before the restart are stale. Resetting here keeps the guard in
+        // `finishPoll` meaningful instead of relying on the monotonic counter
+        // to outlive the restart by accident.
+        lastAppliedPollID = 0
 
         let previousSession = SessionPointerBox(session)
         session = nil
@@ -872,7 +877,9 @@ package final class TorrentEngine: ObservableObject {
         // stateCode 1 = checking files, 7 = checking resume data. `phase` can't be used here
         // because it reports .paused before .checking.
         let unfinished = Set(snapshot.torrents.filter {
-            !$0.finished && $0.stateCode != 1 && $0.stateCode != 7
+            !$0.finished
+                && $0.stateCode != LibtorrentStateCode.checkingFiles.rawValue
+                && $0.stateCode != LibtorrentStateCode.checkingResumeData.rawValue
         }.map(\.id))
         if hasLoadedSnapshot {
             let newlyFinished = finished.intersection(unfinishedIDs)

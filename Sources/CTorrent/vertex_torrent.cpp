@@ -33,6 +33,7 @@
 #include <locale>
 #include <memory>
 #include <set>
+#include <unordered_set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -86,6 +87,34 @@ std::string to_hex(lt::sha1_hash const& hash)
         out += digits[bytes[i] & 0x0f];
     }
     return out;
+}
+
+namespace {
+    int hexVal(char c)
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return 16;
+    }
+}
+
+/// Decodes a hex string into a byte buffer. Returns false when the length does
+/// not match `outSize * 2` or any character is invalid. It is the inverse of
+/// `to_hex` and lives next to it so the pair cannot drift apart.
+bool from_hex(std::string const& hex, char* out, std::size_t outSize)
+{
+    if (hex.size() != outSize * 2)
+        return false;
+    for (std::size_t i = 0; i < outSize; ++i)
+    {
+        int high = hexVal(hex[i * 2]);
+        int low = hexVal(hex[i * 2 + 1]);
+        if (high > 15 || low > 15)
+            return false;
+        out[i] = static_cast<char>((high << 4) | low);
+    }
+    return true;
 }
 
 std::string torrent_id(lt::torrent_status const& status)
@@ -220,8 +249,11 @@ struct vt_session
     // Error whose TCP/UDP protocol could not be determined from the alert.
     std::string portmap_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
-    // Bounded FIFO: such alerts only arrive shortly after the removal.
+    // Bounded FIFO: such alerts only arrive shortly after the removal. The set
+    // mirrors the deque so membership tests stay O(1) instead of scanning the
+    // up-to-256 entries linearly.
     std::deque<std::string> removed_ids;
+    std::unordered_set<std::string> removed_ids_set;
     std::chrono::steady_clock::time_point last_stats;
     std::chrono::steady_clock::time_point last_resume_save;
 };
@@ -230,11 +262,25 @@ namespace {
 
 lt::torrent_handle find_handle(vt_session* session, std::string const& id)
 {
+    // Fast path: libtorrent indexes active torrents by info-hash, so a 40-char
+    // SHA-1 id resolves in O(1) without scanning every torrent and without
+    // allocating a hex string for each one. V2 hashes (64 chars) fall through.
+    if (id.size() == 40)
+    {
+        lt::sha1_hash hash;
+        if (from_hex(id, hash.data(), static_cast<std::size_t>(lt::sha1_hash::size())))
+        {
+            auto handle = session->session->find_torrent(hash);
+            if (handle.is_valid())
+                return handle;
+        }
+    }
+
     for (auto const& handle : session->session->get_torrents())
     {
         try
         {
-            if (to_hex(handle.info_hashes().get_best()) == id)
+            if (handle.is_valid() && to_hex(handle.info_hashes().get_best()) == id)
                 return handle;
         }
         catch (...)
@@ -248,21 +294,24 @@ constexpr std::size_t removed_ids_limit = 256;
 
 bool is_removed(vt_session const* session, std::string const& id)
 {
-    return std::find(session->removed_ids.begin(), session->removed_ids.end(), id)
-        != session->removed_ids.end();
+    return session->removed_ids_set.find(id) != session->removed_ids_set.end();
 }
 
 void mark_removed(vt_session* session, std::string const& id)
 {
-    if (is_removed(session, id))
+    if (!session->removed_ids_set.insert(id).second)
         return;
     session->removed_ids.push_back(id);
     while (session->removed_ids.size() > removed_ids_limit)
+    {
+        session->removed_ids_set.erase(session->removed_ids.front());
         session->removed_ids.pop_front();
+    }
 }
 
 void unmark_removed(vt_session* session, std::string const& id)
 {
+    session->removed_ids_set.erase(id);
     session->removed_ids.erase(
         std::remove(session->removed_ids.begin(), session->removed_ids.end(), id),
         session->removed_ids.end());

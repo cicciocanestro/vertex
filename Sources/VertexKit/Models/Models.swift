@@ -20,6 +20,15 @@ enum TorrentPhase: Equatable {
     }
 }
 
+/// libtorrent `torrent_status::state_t` codes that the UI cares about. Named
+/// so that `Torrent.phase` and the completion toast stop using magic numbers.
+/// See `Sources/CTorrent/vertex_torrent.cpp` for the values that reach Swift.
+enum LibtorrentStateCode: Int {
+    case checkingFiles = 1
+    case downloadingMetadata = 2
+    case checkingResumeData = 7
+}
+
 package struct Torrent: Decodable, Identifiable, Equatable {
     package let id: String
     package let name: String
@@ -106,8 +115,13 @@ package struct Torrent: Decodable, Identifiable, Equatable {
 
     var phase: TorrentPhase {
         if paused { return .paused }
-        if !hasMetadata || stateCode == 2 { return .metadata }
-        if stateCode == 1 || stateCode == 7 { return .checking }
+        if !hasMetadata || stateCode == LibtorrentStateCode.downloadingMetadata.rawValue {
+            return .metadata
+        }
+        if stateCode == LibtorrentStateCode.checkingFiles.rawValue
+            || stateCode == LibtorrentStateCode.checkingResumeData.rawValue {
+            return .checking
+        }
         if seeding { return .seeding }
         if finished { return .completed }
         return .downloading

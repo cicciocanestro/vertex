@@ -33,6 +33,17 @@ enum LocalNetwork {
         ip == "::1" || ip.hasPrefix("127.")
     }
 
+    private static func isLinkLocal(_ ip: String) -> Bool {
+        ip.hasPrefix("169.254.")
+    }
+
+    /// Whether an IPv4 address is usable as a LAN or binding target: not
+    /// loopback and not link-local. Both the binding menu and the diagnostics
+    /// view apply this rule, so the two lists cannot drift apart.
+    private static func isUsableLANAddress(_ ip: String) -> Bool {
+        !isLoopback(ip) && !isLinkLocal(ip)
+    }
+
     /// Physical interfaces first, then tunnels: the first entry is the one the
     /// user most likely wants when they are not looking for a VPN.
     private static func rank(_ name: String) -> Int {
@@ -80,7 +91,7 @@ enum LocalNetwork {
             guard result == 0 else { continue }
 
             let ip = String(cString: host)
-            guard !ip.isEmpty, !isLoopback(ip) else { continue }
+            guard !ip.isEmpty, isUsableLANAddress(ip) else { continue }
 
             let name = String(cString: interface.ifa_name)
             guard !interfaces.contains(where: { $0.address == ip }) else { continue }
@@ -134,8 +145,10 @@ enum LocalNetwork {
             guard result == 0 else { continue }
 
             let ip = String(cString: host)
-            // Skip link-local (169.254.x.x): not a usable LAN address.
-            if !ip.isEmpty, !ip.hasPrefix("169.254.") {
+            // Skip loopback and link-local (169.254.x.x): not a usable LAN
+            // address. `isUsableLANAddress` is the same rule the binding menu
+            // uses, so the two lists cannot disagree.
+            if !ip.isEmpty, isUsableLANAddress(ip) {
                 interfaces.append((name, ip))
             }
         }

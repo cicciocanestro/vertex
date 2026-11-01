@@ -16,7 +16,7 @@ package enum Fmt {
             unitIndex += 1
         }
 
-        let decimals = scaled < 10 ? 1 : (scaled < 100 ? 1 : 0)
+        let decimals = scaled < 100 ? 1 : 0
         let format = "%.\(decimals)f"
         let number = String(format: format, locale: Locale.current, scaled)
         let sign = value < 0 ? "-" : ""
