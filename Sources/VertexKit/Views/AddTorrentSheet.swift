@@ -129,42 +129,22 @@ struct AddTorrentSheet: View {
     }
 
     private func modePicker(_ palette: Palette) -> some View {
-        HStack(spacing: 3) {
-            ForEach(AddTorrentMode.allCases) { option in
-                Button {
-                    withAnimation(.snappy(duration: 0.18)) {
-                        mode.value = option
-                        errorMessage.value = nil
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: option.icon)
-                            .font(.system(size: 9.5, weight: .semibold))
-                        Text(option.rawValue)
-                    }
-                    .font(.system(size: 11, weight: mode.value == option ? .semibold : .medium))
-                    .foregroundStyle(mode.value == option ? palette.text : palette.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 28)
-                    .contentShape(Rectangle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(mode.value == option ? palette.cardHover : .clear)
-                    )
-                }
-                .buttonStyle(.plain)
+        SegmentedPicker(
+            selection: $mode.value,
+            palette: palette,
+            height: 28,
+            corner: 8,
+            horizontalPadding: 3,
+            verticalPadding: 3,
+            font: .system(size: 11, weight: .medium),
+            onSelect: { _ in errorMessage.value = nil }
+        ) { option, _ in
+            HStack(spacing: 5) {
+                Image(systemName: option.icon)
+                    .font(.system(size: 9.5, weight: .semibold))
+                Text(option.rawValue)
             }
         }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(palette.input)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(palette.stroke, lineWidth: 1)
-                        .allowsHitTesting(false)
-                )
-        )
     }
 
     @ViewBuilder

@@ -216,12 +216,21 @@ package final class TorrentEngine: ObservableObject {
 
     /// Data refreshed by the poll. Publishing a single value avoids four
     /// separate `objectWillChange` notifications and intermediate UI states.
-    struct PollState {
+    struct PollState: Equatable {
         var torrents: [Torrent] = []
         var stats = SessionStats()
         var downloadHistory: [Double] = []
         var uploadHistory: [Double] = []
         var torrentsByID: [String: Torrent] = [:]
+
+        /// Compares everything but the rate history: the history appends on
+        /// every poll, so comparing it would make the guard useless. The
+        /// history is only meaningful when the rest of the state moved.
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.torrents == rhs.torrents
+                && lhs.stats == rhs.stats
+                && lhs.torrentsByID == rhs.torrentsByID
+        }
     }
 
     @Published private(set) var pollState = PollState()
@@ -267,6 +276,10 @@ package final class TorrentEngine: ObservableObject {
     private var nextPollID = 0
     private var lastAppliedPollID = 0
     private var configurationOverride: SessionConfiguration?
+    /// Last download path handed to `vt_set_default_save_path`. The bridge call
+    /// creates the directory and checks writability, so it is skipped when the
+    /// preference did not change since the last apply.
+    private var lastAppliedDownloadPath = ""
 
     private init() {
         Preferences.registerDefaults()
@@ -746,9 +759,15 @@ package final class TorrentEngine: ObservableObject {
 
         // Keep the C++ fallback destination in sync with the preferences. It is
         // used by resume-data loading and by callers that omit a save path.
+        // The bridge call creates the directory and checks writability, so it
+        // is skipped when the preference did not change since the last apply:
+        // a speed-limit or port change does not need to touch the filesystem.
+        let shouldSetDownloadPath = configuration.downloadPath != lastAppliedDownloadPath
         let result = withSession { session -> Int32 in
-            _ = configuration.downloadPath.withCString {
-                vt_set_default_save_path(session, $0)
+            if shouldSetDownloadPath {
+                _ = configuration.downloadPath.withCString {
+                    vt_set_default_save_path(session, $0)
+                }
             }
             return configuration.bindAddress.withCString { bindAddress in
                 vt_apply_settings_ex(
@@ -762,6 +781,9 @@ package final class TorrentEngine: ObservableObject {
                     bindAddress
                 )
             }
+        }
+        if shouldSetDownloadPath {
+            lastAppliedDownloadPath = configuration.downloadPath
         }
         guard let result else { return }
         if result != 0 {
@@ -904,15 +926,23 @@ package final class TorrentEngine: ObservableObject {
             snapshot.torrents.map { ($0.id, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
-        next.downloadHistory.append(Double(snapshot.downloadRate))
-        next.uploadHistory.append(Double(snapshot.uploadRate))
-        if next.downloadHistory.count > 80 {
-            next.downloadHistory.removeFirst(next.downloadHistory.count - 80)
+
+        // Idle poll: libtorrent answers every 800 ms, and most of the time
+        // nothing changed. Skipping the publish keeps the UI out of re-render
+        // loops when the user is not interacting with the app. The rate
+        // history is appended only when the rest of the state moved, so the
+        // sparkline stays flat in idle too.
+        if next != pollState {
+            next.downloadHistory.append(Double(snapshot.downloadRate))
+            next.uploadHistory.append(Double(snapshot.uploadRate))
+            if next.downloadHistory.count > 80 {
+                next.downloadHistory.removeFirst(next.downloadHistory.count - 80)
+            }
+            if next.uploadHistory.count > 80 {
+                next.uploadHistory.removeFirst(next.uploadHistory.count - 80)
+            }
+            pollState = next
         }
-        if next.uploadHistory.count > 80 {
-            next.uploadHistory.removeFirst(next.uploadHistory.count - 80)
-        }
-        pollState = next
 
         if let id = selectedID {
             if next.torrentsByID[id] != nil {

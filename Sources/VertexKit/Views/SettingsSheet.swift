@@ -41,7 +41,16 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
     @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
-    @AppStorage(PrefKey.appearance) private var appearance = PrefDefault.appearance
+    /// The raw appearance string is kept in UserDefaults; we bridge it to the
+    /// enum for the picker and back so the `SegmentedPicker` works with the
+    /// enum type directly.
+    @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
+    private var appearance: Binding<AppearanceOption> {
+        Binding(
+            get: { AppearanceOption(rawValue: appearanceRaw) ?? .dark },
+            set: { appearanceRaw = $0.rawValue }
+        )
+    }
 
     /// Interfaces are read once per presentation instead of on every render;
     /// the menu is reopened when the user changes the network.
@@ -223,7 +232,7 @@ struct SettingsSheet: View {
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }
         .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
         .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
-        .onChange(of: appearance) { AppAppearance.apply() }
+        .onChange(of: appearanceRaw) { AppAppearance.apply() }
         .onDisappear { engine.applySettingsNow() }
     }
 
@@ -477,39 +486,21 @@ struct SettingsSheet: View {
     }
 
     private func appearancePicker(_ palette: Palette) -> some View {
-        HStack(spacing: 3) {
-            ForEach(AppearanceOption.allCases) { option in
-                Button {
-                    appearance = option.rawValue
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: option.icon)
-                            .font(.system(size: 9, weight: .semibold))
-                        Text(option.label)
-                    }
-                    .font(.system(size: 10, weight: appearance == option.rawValue ? .semibold : .medium))
-                    .foregroundStyle(appearance == option.rawValue ? palette.text : palette.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 25)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(appearance == option.rawValue ? palette.cardHover : .clear)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+        SegmentedPicker(
+            selection: appearance,
+            palette: palette,
+            height: 25,
+            corner: 7,
+            horizontalPadding: 3,
+            verticalPadding: 3,
+            font: .system(size: 10, weight: .medium)
+        ) { (option: AppearanceOption, _) in
+            HStack(spacing: 5) {
+                Image(systemName: option.icon)
+                    .font(.system(size: 9, weight: .semibold))
+                Text(option.label)
             }
         }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(palette.input)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(palette.stroke, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
     }
 
     private func versionRow(_ palette: Palette) -> some View {

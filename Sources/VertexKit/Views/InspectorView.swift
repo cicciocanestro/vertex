@@ -204,46 +204,24 @@ struct InspectorView: View {
     }
 
     private func tabs(_ palette: Palette) -> some View {
-        HStack(spacing: 2) {
-            ForEach(DetailTab.allCases) { option in
-                Button {
-                    withAnimation(.snappy(duration: 0.18)) {
-                        tab.value = option
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(option.rawValue)
-                        if option == .files, let count = engine.detail?.files.count, count > 0 {
-                            Text("\(count)")
-                                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Capsule().fill(Color.primary.opacity(0.07)))
-                        }
-                    }
-                    .font(.system(size: 10.5, weight: tab.value == option ? .semibold : .medium))
-                    .foregroundStyle(tab.value == option ? palette.text : palette.secondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 25)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(tab.value == option ? palette.cardHover : .clear)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+        SegmentedPicker(
+            selection: $tab.value,
+            palette: palette,
+            height: 25,
+            corner: 7,
+            horizontalPadding: 2,
+            verticalPadding: 2,
+            font: .system(size: 10.5, weight: .medium)
+        ) { option, selected in
+            Text(option.rawValue)
+            if option == .files, let count = engine.detail?.files.count, count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
             }
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(palette.input)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(palette.stroke, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
     }
 
     @ViewBuilder
