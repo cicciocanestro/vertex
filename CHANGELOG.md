@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.3] — 2026-11-02
+
+### Sicurezza
+- **vt_control**: la stringa `action` in arrivo dal layer Swift viene mappata a un
+  `enum class ControlAction` (allowlist esplicita) e gestita tramite `switch`
+  esaurivo. Ogni stringa non riconosciuta viene rifiutata come `unknown`. Rimossa
+  la catena `if/else` vulnerabile a command injection.
+- **Bind address**: `isValidIPv4` rifiuta ora `0.0.0.0`, loopback (`127.x`),
+  link-local (`169.254.x`), forme corte (`192.168.1`) e leading zeros
+  (`192.168.001.001`): solo indirizzi letterali e canonici vincolano l'engine.
+- **Magnet**: `vt_add_magnet` rifiuta URI magnet superiori a 8 KiB prima di
+  passarli a libtorrent.
+- **File torrent**: `vt_add_torrent_file` canonicalizza il percorso, verifica
+  che sia un file regolare e ne cappa la dimensione a 10 MiB prima del caricamento.
+
 ## [1.5.2] — 2026-11-02
 
 ### Sicurezza
