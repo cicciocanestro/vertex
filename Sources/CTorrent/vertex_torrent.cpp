@@ -1124,6 +1124,38 @@ int vt_add_peer(vt_session* session,
     }
 }
 
+namespace {
+
+/// Commands accepted by `vt_control`. The enum is the allowlist: the string
+/// coming from the Swift layer is mapped to it once, and the switch below
+/// exhaustively covers every value. Adding a new command means adding one
+/// enum value and one case — there is no string to keep in sync, and no
+/// unvalidated input can reach a libtorrent call.
+enum class ControlAction {
+    pause,
+    resume,
+    reannounce,
+    sequentialOn,
+    sequentialOff,
+    remove,
+    removeFiles,
+    unknown,
+};
+
+ControlAction parse_control_action(std::string const& action)
+{
+    if (action == "pause")         return ControlAction::pause;
+    if (action == "resume")        return ControlAction::resume;
+    if (action == "reannounce")    return ControlAction::reannounce;
+    if (action == "sequential_on") return ControlAction::sequentialOn;
+    if (action == "sequential_off")return ControlAction::sequentialOff;
+    if (action == "remove")        return ControlAction::remove;
+    if (action == "remove_files")  return ControlAction::removeFiles;
+    return ControlAction::unknown;
+}
+
+} // namespace
+
 int vt_control(vt_session* session, const char* torrent_id_value, const char* action)
 {
     if (!session || !torrent_id_value || !action)
@@ -1138,34 +1170,37 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             return -1;
         }
 
-        std::string command(action);
-        if (command == "pause")
+        ControlAction const command = parse_control_action(action);
+
+        switch (command)
         {
+        case ControlAction::pause:
             handle.pause();
-        }
-        else if (command == "resume")
-        {
+            break;
+
+        case ControlAction::resume:
             // A torrent stopped by an error stays stopped until the error is cleared.
             if (handle.status(lt::status_flags_t{}).errc)
                 handle.clear_error();
             handle.resume();
-        }
-        else if (command == "reannounce")
-        {
+            break;
+
+        case ControlAction::reannounce:
             handle.force_reannounce();
-        }
-        else if (command == "sequential_on")
-        {
+            break;
+
+        case ControlAction::sequentialOn:
             handle.set_flags(lt::torrent_flags::sequential_download);
-        }
-        else if (command == "sequential_off")
-        {
+            break;
+
+        case ControlAction::sequentialOff:
             handle.unset_flags(lt::torrent_flags::sequential_download);
-        }
-        else if (command == "remove" || command == "remove_files")
-        {
+            break;
+
+        case ControlAction::remove:
+        case ControlAction::removeFiles:
             mark_removed(session, torrent_id_value);
-            if (command == "remove_files")
+            if (command == ControlAction::removeFiles)
                 session->session->remove_torrent(handle, lt::session::delete_files);
             else
                 session->session->remove_torrent(handle);
@@ -1175,9 +1210,9 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
                 fs::remove(fs::path(session->resume_dir) / (std::string(torrent_id_value) + ".resume"),
                            ec);
             }
-        }
-        else
-        {
+            break;
+
+        case ControlAction::unknown:
             session->last_error = "Comando non supportato";
             return -1;
         }
