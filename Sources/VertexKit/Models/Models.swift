@@ -98,6 +98,34 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.error = error
     }
 
+    /// MEDIUM #4: decode with bounds instead of trusting the JSON. A negative
+    /// progress, peer count or eta would otherwise flow into the UI and the
+    /// sort pipeline; clamping here keeps every consumer honest.
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        stateCode = max(try c.decode(Int.self, forKey: .stateCode), 0)
+        progress = min(max(try c.decode(Double.self, forKey: .progress), 0), 1)
+        size = max(try c.decode(Int64.self, forKey: .size), 0)
+        downloaded = max(try c.decode(Int64.self, forKey: .downloaded), 0)
+        uploaded = max(try c.decode(Int64.self, forKey: .uploaded), 0)
+        downloadRate = max(try c.decode(Int64.self, forKey: .downloadRate), 0)
+        uploadRate = max(try c.decode(Int64.self, forKey: .uploadRate), 0)
+        peers = max(try c.decode(Int.self, forKey: .peers), 0)
+        seeds = max(try c.decode(Int.self, forKey: .seeds), 0)
+        eta = max(try c.decode(Int64.self, forKey: .eta), 0)
+        finished = try c.decode(Bool.self, forKey: .finished)
+        seeding = try c.decode(Bool.self, forKey: .seeding)
+        paused = try c.decode(Bool.self, forKey: .paused)
+        sequential = try c.decode(Bool.self, forKey: .sequential)
+        hasMetadata = try c.decode(Bool.self, forKey: .hasMetadata)
+        savePath = try c.decode(String.self, forKey: .savePath)
+        ratio = max(try c.decode(Double.self, forKey: .ratio), 0)
+        added = max(try c.decode(Int64.self, forKey: .added), 0)
+        error = try c.decodeIfPresent(String.self, forKey: .error) ?? ""
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, name, progress, size, downloaded, uploaded, peers, seeds, eta
         case stateCode = "state_code"

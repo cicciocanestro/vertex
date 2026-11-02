@@ -344,9 +344,59 @@ package final class TorrentEngine: ObservableObject {
     }
     #endif
 
+    /// LOW #9: validate all persisted preferences at startup. If a value has the
+    /// wrong type or falls outside the expected range, reset it to the default
+    /// so a corrupted plist or a migration bug cannot silently break the engine.
+    nonisolated package static func validateAllPreferences() {
+        let defaults = UserDefaults.standard
+
+        // port
+        let rawPort = defaults.integer(forKey: PrefKey.listenPort)
+        let port = Preferences.validPort(rawPort)
+        if Int(port) != rawPort {
+            defaults.set(Int(port), forKey: PrefKey.listenPort)
+        }
+
+        // limits
+        let rawDownloadLimit = defaults.integer(forKey: PrefKey.downloadLimitKB)
+        let rawUploadLimit = defaults.integer(forKey: PrefKey.uploadLimitKB)
+        let downloadLimit = Preferences.limitBytes(fromKB: rawDownloadLimit)
+        let uploadLimit = Preferences.limitBytes(fromKB: rawUploadLimit)
+        if !Preferences.isValidLimitKB(rawDownloadLimit) {
+            defaults.set(Int(downloadLimit) / 1024, forKey: PrefKey.downloadLimitKB)
+        }
+        if !Preferences.isValidLimitKB(rawUploadLimit) {
+            defaults.set(Int(uploadLimit) / 1024, forKey: PrefKey.uploadLimitKB)
+        }
+
+        // bind address
+        let rawBind = defaults.string(forKey: PrefKey.bindAddress)
+        let bindAddress = Preferences.normalizedBindAddress(rawBind)
+        if rawBind != bindAddress {
+            defaults.set(bindAddress, forKey: PrefKey.bindAddress)
+        }
+
+        // appearance: must be one of the known options
+        if let appearance = defaults.string(forKey: PrefKey.appearance) {
+            if appearance != "light" && appearance != "dark" && appearance != "system" {
+                defaults.set(PrefDefault.appearance, forKey: PrefKey.appearance)
+            }
+        }
+
+        // download path
+        let rawPath = defaults.string(forKey: PrefKey.downloadPath)
+        let resolved = Preferences.resolvedDownloadPath(rawPath)
+        if rawPath != resolved {
+            defaults.set(resolved, forKey: PrefKey.downloadPath)
+        }
+    }
+
     /// Snapshot of the preferences used to create a libtorrent session.
     /// It is read before handing the work to the session lifecycle queue.
     nonisolated private static func currentConfiguration() -> SessionConfiguration {
+        // LOW #9: ensure preferences are valid before snapshotting
+        validateAllPreferences()
+
         let defaults = UserDefaults.standard
         let downloadPath = Preferences.downloadPath
 

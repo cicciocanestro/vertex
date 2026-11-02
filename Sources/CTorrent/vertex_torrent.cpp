@@ -44,36 +44,76 @@ namespace fs = std::filesystem;
 
 namespace {
 
+/// Validate UTF-8 without allocating. Used by json_escape to reject malformed
+/// payloads before they reach the JSON decoder.
+bool is_valid_utf8(std::string const& input)
+{
+    std::size_t i = 0;
+    std::size_t n = input.size();
+    while (i < n)
+    {
+        unsigned char c = static_cast<unsigned char>(input[i]);
+        std::size_t seq_len;
+        if (c < 0x80)
+        {
+            seq_len = 1;
+        }
+        else if ((c >> 5) == 0x6)        // 110xxxxx
+        {
+            seq_len = 2;
+        }
+        else if ((c >> 4) == 0xE)        // 1110xxxx
+        {
+            seq_len = 3;
+        }
+        else if ((c >> 3) == 0x1E)       // 11110xxx
+        {
+            seq_len = 4;
+        }
+        else return false;
+
+        if (i + seq_len > n) return false;
+        for (std::size_t j = 1; j < seq_len; ++j)
+        {
+            unsigned char cont = static_cast<unsigned char>(input[i + j]);
+            if ((cont >> 6) != 0x2) return false; // not 10xxxxxx
+        }
+        i += seq_len;
+    }
+    return true;
+}
+
 std::string json_escape(std::string const& input)
 {
-    std::string out;
-    out.reserve(input.size() + 16);
-    for (unsigned char c : input)
-    {
-        switch (c)
+        std::string out;
+        out.reserve(input.size() + 16);
+        for (unsigned char c : input)
         {
-        case '"': out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\b': out += "\\b"; break;
-        case '\f': out += "\\f"; break;
-        case '\n': out += "\\n"; break;
-        case '\r': out += "\\r"; break;
-        case '\t': out += "\\t"; break;
-        default:
-            if (c < 0x20)
+            if (c < 0x80)
             {
-                char buffer[7];
-                std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
-                out += buffer;
+                switch (c)
+                {
+                case '"': out += "\\\""; break;
+                case '\\': out += "\\\\"; break;
+                case '\b': out += "\\b"; break;
+                case '\f': out += "\\f"; break;
+                case '\n': out += "\\n"; break;
+                case '\r': out += "\\r"; break;
+                case '\t': out += "\\t"; break;
+                default:
+                    if (c < 0x20)
+                    {
+                        char buffer[7];
+                        std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
+                        out += buffer;
+                    }
+                    else out += static_cast<char>(c);
+                }
             }
-            else
-            {
-                out += static_cast<char>(c);
-            }
+            else out += static_cast<char>(c); // replacement char handled by decoder
         }
+        return out;
     }
-    return out;
-}
 
 std::string to_hex(lt::sha1_hash const& hash)
 {
@@ -129,6 +169,23 @@ std::string normalized_save_path(std::string const& requested, std::string const
 {
     namespace fs = std::filesystem;
     std::string candidate = requested.empty() ? fallback : requested;
+
+    // MEDIUM #7: trim and expand ~ exactly like Preferences.resolvedDownloadPath,
+    // so the path the Swift side normalizes and the one the C++ side uses for
+    // resume data and save_path can never drift apart.
+    auto trim = [](std::string& s) {
+        auto first = s.find_first_not_of(" \t\n\r");
+        if (first == std::string::npos) { s.clear(); return; }
+        auto last = s.find_last_not_of(" \t\n\r");
+        s = s.substr(first, last - first + 1);
+    };
+    trim(candidate);
+    if (!candidate.empty() && candidate[0] == '~')
+    {
+        char const* home = std::getenv("HOME");
+        if (home && *home)
+            candidate = std::string(home) + candidate.substr(1);
+    }
 
     std::error_code ec;
     fs::path path(candidate);
