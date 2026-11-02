@@ -107,5 +107,55 @@ enum PreferencesTests {
             let resolvedTorrentDir = Preferences.resolvedDownloadPath(torrentFilePath)
             try TestRunner.assertEqual(resolvedTorrentDir, "/tmp/sample_download")
         }
+
+        TestRunner.run("Startup validation: valori fuori range vengono ripristinati") {
+            // LOW #9: validateAllPreferences() resets a corrupted plist to defaults.
+            // Snapshot and restore the affected keys so the test does not leak into
+            // the real user defaults.
+            let defaults = UserDefaults.standard
+            let keys = [
+                PrefKey.listenPort, PrefKey.downloadLimitKB, PrefKey.uploadLimitKB,
+                PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath
+            ]
+            let backup = keys.compactMap { defaults.object(forKey: $0) }
+            defer {
+                for (key, value) in zip(keys, backup) {
+                    if let string = value as? String {
+                        defaults.set(string, forKey: key)
+                    } else if let number = value as? NSNumber {
+                        defaults.set(number, forKey: key)
+                    } else if let bool = value as? Bool {
+                        defaults.set(bool, forKey: key)
+                    }
+                }
+            }
+
+            // Corrupt every preference at once.
+            defaults.set(99999, forKey: PrefKey.listenPort)
+            defaults.set(-5, forKey: PrefKey.downloadLimitKB)
+            // Int32.max is above the representable KB range: it must be clamped
+            // to the maximum valid limit rather than left as a raw sentinel.
+            defaults.set(Int32.max, forKey: PrefKey.uploadLimitKB)
+            defaults.set("utun3", forKey: PrefKey.bindAddress)
+            defaults.set("chartreuse", forKey: PrefKey.appearance)
+            // A .torrent file is a common mis-selection: the path must be resolved
+            // to its parent directory rather than left pointing at the file.
+            defaults.set("/tmp/corrupt-download.torrent", forKey: PrefKey.downloadPath)
+
+            TorrentEngine.validateAllPreferences()
+
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.listenPort), 6881)
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.downloadLimitKB), 0)
+            try TestRunner.assertEqual(
+                defaults.integer(forKey: PrefKey.uploadLimitKB),
+                Preferences.maximumLimitKB
+            )
+            try TestRunner.assertEqual(defaults.string(forKey: PrefKey.bindAddress), "")
+            try TestRunner.assertEqual(defaults.string(forKey: PrefKey.appearance), "dark")
+            try TestRunner.assertEqual(
+                defaults.string(forKey: PrefKey.downloadPath),
+                "/tmp"
+            )
+        }
     }
 }
