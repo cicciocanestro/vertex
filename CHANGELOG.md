@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.4] — 2026-11-02
+
+### Sicurezza
+- **Preferenze**: `validateAllPreferences()` controlla al'avvio porta, limiti di
+  velocità, bind address, aspetto e percorso di download. Un plist corrotto o un
+  bug di migrazione che lascia un valore fuori range viene ripristinato alla
+  default prima che l'engine lo legga, evitando che una configurazione rotta
+  avvii la sessione.
+
 ## [1.5.3] — 2026-11-02
 
 ### Sicurezza
