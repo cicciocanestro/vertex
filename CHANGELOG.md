@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2] — 2026-11-02
+
+### Sicurezza
+- **vt_control**: la stringa `action` in arrivo dal layer Swift viene mappata a un
+  `enum class ControlAction` (allowlist esplicita) e gestita tramite `switch`
+  esaurivo. Ogni stringa non riconosciuta viene rifiutata come `unknown`. Rimossa
+  la catena `if/else` vulnerabile a command injection.
+
 ## [1.5.1] — 2026-11-02
 
 ### Correzioni
