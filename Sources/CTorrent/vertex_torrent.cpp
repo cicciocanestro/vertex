@@ -1026,6 +1026,15 @@ int vt_add_magnet(vt_session* session,
     if (!session || !uri)
         return -1;
 
+    // MEDIUM #5: reject magnet URIs larger than 8 KiB before handing to libtorrent
+    constexpr std::size_t MAX_MAGNET_URI = 8 * 1024;
+    std::size_t uri_len = std::strlen(uri);
+    if (uri_len > MAX_MAGNET_URI)
+    {
+        session->last_error = "Magnet URI exceeds maximum size";
+        return -1;
+    }
+
     try
     {
         lt::error_code ec;
@@ -1058,6 +1067,41 @@ int vt_add_torrent_file(vt_session* session,
 {
     if (!session || !path)
         return -1;
+
+    // MEDIUM #6: validate torrent file path before loading
+    // - canonicalize
+    // - must be a regular file
+    // - reject if > 10 MiB
+    std::string canonical_path;
+    try
+    {
+        fs::path canonical = fs::canonical(fs::path(path));
+        std::error_code ec_fs;
+        if (!fs::is_regular_file(canonical, ec_fs))
+        {
+            session->last_error = "Torrent path is not a regular file";
+            return -1;
+        }
+        auto file_size = fs::file_size(canonical, ec_fs);
+        if (ec_fs)
+        {
+            session->last_error = "Cannot stat torrent file";
+            return -1;
+        }
+        constexpr std::uintmax_t MAX_TORRENT_FILE = 10 * 1024 * 1024; // 10 MiB
+        if (file_size > MAX_TORRENT_FILE)
+        {
+            session->last_error = "Torrent file exceeds maximum size";
+            return -1;
+        }
+        canonical_path = canonical.string();
+        path = canonical_path.c_str();
+    }
+    catch (std::exception const& e)
+    {
+        session->last_error = std::string("Invalid torrent path: ") + e.what();
+        return -1;
+    }
 
     try
     {

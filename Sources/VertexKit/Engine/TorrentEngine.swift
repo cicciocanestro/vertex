@@ -81,13 +81,32 @@ package enum Preferences {
         isValidPort(value) ? Int32(value) : 6881
     }
 
-    /// Whether a value is a literal IPv4 address. Device names ("utun3") and
-    /// hostnames are rejected on purpose: the engine passes the value straight
-    /// to libtorrent, and only a literal address pins both the listening socket
-    /// and the outgoing source.
+    /// Whether a value is a literal IPv4 address suitable for binding.
+    /// Rejects: 0.0.0.0, loopback (127.x), link-local (169.254.x),
+    /// short forms (e.g. "192.168.1"), leading zeros (e.g. "192.168.001.001"),
+    /// and IPv6. Only dotted-quad octets 0-255 without leading zeros are accepted.
     package static func isValidIPv4(_ value: String) -> Bool {
+        let parts = value.split(separator: ".")
+        guard parts.count == 4 else { return false }
+
         var address = in_addr()
-        return value.withCString { inet_pton(AF_INET, $0, &address) } == 1
+        // inet_pton validates the syntax; we also enforce canonical form
+        guard value.withCString({ inet_pton(AF_INET, $0, &address) }) == 1 else { return false }
+
+        // Reject non-canonical forms (leading zeros, short forms)
+        for part in parts {
+            if part.hasPrefix("0") && part.count > 1 { return false }
+            guard let octet = Int(part), (0...255).contains(octet) else { return false }
+        }
+
+        // Reject special ranges
+        guard let first = Int(parts[0]),
+              let second = Int(parts[1]) else { return false }
+        if first == 0 { return false }                 // 0.0.0.0
+        if first == 127 { return false }               // 127.x loopback
+        if first == 169 && second == 254 { return false } // 169.254.x link-local
+
+        return true
     }
 
     /// Normalizes the interface-binding preference. Anything that is not a

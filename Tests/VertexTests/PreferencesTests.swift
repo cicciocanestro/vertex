@@ -55,8 +55,11 @@ enum PreferencesTests {
             try TestRunner.assertEqual(Preferences.normalizedBindAddress("10.8.0.256"), "")
 
             try TestRunner.assertTrue(Preferences.isValidIPv4("192.168.1.10"))
-            try TestRunner.assertTrue(Preferences.isValidIPv4("0.0.0.0"))
-            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1"))
+            try TestRunner.assertFalse(Preferences.isValidIPv4("0.0.0.0")) // rejected: not a usable bind address
+            try TestRunner.assertFalse(Preferences.isValidIPv4("127.0.0.1")) // rejected: loopback
+            try TestRunner.assertFalse(Preferences.isValidIPv4("169.254.1.1")) // rejected: link-local
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1")) // rejected: short form
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.001.001")) // rejected: leading zeros
             try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1.10.1"))
         }
 
