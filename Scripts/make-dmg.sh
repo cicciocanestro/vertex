@@ -40,7 +40,11 @@ STAGE="dist/.dmg-stage"
 # macOS 15 CI image) may not have `diskutil image` yet. Use it when present and
 # fall back to hdiutil otherwise.
 attach_image() {
-    if diskutil image attach --help >/dev/null 2>&1; then
+    local help
+    help=$(diskutil image attach --help 2>/dev/null || true)
+    if grep -q -- '--mountPoint' <<<"$help" &&
+        grep -q -- '--readOnly' <<<"$help" &&
+        grep -q -- '--nobrowse' <<<"$help"; then
         diskutil image attach --nobrowse --readOnly --mountPoint "$2" "$1" >/dev/null
     else
         hdiutil attach "$1" -nobrowse -readonly -mountpoint "$2" >/dev/null
@@ -55,7 +59,10 @@ detach_image() {
 }
 
 create_image() {
-    if diskutil image create from --help >/dev/null 2>&1; then
+    local help
+    help=$(diskutil image create from --help 2>/dev/null || true)
+    if grep -q -- '--volumeName' <<<"$help" &&
+        grep -q -- '--format' <<<"$help"; then
         local log
         log=$(mktemp /tmp/vertex-diskutil.XXXXXX)
         if ! diskutil image create from \
