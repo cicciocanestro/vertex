@@ -112,6 +112,26 @@ enum CTorrentBridgeTests {
                     vt_set_default_save_path(session, nil) != 0,
                     "Un percorso nullo deve essere rifiutato"
                 )
+
+                // The normalization used by Swift and by the engine is the same C helper.
+                try TestRunner.assertEqual(
+                    normalizedPath(filePath.path, fallback: workspace.root.path) ?? "",
+                    workspace.root.path,
+                    "Un file deve usare la cartella che lo contiene"
+                )
+                try TestRunner.assertEqual(
+                    normalizedPath("", fallback: workspace.root.path) ?? "",
+                    workspace.root.path,
+                    "Un percorso vuoto deve usare il fallback"
+                )
+                try TestRunner.assertEqual(
+                    normalizedPath(
+                        workspace.root.appendingPathComponent("missing.torrent").path,
+                        fallback: workspace.root.path
+                    ) ?? "",
+                    workspace.root.path,
+                    "Un .torrent inesistente deve usare la cartella che lo contiene"
+                )
             }
         }
         TestRunner.run("Binding: ascolto limitato a un indirizzo locale") {
@@ -307,5 +327,16 @@ enum CTorrentBridgeTests {
 
     private static func hasTransportPrefix(_ error: String) -> Bool {
         error.hasPrefix("UPnP: ") || error.hasPrefix("NAT-PMP: ")
+    }
+
+    private static func normalizedPath(_ requested: String, fallback: String) -> String? {
+        let pointer = requested.withCString { requestedPointer in
+            fallback.withCString { fallbackPointer in
+                vt_normalize_save_path(requestedPointer, fallbackPointer)
+            }
+        }
+        guard let pointer else { return nil }
+        defer { vt_free_string(pointer) }
+        return String(cString: pointer)
     }
 }

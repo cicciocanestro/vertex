@@ -64,8 +64,9 @@ if [ "$CONFIG" = "test" ]; then
 fi
 
 echo "→ Compilazione ($CONFIG)…"
-BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 swift build -c "$CONFIG"
+# `--show-bin-path` only prints the build directory; it does not compile.
+BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 BIN_PATH="${BIN_DIR}/${APP_NAME}"
 
 echo "→ Creazione del bundle…"

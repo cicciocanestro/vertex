@@ -8,14 +8,23 @@
   `alert_error` e mostrato una volta dalla UI, senza sovrascrivere l'errore corrente.
 - **Incolla magnet**: se gli appunti non contengono un magnet, si apre solo la finestra
   di aggiunta; niente toast ridondante.
+- **Configurazione**: la validazione delle preferenze avviene una volta all'avvio;
+  `currentConfiguration()` legge soltanto. Le impostazioni vengono applicate solo se
+  cambiate e il percorso di salvataggio viene toccato solo quando cambia.
+- **Percorsi**: Swift usa `vt_normalize_save_path`, la stessa normalizzazione C++ del
+  motore (trim, `~`, file/`.torrent`, fallback).
 
 ### Prestazioni
 - **Lista torrent**: la categoria esclusiva viene calcolata una volta per torrent;
   filtro e conteggi restano in una sola passata.
 - **Dettaglio**: il progresso dei file usa la granularità pezzo di libtorrent
   (`piece_granularity`), più economica delle stime per blocco.
+- **Poll in idle**: la pubblicazione è saltata quando `PollState` non cambia e il
+  dettaglio si aggiorna ogni 15 poll invece di ogni 3; la history usa un helper unico.
 
 ### Manutenzione
+- **Build**: `--show-bin-path` viene interrogato dopo l'unica compilazione, non come
+  secondo build.
 - **Bridge C++**: un'unica macro per il contratto catch/`last_error`.
 - **Script**: `macho_dependencies` e `macho_rpaths` condivisi in `Scripts/lib/macho.sh`,
   usati da `build.sh`, `build-deps.sh` e `verify-bundle.sh`.

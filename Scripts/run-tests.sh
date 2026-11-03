@@ -16,12 +16,12 @@ REPORT="${VERTEX_TEST_REPORT:-$ROOT/dist/test-results.xml}"
 COVERAGE_DIR="${VERTEX_COVERAGE_DIR:-$ROOT/dist/coverage}"
 mkdir -p "$(dirname "$REPORT")" "$COVERAGE_DIR"
 
-BIN="$(swift build -c debug --show-bin-path)/VertexTestRunner"
-
 echo "→ Compilazione della suite con coverage…"
 swift build -c debug \
     -Xswiftc -profile-generate \
     -Xswiftc -profile-coverage-mapping
+# `--show-bin-path` only prints the build directory; it does not compile.
+BIN="$(swift build -c debug --show-bin-path)/VertexTestRunner"
 
 echo "→ Esecuzione test suite…"
 PROFILE="$COVERAGE_DIR/default.profraw"

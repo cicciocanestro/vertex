@@ -79,6 +79,11 @@ int vt_apply_settings_ex(vt_session* session,
    save path. The folder is created if needed. Returns 0 on success. */
 int vt_set_default_save_path(vt_session* session, const char* path);
 
+/* Normalizes a save path with the same rules used by the engine: trim, expand
+   ~, use the parent folder for a file or .torrent, and fall back when empty.
+   Returns a malloc'd string to free with vt_free_string. */
+char* vt_normalize_save_path(const char* requested, const char* fallback);
+
 void vt_free_string(char* value);
 
 #ifdef __cplusplus

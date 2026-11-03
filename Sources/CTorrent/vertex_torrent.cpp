@@ -1389,6 +1389,21 @@ int vt_apply_settings_ex(vt_session* session,
     VT_CATCH_ALL(session, -1)
 }
 
+char* vt_normalize_save_path(const char* requested, const char* fallback)
+{
+    try
+    {
+        auto value = normalized_save_path(
+            requested ? requested : "",
+            fallback ? fallback : "");
+        return ::strdup(value.c_str());
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
+
 int vt_set_default_save_path(vt_session* session, const char* path)
 {
     if (!session || !path || !*path)

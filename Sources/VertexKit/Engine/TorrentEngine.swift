@@ -34,27 +34,17 @@ package enum Preferences {
 
     package static func resolvedDownloadPath(_ raw: String?) -> String {
         let fallback = suggestedDownloadPath
-        var path = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if path.isEmpty {
-            path = fallback
-        }
-        path = (path as NSString).expandingTildeInPath
-
-        let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        if fileManager.fileExists(atPath: path, isDirectory: &isDirectory) {
-            if isDirectory.boolValue {
-                return path
+        let requested = raw ?? ""
+        let pointer = requested.withCString { requestedPointer in
+            fallback.withCString { fallbackPointer in
+                vt_normalize_save_path(requestedPointer, fallbackPointer)
             }
-            // A file was chosen as destination (e.g. a .torrent): use its folder.
-            return URL(fileURLWithPath: path).deletingLastPathComponent().path
         }
-
-        if path.lowercased().hasSuffix(".torrent") {
-            return URL(fileURLWithPath: path).deletingLastPathComponent().path
+        guard let pointer else {
+            return requested.isEmpty ? fallback : requested
         }
-
-        return path
+        defer { vt_free_string(pointer) }
+        return String(cString: pointer)
     }
 
     /// Maximum KB/s value that can be represented without overflowing the C bridge.
@@ -174,7 +164,7 @@ package enum PrefDefault {
     }
 }
 
-package struct SessionConfiguration: Sendable {
+package struct SessionConfiguration: Sendable, Equatable {
     package var downloadPath: String
     package var resumePath: String
     package var port: Int32
@@ -295,10 +285,7 @@ package final class TorrentEngine: ObservableObject {
     private var nextPollID = 0
     private var lastAppliedPollID = 0
     private var configurationOverride: SessionConfiguration?
-    /// Last download path handed to `vt_set_default_save_path`. The bridge call
-    /// creates the directory and checks writability, so it is skipped when the
-    /// preference did not change since the last apply.
-    private var lastAppliedDownloadPath = ""
+    private var lastAppliedConfiguration: SessionConfiguration?
 
     private init() {
         Preferences.registerDefaults()
@@ -311,10 +298,14 @@ package final class TorrentEngine: ObservableObject {
         }
         #endif
 
+        Self.validateAllPreferences()
         let configuration = Self.currentConfiguration()
         sessionPexEnabled = configuration.pex
         session = Self.makeSession(configuration)
         isReady = session != nil
+        if isReady {
+            lastAppliedConfiguration = configuration
+        }
 
         if session == nil {
             DispatchQueue.main.async { [weak self] in
@@ -338,6 +329,9 @@ package final class TorrentEngine: ObservableObject {
         sessionPexEnabled = configuration.pex
         session = Self.makeSession(configuration)
         isReady = session != nil
+        if isReady {
+            lastAppliedConfiguration = configuration
+        }
         if isReady && startPollingImmediately {
             startPolling()
         }
@@ -393,51 +387,23 @@ package final class TorrentEngine: ObservableObject {
 
     /// Snapshot of the preferences used to create a libtorrent session.
     /// It is read before handing the work to the session lifecycle queue.
+    /// Reads the preferences without validating or persisting them. Startup
+    /// validation is done once by `validateAllPreferences()`; runtime edits are
+    /// validated by `applySettings()` before this is called. This keeps a
+    /// single write path and avoids sanitizing/writing on every read.
     nonisolated private static func currentConfiguration() -> SessionConfiguration {
-        // LOW #9: ensure preferences are valid before snapshotting
-        validateAllPreferences()
-
         let defaults = UserDefaults.standard
-        let downloadPath = Preferences.downloadPath
-
-        if defaults.string(forKey: PrefKey.downloadPath) != downloadPath {
-            defaults.set(downloadPath, forKey: PrefKey.downloadPath)
-        }
-
-        let rawPort = defaults.integer(forKey: PrefKey.listenPort)
-        let port = Preferences.validPort(rawPort)
-        if Int(port) != rawPort {
-            defaults.set(Int(port), forKey: PrefKey.listenPort)
-        }
-
-        let rawDownloadLimit = defaults.integer(forKey: PrefKey.downloadLimitKB)
-        let rawUploadLimit = defaults.integer(forKey: PrefKey.uploadLimitKB)
-        let downloadLimit = Preferences.limitBytes(fromKB: rawDownloadLimit)
-        let uploadLimit = Preferences.limitBytes(fromKB: rawUploadLimit)
-        if !Preferences.isValidLimitKB(rawDownloadLimit) {
-            defaults.set(Int(downloadLimit) / 1024, forKey: PrefKey.downloadLimitKB)
-        }
-        if !Preferences.isValidLimitKB(rawUploadLimit) {
-            defaults.set(Int(uploadLimit) / 1024, forKey: PrefKey.uploadLimitKB)
-        }
-
-        let rawBind = defaults.string(forKey: PrefKey.bindAddress)
-        let bindAddress = Preferences.normalizedBindAddress(rawBind)
-        if rawBind != bindAddress {
-            defaults.set(bindAddress, forKey: PrefKey.bindAddress)
-        }
-
         return SessionConfiguration(
-            downloadPath: downloadPath,
+            downloadPath: Preferences.downloadPath,
             resumePath: Preferences.resumeDirectory.path,
-            port: port,
-            downloadLimit: downloadLimit,
-            uploadLimit: uploadLimit,
+            port: Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort)),
+            downloadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB)),
+            uploadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB)),
             dht: defaults.bool(forKey: PrefKey.dhtEnabled),
             pex: defaults.bool(forKey: PrefKey.pexEnabled),
             lsd: defaults.bool(forKey: PrefKey.lsdEnabled),
             upnp: defaults.bool(forKey: PrefKey.upnpEnabled),
-            bindAddress: bindAddress
+            bindAddress: Preferences.normalizedBindAddress(defaults.string(forKey: PrefKey.bindAddress))
         )
     }
 
@@ -496,6 +462,7 @@ package final class TorrentEngine: ObservableObject {
 
         let previousSession = SessionPointerBox(session)
         session = nil
+        lastAppliedConfiguration = nil
         isReady = false
         hasLoadedSnapshot = false
         unfinishedIDs.removeAll()
@@ -573,6 +540,7 @@ package final class TorrentEngine: ObservableObject {
             )
         } else {
             session = nil
+            lastAppliedConfiguration = nil
             isReady = false
             pollState = PollState()
             detail = nil
@@ -826,33 +794,57 @@ package final class TorrentEngine: ObservableObject {
             return
         }
 
-        // Keep the C++ fallback destination in sync with the preferences. It is
-        // used by resume-data loading and by callers that omit a save path.
-        // The bridge call creates the directory and checks writability, so it
-        // is skipped when the preference did not change since the last apply:
-        // a speed-limit or port change does not need to touch the filesystem.
-        let shouldSetDownloadPath = configuration.downloadPath != lastAppliedDownloadPath
+        // Apply only the parts that changed since the last successful apply.
+        // This keeps a debounced settings edit from touching the filesystem or
+        // rebinding the listening port when the value is unchanged.
+        let previous = lastAppliedConfiguration
+        if configuration == previous { return }
+
+        let downloadPathChanged: Bool
+        let networkChanged: Bool
+        if let previous {
+            downloadPathChanged = previous.downloadPath != configuration.downloadPath
+            networkChanged = previous.port != configuration.port
+                || previous.downloadLimit != configuration.downloadLimit
+                || previous.uploadLimit != configuration.uploadLimit
+                || previous.dht != configuration.dht
+                || previous.upnp != configuration.upnp
+                || previous.lsd != configuration.lsd
+                || previous.bindAddress != configuration.bindAddress
+        } else {
+            downloadPathChanged = true
+            networkChanged = true
+        }
+
+        guard downloadPathChanged || networkChanged else {
+            lastAppliedConfiguration = configuration
+            return
+        }
+
         let result = withSession { session -> Int32 in
-            if shouldSetDownloadPath {
-                _ = configuration.downloadPath.withCString {
+            if downloadPathChanged {
+                let pathResult = configuration.downloadPath.withCString {
                     vt_set_default_save_path(session, $0)
                 }
+                if pathResult != 0 {
+                    return pathResult
+                }
             }
-            return configuration.bindAddress.withCString { bindAddress in
-                vt_apply_settings_ex(
-                    session,
-                    configuration.port,
-                    configuration.downloadLimit,
-                    configuration.uploadLimit,
-                    configuration.dht ? 1 : 0,
-                    configuration.upnp ? 1 : 0,
-                    configuration.lsd ? 1 : 0,
-                    bindAddress
-                )
+            if networkChanged {
+                return configuration.bindAddress.withCString { bindAddress in
+                    vt_apply_settings_ex(
+                        session,
+                        configuration.port,
+                        configuration.downloadLimit,
+                        configuration.uploadLimit,
+                        configuration.dht ? 1 : 0,
+                        configuration.upnp ? 1 : 0,
+                        configuration.lsd ? 1 : 0,
+                        bindAddress
+                    )
+                }
             }
-        }
-        if shouldSetDownloadPath {
-            lastAppliedDownloadPath = configuration.downloadPath
+            return 0
         }
         guard let result else { return }
         if result != 0 {
@@ -861,7 +853,9 @@ package final class TorrentEngine: ObservableObject {
                 kind: .error,
                 detail: localizedError(takeLastError())
             )
+            return
         }
+        lastAppliedConfiguration = configuration
         poll()
     }
 
@@ -909,6 +903,7 @@ package final class TorrentEngine: ObservableObject {
 
         let previousSession = SessionPointerBox(session)
         session = nil
+        lastAppliedConfiguration = nil
         isReady = false
         sessionQueue.async { [self] in
             previousSession.destroy()
@@ -961,6 +956,13 @@ package final class TorrentEngine: ObservableObject {
         apply(snapshot)
     }
 
+    private func appendHistory(_ value: Double, to history: inout [Double]) {
+        history.append(value)
+        if history.count > 80 {
+            history.removeFirst(history.count - 80)
+        }
+    }
+
     private func apply(_ snapshot: VertexSnapshot) {
         if !snapshot.alertError.isEmpty {
             showToast(localizedError(snapshot.alertError), kind: .error)
@@ -1005,22 +1007,19 @@ package final class TorrentEngine: ObservableObject {
         // loops when the user is not interacting with the app. The rate
         // history is appended only when the rest of the state moved, so the
         // sparkline stays flat in idle too.
-        if next != pollState {
-            next.downloadHistory.append(Double(snapshot.downloadRate))
-            next.uploadHistory.append(Double(snapshot.uploadRate))
-            if next.downloadHistory.count > 80 {
-                next.downloadHistory.removeFirst(next.downloadHistory.count - 80)
-            }
-            if next.uploadHistory.count > 80 {
-                next.uploadHistory.removeFirst(next.uploadHistory.count - 80)
-            }
+        let stateChanged = next != pollState
+        if stateChanged {
+            appendHistory(Double(snapshot.downloadRate), to: &next.downloadHistory)
+            appendHistory(Double(snapshot.uploadRate), to: &next.uploadHistory)
             pollState = next
         }
 
         if let id = selectedID {
             if next.torrentsByID[id] != nil {
                 detailTick += 1
-                if forceDetailRefresh || detailTick % 3 == 0 {
+                // Without state changes there is no file progress to refresh:
+                // poll trackers at a slower cadence instead of every 2.4 s.
+                if forceDetailRefresh || (stateChanged && detailTick % 3 == 0) || detailTick % 15 == 0 {
                     forceDetailRefresh = false
                     loadDetail(id)
                 }
