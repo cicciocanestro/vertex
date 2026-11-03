@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Strumenti
+- **DMG senza warning**: `Scripts/make-dmg.sh` usa `diskutil image create/attach` e
+  `diskutil eject` quando disponibili (macOS 26+), eliminando i warning di deprecazione
+  di `hdiutil`; sulle runner macOS 15 resta il fallback a `hdiutil`.
+
 ## [1.5.7] — 2026-11-03
 
 Release di robustezza: validazione UTF-8 rigorosa nel bridge, shutdown senza attese

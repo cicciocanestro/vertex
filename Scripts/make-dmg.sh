@@ -36,10 +36,52 @@ DMG_SHA="$DMG.sha256"
 VOLUME="${VERTEX_APP_NAME} ${VERSION}"
 STAGE="dist/.dmg-stage"
 
+# macOS 26+ deprecates `hdiutil attach`; older runners (including the canonical
+# macOS 15 CI image) may not have `diskutil image` yet. Use it when present and
+# fall back to hdiutil otherwise.
+attach_image() {
+    if diskutil image attach --help >/dev/null 2>&1; then
+        diskutil image attach --nobrowse --readOnly --mountPoint "$2" "$1" >/dev/null
+    else
+        hdiutil attach "$1" -nobrowse -readonly -mountpoint "$2" >/dev/null
+    fi
+}
+
+detach_image() {
+    if diskutil eject "$1" >/dev/null 2>&1; then
+        return 0
+    fi
+    hdiutil detach "$1" >/dev/null 2>&1 || true
+}
+
+create_image() {
+    if diskutil image create from --help >/dev/null 2>&1; then
+        local log
+        log=$(mktemp /tmp/vertex-diskutil.XXXXXX)
+        if ! diskutil image create from \
+            --format UDZO \
+            --volumeName "$VOLUME" \
+            "$STAGE" "$DMG" >"$log" 2>&1; then
+            cat "$log" >&2
+            rm -f "$log"
+            return 1
+        fi
+        rm -f "$log"
+    else
+        hdiutil create \
+            -volname "$VOLUME" \
+            -srcfolder "$STAGE" \
+            -ov \
+            -format UDZO \
+            -fs HFS+ \
+            "$DMG" >/dev/null
+    fi
+}
+
 MOUNT=""
 cleanup() {
     if [ -n "$MOUNT" ]; then
-        hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+        detach_image "$MOUNT"
         rmdir "$MOUNT" 2>/dev/null || true
     fi
     rm -rf "$STAGE"
@@ -107,13 +149,7 @@ if [ -f "Resources/AppIcon.icns" ]; then
 fi
 
 rm -f "$DMG" "$DMG_SHA"
-hdiutil create \
-    -volname "$VOLUME" \
-    -srcfolder "$STAGE" \
-    -ov \
-    -format UDZO \
-    -fs HFS+ \
-    "$DMG" >/dev/null
+create_image
 
 hdiutil verify "$DMG" >/dev/null
 (
@@ -123,12 +159,12 @@ hdiutil verify "$DMG" >/dev/null
 
 echo "→ Verifica del contenuto montato…"
 MOUNT=$(mktemp -d /tmp/vertex-dmg.XXXXXX)
-hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT" >/dev/null
+attach_image "$DMG" "$MOUNT"
 ./Scripts/verify-bundle.sh "$MOUNT/${VERTEX_APP_NAME}.app"
 test -L "$MOUNT/Applications"
 test -d "$MOUNT/${VERTEX_APP_NAME}.app/Contents/Resources/Licenses"
 test -f "$MOUNT/Leggimi.txt"
-hdiutil detach "$MOUNT" >/dev/null
+detach_image "$MOUNT"
 rmdir "$MOUNT"
 MOUNT=""
 
