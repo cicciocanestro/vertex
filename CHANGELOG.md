@@ -3,19 +3,21 @@
 ## [1.5.4] — 2026-11-02
 
 ### Sicurezza
-- **Preferenze**: `validateAllPreferences()` controlla al'avvio porta, limiti di
+- **Preferenze**: `validateAllPreferences()` controlla all'avvio porta, limiti di
   velocità, bind address, aspetto e percorso di download. Un plist corrotto o un
   bug di migrazione che lascia un valore fuori range viene ripristinato alla
   default prima che l'engine lo legga, evitando che una configurazione rotta
   avvii la sessione.
+- **Decodifica JSON**: `Torrent.init(from:)` clampa `progress` in [0,1] e i
+  contatori a valori non negativi prima che raggiungano la UI e la pipeline di
+  ordinamento.
+- **UTF-8**: `is_valid_utf8` valida le stringhe prima di `json_escape`, evitando
+  JSON non decodificabile da Swift.
+- **Test**: copertura della validazione delle preferenze all'avvio.
 
 ## [1.5.3] — 2026-11-02
 
 ### Sicurezza
-- **vt_control**: la stringa `action` in arrivo dal layer Swift viene mappata a un
-  `enum class ControlAction` (allowlist esplicita) e gestita tramite `switch`
-  esaurivo. Ogni stringa non riconosciuta viene rifiutata come `unknown`. Rimossa
-  la catena `if/else` vulnerabile a command injection.
 - **Bind address**: `isValidIPv4` rifiuta ora `0.0.0.0`, loopback (`127.x`),
   link-local (`169.254.x`), forme corte (`192.168.1`) e leading zeros
   (`192.168.001.001`): solo indirizzi letterali e canonici vincolano l'engine.
