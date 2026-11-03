@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.5.7] — 2026-11-03
+
+Release di robustezza: validazione UTF-8 rigorosa nel bridge, shutdown senza attese
+inutili e caricamento del dettaglio fuori dal main actor.
+
+### Correzioni
+- **UTF-8 / JSON**: `json_escape` valida RFC 3629 e sostituisce byte o sequenze non
+  conformi con `\ufffd`; esportate `vt_json_escape` e `vt_is_valid_utf8`.
+- **Shutdown**: un `save_resume_data_failed_alert` con handle valido ma id non richiesto
+  non decrementa più `pending`; evita di liberare lo slot di un altro torrent e di
+  uscire prima del salvataggio. Gli handle invalidi restano perdonati per non bloccare
+  i 3 secondi finali.
+- **Dettaglio**: `loadDetail` usa `sessionQueue.async` e non blocca più il MainActor;
+  `pollNowForTesting` mantiene il percorso sincrono deterministico.
+
+### Test
+- Nuovo test UTF-8 con ASCII, emoji, overlong 2/3/4 byte, surrogati, valori oltre
+  U+10FFFF, continuation isolate e sequenze troncate.
+- `EngineTests` attendono il dettaglio asincrono con `waitUntil`. Suite 58/58.
+
 ## [1.5.6] — 2026-11-03
 
 Release di correzione: ripristina il sentinella dell'ETA sconosciuta, azzerato dal clamp
