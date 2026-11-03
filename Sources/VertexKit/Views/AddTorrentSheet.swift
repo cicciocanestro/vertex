@@ -53,9 +53,9 @@ struct AddTorrentSheet: View {
             if let message = errorMessage.value {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(Typography.caption)
                     Text(message)
-                        .font(.system(size: 10.5))
+                        .font(Typography.small)
                         .lineLimit(2)
                 }
                 .foregroundStyle(Theme.coral)
@@ -82,7 +82,7 @@ struct AddTorrentSheet: View {
                         )
                     VStack(spacing: 8) {
                         Image(systemName: "arrow.down.doc.fill")
-                            .font(.system(size: 26, weight: .light))
+                            .font(Typography.iconLarge)
                             .foregroundStyle(Theme.mint)
                         Text("Rilascia il file .torrent")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -113,10 +113,10 @@ struct AddTorrentSheet: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Aggiungi torrent")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Typography.modalTitle)
                     .foregroundStyle(palette.text)
                 Text("Un link magnet o un file .torrent")
-                    .font(.system(size: 10.5))
+                    .font(Typography.small)
                     .foregroundStyle(palette.secondary)
             }
 
@@ -141,7 +141,7 @@ struct AddTorrentSheet: View {
         ) { option, _ in
             HStack(spacing: 5) {
                 Image(systemName: option.icon)
-                    .font(.system(size: 9.5, weight: .semibold))
+                    .font(Typography.microSemibold)
                 Text(option.rawValue)
             }
         }
@@ -155,7 +155,7 @@ struct AddTorrentSheet: View {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $magnet.value)
                         .focused($magnetFocused)
-                        .font(.system(size: 10.5, design: .monospaced))
+                        .font(Typography.smallMono)
                         .foregroundStyle(palette.text)
                         .scrollContentBackground(.hidden)
                         .padding(.leading, 8)
@@ -177,7 +177,7 @@ struct AddTorrentSheet: View {
 
                     if magnet.value.isEmpty {
                         Text("magnet:?xt=urn:btih:…")
-                            .font(.system(size: 10.5, design: .monospaced))
+                            .font(Typography.smallMono)
                             .foregroundStyle(palette.tertiary)
                             .padding(.horizontal, 13)
                             .padding(.vertical, 12)
@@ -211,7 +211,7 @@ struct AddTorrentSheet: View {
                         }
                     } label: {
                         Label("Incolla", systemImage: "doc.on.clipboard")
-                            .font(.system(size: 9.5, weight: .medium))
+                            .font(Typography.microMedium)
                             .padding(.horizontal, 9)
                             .frame(height: 22)
                             .background(Capsule().fill(palette.input))
@@ -222,7 +222,7 @@ struct AddTorrentSheet: View {
                     .foregroundStyle(palette.secondary)
 
                     Text("Oppure trascina qui un file .torrent")
-                        .font(.system(size: 9.5))
+                        .font(Typography.micro)
                         .foregroundStyle(palette.tertiary)
 
                     Spacer()
@@ -264,11 +264,11 @@ struct AddTorrentSheet: View {
                 }
             } else {
                 Image(systemName: dropTargeted.value ? "arrow.down.doc.fill" : "arrow.down.doc")
-                    .font(.system(size: 23, weight: .light))
+                    .font(Typography.iconSmall)
                     .foregroundStyle(dropTargeted.value ? Theme.mint : palette.secondary)
 
                 Text("Trascina qui un file .torrent")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.secondary)
 
                 Button("Scegli file…") {
@@ -328,7 +328,7 @@ struct AddTorrentSheet: View {
         }
         .toggleStyle(.switch)
         .controlSize(.mini)
-        .font(.system(size: 10.5, weight: .medium))
+        .font(Typography.smallMedium)
         .foregroundStyle(palette.secondary)
         .tint(Theme.teal)
     }

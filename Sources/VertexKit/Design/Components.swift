@@ -97,7 +97,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12.5, weight: .semibold))
+            .font(Typography.bodyLargeSemibold)
             .foregroundStyle(Color(hex: 0x071016).opacity(isEnabled ? 0.92 : 0.45))
             .padding(.horizontal, 16)
             .frame(height: 34)
@@ -327,11 +327,11 @@ struct ToastView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.text)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(Typography.bodyLargeSemibold)
                     .foregroundStyle(palette.text)
                 if let detail = toast.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(.system(size: 11))
+                        .font(Typography.body)
                         .foregroundStyle(palette.secondary)
                         .lineLimit(1)
                 }
@@ -367,7 +367,7 @@ struct SectionLabel: View {
 
     var body: some View {
         Text(L(text).uppercased())
-            .font(.system(size: 9.5, weight: .semibold))
+            .font(Typography.microSemibold)
             .tracking(0.9)
             .foregroundStyle(Palette(scheme: scheme).tertiary)
     }

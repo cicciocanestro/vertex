@@ -22,10 +22,10 @@ struct InspectorView: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "sidebar.right")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Typography.captionMedium)
                         .foregroundStyle(palette.tertiary)
                     Text("Dettagli")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(Typography.bodySemibold)
                         .foregroundStyle(palette.secondary)
                 }
 
@@ -68,14 +68,14 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(torrent.name)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(Typography.title)
                     .foregroundStyle(palette.text)
                     .lineLimit(2)
                     .truncationMode(.middle)
 
                 HStack(spacing: 5) {
                     Text(torrent.phase.label)
-                        .font(.system(size: 10.5, weight: .medium))
+                        .font(Typography.smallMedium)
                         .foregroundStyle(palette.secondary)
                 }
 
@@ -134,14 +134,14 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
+                    .font(Typography.caption)
                 Text("Errore del torrent")
                     .font(.system(size: 10.5, weight: .semibold))
             }
             .foregroundStyle(Theme.coral)
 
             Text(torrent.error)
-                .font(.system(size: 10))
+                .font(Typography.caption)
                 .foregroundStyle(palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -261,7 +261,7 @@ struct InspectorView: View {
                 engine.setFilePriority(file, wanted: !file.isWanted, torrentID: torrent.id)
             } label: {
                 Image(systemName: file.isWanted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 12.5))
+                    .font(Typography.bodyLargeRegular)
                     .foregroundStyle(file.isWanted ? Theme.mint : palette.tertiary)
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
@@ -340,7 +340,7 @@ struct InspectorView: View {
 
                 if !tracker.message.isEmpty {
                     Text(tracker.message)
-                        .font(.system(size: 9))
+                        .font(Typography.captionTiny)
                         .foregroundStyle(Theme.coral.opacity(0.9))
                         .lineLimit(2)
                 }
@@ -361,9 +361,9 @@ struct InspectorView: View {
     private func waiting(_ palette: Palette, text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "hourglass")
-                .font(.system(size: 10, weight: .medium))
+                .font(Typography.captionMedium)
             Text(L(text))
-                .font(.system(size: 10.5))
+                .font(Typography.small)
         }
         .foregroundStyle(palette.tertiary)
         .frame(maxWidth: .infinity, alignment: .center)

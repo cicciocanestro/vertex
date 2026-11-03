@@ -19,11 +19,11 @@ struct EmptyStateView: View {
 
             VStack(spacing: 7) {
                 Text("Nessun torrent")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(Typography.hero)
                     .foregroundStyle(palette.text)
 
                 Text("Aggiungi un file .torrent o incolla un link magnet per iniziare.")
-                    .font(.system(size: 12.5))
+                    .font(Typography.bodyLargeRegular)
                     .foregroundStyle(palette.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 330)
@@ -41,9 +41,9 @@ struct EmptyStateView: View {
 
             HStack(spacing: 7) {
                 Image(systemName: "arrow.down.doc")
-                    .font(.system(size: 10, weight: .medium))
+                    .font(Typography.captionMedium)
                 Text("Trascina qui i file .torrent")
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(Typography.smallMedium)
             }
             .foregroundStyle(palette.tertiary)
             .padding(.horizontal, 15)
@@ -76,7 +76,7 @@ struct NoResultsView: View {
         let palette = Palette(scheme: scheme)
         VStack(spacing: 11) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 24, weight: .light))
+                .font(Typography.iconMedium)
                 .foregroundStyle(palette.tertiary)
 
             Text("Nessun risultato")
@@ -86,7 +86,7 @@ struct NoResultsView: View {
             Text(query.isEmpty
                  ? L("Nessun torrent in questo filtro.")
                  : LF("Nessun torrent corrisponde a “%@”.", query))
-                .font(.system(size: 11.5))
+                .font(Typography.bodyLarge)
                 .foregroundStyle(palette.secondary)
 
             Button("Azzera filtri", action: onReset)
@@ -112,10 +112,10 @@ struct DropOverlay: View {
                     .foregroundStyle(Theme.mint)
 
                 Text("Rilascia per aggiungere")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Typography.modalTitle)
 
                 Text(".torrent o link magnet")
-                    .font(.system(size: 11))
+                    .font(Typography.body)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 52)

@@ -6,6 +6,8 @@ ROOT="$PWD"
 
 # shellcheck source=Scripts/app.env
 source "$ROOT/Scripts/app.env"
+# shellcheck source=Scripts/lib/macho.sh
+source "$ROOT/Scripts/lib/macho.sh"
 
 CONFIG="release"
 REBUILD_DEPS=0
@@ -128,7 +130,7 @@ copy_dylib_closure() {
             cp -L "$dependency" "${FRAMEWORKS}/${base}"
             copied="${copied}${base} "
             queue+=("${FRAMEWORKS}/${base}")
-        done < <(otool -L "$current" | tail -n +2 | awk '{print $1}')
+        done < <(macho_dependencies "$current")
     done
 }
 
@@ -144,7 +146,7 @@ remove_rpaths() {
                 ;;
         esac
         install_name_tool -delete_rpath "$rpath" "$file" 2>/dev/null || true
-    done < <(otool -l "$file" | awk '/LC_RPATH/{found=1} found && /path/{print $2; found=0}')
+    done < <(macho_rpaths "$file")
 }
 
 rewrite_dependencies() {
@@ -166,7 +168,7 @@ rewrite_dependencies() {
                 fi
                 ;;
         esac
-    done < <(otool -L "$file" | tail -n +2 | awk '{print $1}')
+    done < <(macho_dependencies "$file")
 }
 
 copy_dylib_closure

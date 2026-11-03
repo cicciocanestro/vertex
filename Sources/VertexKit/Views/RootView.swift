@@ -409,7 +409,6 @@ package struct RootView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let clipboard, TorrentInput.isMagnet(clipboard) else {
-            engine.showToast(L("Nessun link magnet negli appunti"), kind: .info)
             activeModal.value = .add(.magnet)
             return
         }

@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <exception>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -41,6 +42,20 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+
+// Same error contract for the public operations: report the exception through
+// last_error and return the bridge's failure value.
+#define VT_CATCH_ALL(session_ptr, fallback)                                      \
+    catch (std::exception const& e)                                             \
+    {                                                                           \
+        (session_ptr)->last_error = e.what();                                   \
+        return fallback;                                                        \
+    }                                                                           \
+    catch (...)                                                                 \
+    {                                                                           \
+        (session_ptr)->last_error = "Errore sconosciuto";                       \
+        return fallback;                                                        \
+    }
 
 namespace {
 
@@ -297,7 +312,12 @@ struct vt_session
     std::string listen_error;
     int dht_metric_index = -1;
     int dht_nodes = 0;
+    // Synchronous operation error, read and cleared by vt_last_error().
     std::string last_error;
+    // Asynchronous add_torrent/torrent_error alert, surfaced once by the
+    // snapshot. Keeping it separate prevents an alert from overwriting the
+    // error of an operation the UI is about to report.
+    std::string last_alert_error;
     int actual_listen_port = 0;
     bool listening = false;
     bool upnp_enabled = true;
@@ -813,11 +833,11 @@ void vt_session_poll(vt_session* session)
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
             {
                 if (added->error)
-                    session->last_error = added->error.message();
+                    session->last_alert_error = added->error.message();
             }
             else if (auto* error = lt::alert_cast<lt::torrent_error_alert>(alert))
             {
-                session->last_error = error->error.message();
+                session->last_alert_error = error->error.message();
             }
         }
     }
@@ -835,6 +855,9 @@ char* vt_snapshot_json(vt_session* session)
     {
         std::ostringstream out;
         out.imbue(std::locale::classic());
+
+        std::string alert_error = session->last_alert_error;
+        session->last_alert_error.clear();
 
         std::int64_t download_rate = 0;
         std::int64_t upload_rate = 0;
@@ -875,6 +898,7 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"active\":" << active << ",";
         out << "\"paused_count\":" << paused << ",";
         out << "\"dht_nodes\":" << session->dht_nodes << ",";
+        out << "\"alert_error\":\"" << json_escape(alert_error) << "\",";
 
         try
         {
@@ -931,7 +955,10 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
             auto info = handle.torrent_file();
             if (info)
             {
-                auto progress = handle.file_progress();
+                // Piece granularity is much cheaper for libtorrent: it counts
+                // only hash-checked pieces instead of computing per-block
+                // progress on every inspector refresh.
+                auto progress = handle.file_progress(lt::torrent_handle::piece_granularity);
                 auto priorities = handle.get_file_priorities();
                 auto const& storage = info->layout();
                 bool first = true;
@@ -1068,10 +1095,7 @@ char* vt_magnet_uri(vt_session* session, const char* torrent_id_value)
         auto uri = lt::make_magnet_uri(params);
         return ::strdup(uri.c_str());
     }
-    catch (...)
-    {
-        return ::strdup("");
-    }
+    VT_CATCH_ALL(session, ::strdup(""))
 }
 
 int vt_add_magnet(vt_session* session,
@@ -1104,16 +1128,7 @@ int vt_add_magnet(vt_session* session,
 
         return add_torrent_common(session, params, save_path, paused, sequential);
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 int vt_add_torrent_file(vt_session* session,
@@ -1172,16 +1187,7 @@ int vt_add_torrent_file(vt_session* session,
 
         return add_torrent_common(session, params, save_path, paused, sequential);
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 int vt_add_peer(vt_session* session,
@@ -1213,16 +1219,7 @@ int vt_add_peer(vt_session* session,
             address, static_cast<unsigned short>(port)));
         return 0;
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 namespace {
@@ -1320,16 +1317,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
         return 0;
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int file_index, int priority)
@@ -1354,16 +1342,7 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
                              lt::download_priority_t(std::uint8_t(priority)));
         return 0;
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 int vt_apply_settings_ex(vt_session* session,
@@ -1407,16 +1386,7 @@ int vt_apply_settings_ex(vt_session* session,
         session->session->apply_settings(settings);
         return 0;
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 int vt_set_default_save_path(vt_session* session, const char* path)
@@ -1447,16 +1417,7 @@ int vt_set_default_save_path(vt_session* session, const char* path)
         session->default_save_path = target.string();
         return 0;
     }
-    catch (std::exception const& e)
-    {
-        session->last_error = e.what();
-        return -1;
-    }
-    catch (...)
-    {
-        session->last_error = "Errore sconosciuto";
-        return -1;
-    }
+    VT_CATCH_ALL(session, -1)
 }
 
 void vt_free_string(char* value)

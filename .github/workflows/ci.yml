@@ -65,7 +65,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build/vertex-deps
-          key: vertex-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/deps.env', 'Scripts/build-deps.sh', 'Scripts/toolchain.env') }}
+          key: vertex-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/app.env', 'Scripts/deps.env', 'Scripts/build-deps.sh', 'Scripts/lib/macho.sh', 'Scripts/toolchain.env') }}
           restore-keys: |
             vertex-deps-${{ runner.os }}-${{ runner.arch }}-
 

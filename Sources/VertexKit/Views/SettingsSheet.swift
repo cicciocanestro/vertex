@@ -159,7 +159,7 @@ struct SettingsSheet: View {
 
                         if !bindAddress.isEmpty {
                             Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                                .font(.system(size: 9.2))
+                                .font(Typography.captionTinyNarrow)
                                 .foregroundStyle(palette.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .padding(.horizontal, 4)
@@ -202,7 +202,7 @@ struct SettingsSheet: View {
                     Text(engine.isRestartingSession
                         ? L("Riavvio del motore BitTorrent…")
                         : L("Le modifiche di rete vengono applicate automaticamente."))
-                        .font(.system(size: 9.5))
+                        .font(Typography.micro)
                         .foregroundStyle(palette.tertiary)
                 } trailing: {
                     Button("Fine") {
@@ -255,16 +255,16 @@ struct SettingsSheet: View {
     private func destinationRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
-                .font(.system(size: 11.5, weight: .medium))
+                .font(Typography.bodyLargeMedium)
                 .foregroundStyle(Theme.mint)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Cartella di download")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(downloadPath)
-                    .font(.system(size: 9.8))
+                    .font(Typography.captionSmall)
                     .foregroundStyle(palette.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -291,16 +291,16 @@ struct SettingsSheet: View {
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .medium))
+                .font(Typography.bodyMedium)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(L(subtitle))
-                    .font(.system(size: 9.5))
+                    .font(Typography.micro)
                     .foregroundStyle(palette.tertiary)
             }
 
@@ -337,16 +337,16 @@ struct SettingsSheet: View {
     private func bindingRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 11, weight: .medium))
+                .font(Typography.bodyMedium)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Interfaccia di rete")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(L("Il traffico esce solo da questo indirizzo"))
-                    .font(.system(size: 9.5))
+                    .font(Typography.micro)
                     .foregroundStyle(palette.tertiary)
             }
 
@@ -390,13 +390,13 @@ struct SettingsSheet: View {
     private func bindingLabel(_ palette: Palette) -> some View {
         HStack(spacing: 5) {
             Text(bindingText)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .font(Typography.captionMediumRounded)
                 .foregroundStyle(palette.text)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: 170, alignment: .trailing)
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 7.5, weight: .semibold))
+                .font(Typography.badge)
                 .foregroundStyle(palette.tertiary)
         }
         .padding(.horizontal, 8)
@@ -427,23 +427,23 @@ struct SettingsSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "network")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(Typography.bodyMedium)
                     .foregroundStyle(palette.secondary)
                     .frame(width: 18)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Diagnostica rete")
-                        .font(.system(size: 11.5, weight: .medium))
+                        .font(Typography.bodyLargeMedium)
                         .foregroundStyle(palette.text)
                     Text("Porta effettiva, mapping e test esterno")
-                        .font(.system(size: 9.5))
+                        .font(Typography.micro)
                         .foregroundStyle(palette.tertiary)
                 }
 
                 Spacer(minLength: 8)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(Typography.captionTinySemibold)
                     .foregroundStyle(palette.tertiary)
             }
             .padding(.vertical, 8)
@@ -461,16 +461,16 @@ struct SettingsSheet: View {
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .medium))
+                .font(Typography.bodyMedium)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(L(subtitle))
-                    .font(.system(size: 9.5))
+                    .font(Typography.micro)
                     .foregroundStyle(palette.tertiary)
             }
 
@@ -497,7 +497,7 @@ struct SettingsSheet: View {
         ) { (option: AppearanceOption, _) in
             HStack(spacing: 5) {
                 Image(systemName: option.icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(Typography.captionTinySemibold)
                 Text(option.label)
             }
         }
@@ -506,16 +506,16 @@ struct SettingsSheet: View {
     private func versionRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle")
-                .font(.system(size: 11, weight: .medium))
+                .font(Typography.bodyMedium)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Vertex")
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(LF("Versione %@ (build %@)", AppInfo.version, AppInfo.build))
-                    .font(.system(size: 9.5))
+                    .font(Typography.micro)
                     .foregroundStyle(palette.tertiary)
             }
 

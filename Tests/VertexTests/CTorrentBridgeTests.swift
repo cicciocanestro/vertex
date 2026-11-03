@@ -35,6 +35,7 @@ enum CTorrentBridgeTests {
                     try TestRunner.assertTrue(jsonString.contains("download_rate"), "Lo snapshot deve contenere download_rate")
                     try TestRunner.assertTrue(jsonString.contains("torrents"), "Lo snapshot deve contenere l'array torrents")
                     try TestRunner.assertTrue(jsonString.contains("listening"), "Lo snapshot deve contenere il flag listening")
+                    try TestRunner.assertTrue(jsonString.contains("alert_error"), "Lo snapshot deve esporre alert_error")
 
                     let snapshotData = Data(jsonString.utf8)
                     let decoded = try JSONDecoder().decode(VertexSnapshot.self, from: snapshotData)

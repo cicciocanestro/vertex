@@ -962,6 +962,10 @@ package final class TorrentEngine: ObservableObject {
     }
 
     private func apply(_ snapshot: VertexSnapshot) {
+        if !snapshot.alertError.isEmpty {
+            showToast(localizedError(snapshot.alertError), kind: .error)
+        }
+
         // Notify only for torrents we have seen actively unfinished (not while verifying),
         // so resumed torrents settling after launch don't trigger a false "completed" toast.
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))

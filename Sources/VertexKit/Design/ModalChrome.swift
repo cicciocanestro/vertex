@@ -25,10 +25,10 @@ struct ModalHeader: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Typography.modalTitle)
                     .foregroundStyle(palette.text)
                 Text(subtitle)
-                    .font(.system(size: 10.5))
+                    .font(Typography.small)
                     .foregroundStyle(palette.secondary)
             }
 

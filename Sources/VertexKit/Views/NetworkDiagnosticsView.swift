@@ -132,7 +132,7 @@ struct NetworkDiagnosticsView: View {
                     .minimumScaleFactor(0.75)
             }
             Text(detail)
-                .font(.system(size: 9.5))
+                .font(Typography.micro)
                 .foregroundStyle(palette.tertiary)
                 .lineLimit(1)
         }
@@ -154,16 +154,16 @@ struct NetworkDiagnosticsView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
+                            .font(Typography.caption)
                             .foregroundStyle(Theme.coral)
                         Text(engine.stats.listenError)
-                            .font(.system(size: 10, design: .monospaced))
+                            .font(Typography.captionMono)
                             .foregroundStyle(palette.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Text(L("L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce."))
-                        .font(.system(size: 9.5))
+                        .font(Typography.micro)
                         .foregroundStyle(palette.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -187,10 +187,10 @@ struct NetworkDiagnosticsView: View {
                     Hairline(palette: palette)
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 9))
+                            .font(Typography.captionTiny)
                             .foregroundStyle(Theme.coral)
                         Text(engine.stats.portmap.error)
-                            .font(.system(size: 9.8))
+                            .font(Typography.captionSmall)
                             .foregroundStyle(palette.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -203,7 +203,7 @@ struct NetworkDiagnosticsView: View {
             if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
                 && !engine.stats.portmap.hasError {
                 Text("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato.")
-                    .font(.system(size: 9.8))
+                    .font(Typography.captionSmall)
                     .foregroundStyle(palette.tertiary)
             }
         }
@@ -217,19 +217,19 @@ struct NetworkDiagnosticsView: View {
                     .frame(width: 6, height: 6)
 
                 Text(label)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(Typography.bodySemibold)
                     .foregroundStyle(palette.text)
 
                 Spacer()
 
                 if info.mapped {
                     Text(LF("porta esterna %ld", info.externalPort))
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(Typography.captionMediumRounded)
                         .monospacedDigit()
                         .foregroundStyle(palette.secondary)
                     if !info.transport.isEmpty {
                         Text(info.transport)
-                            .font(.system(size: 8.5, weight: .semibold))
+                            .font(Typography.captionMicroSemibold)
                             .foregroundStyle(Theme.green)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
@@ -237,7 +237,7 @@ struct NetworkDiagnosticsView: View {
                     }
                 } else {
                     Text("non mappata")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(Typography.captionMedium)
                         .foregroundStyle(palette.tertiary)
                 }
             }
@@ -245,10 +245,10 @@ struct NetworkDiagnosticsView: View {
             if info.hasError {
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9))
+                        .font(Typography.captionTiny)
                         .foregroundStyle(Theme.coral)
                     Text(info.error)
-                        .font(.system(size: 9.8))
+                        .font(Typography.captionSmall)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -284,7 +284,7 @@ struct NetworkDiagnosticsView: View {
                 if let publicIP = tester.publicIP {
                     HStack(spacing: 8) {
                         Text("\(publicIP):\(testPort)")
-                            .font(.system(size: 10, design: .monospaced))
+                            .font(Typography.captionMono)
                             .foregroundStyle(palette.text)
                             .textSelection(.enabled)
                             .lineLimit(1)
@@ -318,7 +318,7 @@ struct NetworkDiagnosticsView: View {
 
                     if case .idle = tester.state {
                         Text("Test TCP tramite check-host.net")
-                            .font(.system(size: 9.2))
+                            .font(Typography.captionTinyNarrow)
                             .foregroundStyle(palette.tertiary)
                     }
                 }
@@ -401,7 +401,7 @@ struct NetworkDiagnosticsView: View {
                 .frame(width: 3.5, height: 3.5)
                 .padding(.top, 5)
             Text(text)
-                .font(.system(size: 9.8))
+                .font(Typography.captionSmall)
                 .foregroundStyle(palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

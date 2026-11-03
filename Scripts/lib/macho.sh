@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Shared helpers to inspect Mach-O binaries. Sourced by build-deps.sh and
-# verify-bundle.sh so the two checks cannot drift apart.
+# Shared helpers to inspect Mach-O binaries. Sourced by build.sh,
+# build-deps.sh and verify-bundle.sh so the checks cannot drift apart.
+
+macho_dependencies() {
+    otool -L "$1" | tail -n +2 | awk '{print $1}'
+}
+
+macho_rpaths() {
+    otool -l "$1" | awk '/LC_RPATH/{found=1} found && /path/{print $2; found=0}'
+}
 
 macho_minos() {
     local minos

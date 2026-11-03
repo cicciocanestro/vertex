@@ -16,10 +16,10 @@ struct HeaderBar: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Text("Vertex")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Typography.modalTitle)
                     .foregroundStyle(palette.text)
                 Text("TORRENT CLIENT")
-                    .font(.system(size: 7.5, weight: .semibold))
+                    .font(Typography.badge)
                     .tracking(1.6)
                     .foregroundStyle(palette.tertiary)
                 Text("v\(AppInfo.version)")
@@ -51,7 +51,7 @@ struct HeaderBar: View {
     private func searchField(_ palette: Palette) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 10.5, weight: .medium))
+                .font(Typography.smallMedium)
                 .foregroundStyle(searchFocused.wrappedValue ? Theme.mint : palette.tertiary)
 
             TextField("Cerca torrent…", text: $search)
@@ -65,7 +65,7 @@ struct HeaderBar: View {
                     search = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(Typography.caption)
                         .foregroundStyle(palette.tertiary)
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
@@ -123,9 +123,9 @@ struct FilterBar: View {
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 9.5, weight: .semibold))
+                        .font(Typography.microSemibold)
                     Text(sort.label)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Typography.bodyMedium)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 7, weight: .bold))
                         .opacity(0.55)

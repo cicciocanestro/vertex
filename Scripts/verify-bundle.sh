@@ -120,7 +120,7 @@ for file in "${MACHOS[@]}"; do
                 exit 1
                 ;;
         esac
-    done < <(otool -L "$file" | tail -n +2 | awk '{print $1}')
+    done < <(macho_dependencies "$file")
 
     while IFS= read -r rpath; do
         [ -n "$rpath" ] || continue
@@ -131,7 +131,7 @@ for file in "${MACHOS[@]}"; do
         esac
         echo "✗ LC_RPATH non ammesso in $rel: $rpath" >&2
         exit 1
-    done < <(otool -l "$file" | awk '/LC_RPATH/{found=1} found && /path/{print $2; found=0}')
+    done < <(macho_rpaths "$file")
 done
 
 if version_gt "$MAX_MINOS" "$DECLARED_MIN"; then

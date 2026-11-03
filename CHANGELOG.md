@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Correzioni
+- **Errori asincroni**: `last_error` resta riservato alle operazioni sincrone;
+  `add_torrent`/`torrent_error` usano `last_alert_error`, esposto dallo snapshot come
+  `alert_error` e mostrato una volta dalla UI, senza sovrascrivere l'errore corrente.
+- **Incolla magnet**: se gli appunti non contengono un magnet, si apre solo la finestra
+  di aggiunta; niente toast ridondante.
+
+### Prestazioni
+- **Lista torrent**: la categoria esclusiva viene calcolata una volta per torrent;
+  filtro e conteggi restano in una sola passata.
+- **Dettaglio**: il progresso dei file usa la granularità pezzo di libtorrent
+  (`piece_granularity`), più economica delle stime per blocco.
+
+### Manutenzione
+- **Bridge C++**: un'unica macro per il contratto catch/`last_error`.
+- **Script**: `macho_dependencies` e `macho_rpaths` condivisi in `Scripts/lib/macho.sh`,
+  usati da `build.sh`, `build-deps.sh` e `verify-bundle.sh`.
+- **CI**: la chiave cache delle dipendenze include `Scripts/app.env` e
+  `Scripts/lib/macho.sh`.
+- **UI**: scala tipografica `Typography` e sostituzione di 89 font hardcoded ripetuti;
+  screenshot demo di Impostazioni e Diagnostica verificati.
+
 ## [1.5.4] — 2026-11-02
 
 ### Sicurezza

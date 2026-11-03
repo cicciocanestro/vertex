@@ -261,7 +261,7 @@ for file in "$SSL_LIB" "$CRYPTO_LIB" "$LIBTORRENT_LIB"; do
                 exit 1
                 ;;
         esac
-    done < <(otool -L "$file" | tail -n +2 | awk '{print $1}')
+    done < <(macho_dependencies "$file")
 done
 
 printf 'lock=%s script=%s toolchain=%s target=%s arch=%s\n' \

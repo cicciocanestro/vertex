@@ -53,7 +53,7 @@ struct TorrentRow: View {
 
                     if torrent.hasError {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 9.5))
+                            .font(Typography.micro)
                             .foregroundStyle(Theme.coral)
                             .help(torrent.error)
                     }
@@ -77,7 +77,7 @@ struct TorrentRow: View {
 
                 if torrent.hasError {
                     Text(torrent.error)
-                        .font(.system(size: 9.5, weight: .medium))
+                        .font(Typography.microMedium)
                         .foregroundStyle(Theme.coral)
                         .lineLimit(1)
                         .truncationMode(.tail)

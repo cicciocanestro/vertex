@@ -25,7 +25,7 @@ struct StatusBarView: View {
             HStack(spacing: 7) {
                 PulsingDot(color: dhtEnabled ? Theme.green : palette.tertiary)
                 Text(dhtLabel)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(Typography.captionMedium)
                     .foregroundStyle(palette.secondary)
             }
 
@@ -63,14 +63,14 @@ struct StatusBarView: View {
             }
 
             Text(LF("%ld attivi", engine.stats.active))
-                .font(.system(size: 10, weight: .medium))
+                .font(Typography.captionMedium)
                 .foregroundStyle(palette.secondary)
 
             Text("·")
                 .foregroundStyle(palette.tertiary)
 
             Text(LF("%ld torrent", engine.torrents.count))
-                .font(.system(size: 10, weight: .medium))
+                .font(Typography.captionMedium)
                 .foregroundStyle(palette.secondary)
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
@@ -80,7 +80,7 @@ struct StatusBarView: View {
                     Image(systemName: engine.stats.isBoundToAddress
                         ? "lock.shield.fill"
                         : "network")
-                        .font(.system(size: 8.5, weight: .semibold))
+                        .font(Typography.captionMicroSemibold)
                     Text(LF("Porta %ld", engine.stats.effectivePort))
                         .font(.system(size: 9.5, weight: .regular, design: .rounded))
                         .monospacedDigit()

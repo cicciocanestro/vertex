@@ -13,6 +13,7 @@ enum ModelsTests {
                 "active": 2,
                 "paused_count": 1,
                 "dht_nodes": 128,
+                "alert_error": "",
                 "listen_actual_port": 6881,
                 "listening": true,
                 "bind_address": "10.8.0.2",
@@ -63,6 +64,7 @@ enum ModelsTests {
             try TestRunner.assertEqual(snapshot.uploadRate, 524288)
             try TestRunner.assertEqual(snapshot.active, 2)
             try TestRunner.assertEqual(snapshot.dhtNodes, 128)
+            try TestRunner.assertEqual(snapshot.alertError, "")
             try TestRunner.assertEqual(snapshot.listening, true)
             try TestRunner.assertEqual(snapshot.listenActualPort, 6881)
             try TestRunner.assertEqual(snapshot.portmap.tcp.mapped, true)

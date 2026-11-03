@@ -261,6 +261,7 @@ package struct VertexSnapshot: Decodable {
     package let portmap: PortMapSnapshot
     package let bindAddress: String
     package let listenError: String
+    package let alertError: String
 
     enum CodingKeys: String, CodingKey {
         case torrents
@@ -275,6 +276,7 @@ package struct VertexSnapshot: Decodable {
         case portmap
         case bindAddress = "bind_address"
         case listenError = "listen_error"
+        case alertError = "alert_error"
     }
 
     package var stats: SessionStats {
@@ -341,27 +343,23 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Filters are mutually exclusive: every torrent belongs to exactly one
-    /// category. `Torrent.phase` is the single source of truth, and it gives
-    /// pause precedence over every other state. A seeding torrent is counted
-    /// in "Seed", not in "Completati"; a paused finished torrent is only
-    /// "In pausa"; "Download" includes metadata and verification.
-    package func matches(_ torrent: Torrent) -> Bool {
-        switch self {
-        case .all:
-            return true
-        case .downloading:
-            switch torrent.phase {
-            case .downloading, .metadata, .checking: return true
-            case .seeding, .completed, .paused: return false
-            }
-        case .seeding:
-            return torrent.phase == .seeding
-        case .completed:
-            return torrent.phase == .completed
-        case .paused:
-            return torrent.phase == .paused
+    /// The single exclusive category for a torrent. `Torrent.phase` is the
+    /// source of truth: pause prevails, and "Download" includes metadata and
+    /// verification.
+    package static func category(for torrent: Torrent) -> TorrentFilter {
+        switch torrent.phase {
+        case .downloading, .metadata, .checking: return .downloading
+        case .seeding: return .seeding
+        case .completed: return .completed
+        case .paused: return .paused
         }
+    }
+
+    /// Filters are mutually exclusive: every torrent belongs to exactly one
+    /// category. A seeding torrent is counted in "Seed", not in "Completati";
+    /// a paused finished torrent is only "In pausa".
+    package func matches(_ torrent: Torrent) -> Bool {
+        self == .all || Self.category(for: torrent) == self
     }
 }
 
@@ -427,11 +425,11 @@ package enum TorrentListPipeline {
         list.reserveCapacity(torrents.count)
 
         for torrent in torrents {
-            for filterCase in TorrentFilter.allCases where filterCase.matches(torrent) {
-                counts[filterCase, default: 0] += 1
-            }
+            let category = TorrentFilter.category(for: torrent)
+            counts[.all, default: 0] += 1
+            counts[category, default: 0] += 1
 
-            guard filter.matches(torrent) else { continue }
+            guard filter == .all || filter == category else { continue }
             if !search.isEmpty,
                !torrent.name.localizedCaseInsensitiveContains(search),
                !torrent.id.localizedCaseInsensitiveContains(search) {
