@@ -84,6 +84,14 @@ int vt_set_default_save_path(vt_session* session, const char* path);
    Returns a malloc'd string to free with vt_free_string. */
 char* vt_normalize_save_path(const char* requested, const char* fallback);
 
+/* Escapes a string as JSON with strict RFC 3629 UTF-8 validation. Replaces
+   malformed or non-UTF-8 bytes with \ufffd. Returns a malloc'd string to free
+   with vt_free_string. */
+char* vt_json_escape(const char* input);
+
+/* Returns 1 if input is valid RFC 3629 UTF-8, 0 otherwise. */
+int vt_is_valid_utf8(const char* input);
+
 void vt_free_string(char* value);
 
 #ifdef __cplusplus

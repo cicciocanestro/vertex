@@ -195,6 +195,97 @@ enum CTorrentBridgeTests {
             }
         }
 
+        TestRunner.run("Bridge: sanitizzazione UTF-8 e json_escape") {
+            let validASCII = "Hello \"World\" \\ \n \t"
+            try validASCII.withCString { cStr in
+                try TestRunner.assertEqual(vt_is_valid_utf8(cStr), 1)
+                guard let escaped = vt_json_escape(cStr) else {
+                    try TestRunner.assertTrue(false, "vt_json_escape non deve restituire nil")
+                    return
+                }
+                let swiftEscaped = String(cString: escaped)
+                vt_free_string(escaped)
+                try TestRunner.assertEqual(swiftEscaped, "Hello \\\"World\\\" \\\\ \\n \\t")
+            }
+
+            let validUTF8 = "Vertex client torrente: caffè e 🚀"
+            try validUTF8.withCString { cStr in
+                try TestRunner.assertEqual(vt_is_valid_utf8(cStr), 1)
+                guard let escaped = vt_json_escape(cStr) else {
+                    try TestRunner.assertTrue(false, "vt_json_escape non deve restituire nil")
+                    return
+                }
+                let swiftEscaped = String(cString: escaped)
+                vt_free_string(escaped)
+                try TestRunner.assertEqual(swiftEscaped, validUTF8)
+            }
+
+            let validBoundaries = ["\u{80}", "\u{7FF}", "\u{800}", "\u{FFFF}", "\u{10000}", "\u{10FFFF}"]
+            for value in validBoundaries {
+                try value.withCString { cStr in
+                    try TestRunner.assertEqual(vt_is_valid_utf8(cStr), 1, "UTF-8 valido rifiutato: \(value)")
+                    guard let escaped = vt_json_escape(cStr) else {
+                        try TestRunner.assertTrue(false, "vt_json_escape non deve restituire nil")
+                        return
+                    }
+                    let swiftEscaped = String(cString: escaped)
+                    vt_free_string(escaped)
+                    try TestRunner.assertEqual(swiftEscaped, value)
+                }
+            }
+
+            let invalidSequences: [[UInt8]] = [
+                [0xC1, 0xBF],             // overlong 2-byte
+                [0xE0, 0x80, 0x80],       // overlong 3-byte
+                [0xED, 0xA0, 0x80],       // UTF-16 surrogate
+                [0xF0, 0x80, 0x80, 0x80], // overlong 4-byte
+                [0xF4, 0x90, 0x80, 0x80], // > U+10FFFF
+                [0x80],                   // continuation alone
+                [0xE2, 0x82]              // truncated 3-byte
+            ]
+            for bytes in invalidSequences {
+                var terminated = bytes
+                terminated.append(0x00)
+                try terminated.withUnsafeBufferPointer { ntBuf in
+                    let cStr = UnsafeRawPointer(ntBuf.baseAddress!).assumingMemoryBound(to: CChar.self)
+                    try TestRunner.assertEqual(vt_is_valid_utf8(cStr), 0, "UTF-8 non valido accettato")
+                    guard let escaped = vt_json_escape(cStr) else {
+                        try TestRunner.assertTrue(false, "vt_json_escape non deve restituire nil")
+                        return
+                    }
+                    let swiftEscaped = String(cString: escaped)
+                    vt_free_string(escaped)
+                    try TestRunner.assertTrue(
+                        swiftEscaped.contains("\\ufffd"),
+                        "La sequenza corrotta deve produrre \\ufffd"
+                    )
+                }
+            }
+
+            let invalidBytes: [UInt8] = [
+                0x41, // 'A'
+                0xC0, 0xAF, // Overlong UTF-8
+                0x42, // 'B'
+                0xED, 0xA0, 0x80, // UTF-16 surrogate (U+D800)
+                0x43, // 'C'
+                0xFF, // Byte non valido
+                0x44, // 'D'
+                0x00 // Null terminator
+            ]
+            try invalidBytes.withUnsafeBufferPointer { ntBuf in
+                let cStr = UnsafeRawPointer(ntBuf.baseAddress!).assumingMemoryBound(to: CChar.self)
+                try TestRunner.assertEqual(vt_is_valid_utf8(cStr), 0)
+                guard let escaped = vt_json_escape(cStr) else {
+                    try TestRunner.assertTrue(false, "vt_json_escape non deve restituire nil")
+                    return
+                }
+                let swiftEscaped = String(cString: escaped)
+                vt_free_string(escaped)
+                try TestRunner.assertTrue(swiftEscaped.contains("\\ufffd"), "I byte corrotti devono essere sostituiti con \\ufffd")
+                try TestRunner.assertEqual(swiftEscaped, "A\\ufffd\\ufffdB\\ufffd\\ufffd\\ufffdC\\ufffdD")
+            }
+        }
+
         TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
             try upnpSmoke()
         }

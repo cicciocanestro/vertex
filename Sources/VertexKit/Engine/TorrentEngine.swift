@@ -1075,8 +1075,13 @@ package final class TorrentEngine: ObservableObject {
             return
         }
         let generation = sessionGeneration
-        let json = sessionQueue.sync { Self.readDetailJSON(session, id: id) }
-        applyDetailJSON(json, id: id, generation: generation)
+        let pointer = SessionPointerBox(session)
+        sessionQueue.async { [weak self] in
+            let json = pointer.value.flatMap { Self.readDetailJSON($0, id: id) }
+            DispatchQueue.main.async {
+                self?.applyDetailJSON(json, id: id, generation: generation)
+            }
+        }
     }
 
     private func applyDetailJSON(_ json: String?, id: String, generation: Int? = nil) {
@@ -1105,6 +1110,10 @@ package final class TorrentEngine: ObservableObject {
         let generation = sessionGeneration
         let snapshot = sessionQueue.sync { Self.readSnapshot(session) }
         finishPoll(snapshot, id: pollID, generation: generation)
+        if let id = selectedID {
+            let json = sessionQueue.sync { Self.readDetailJSON(session, id: id) }
+            applyDetailJSON(json, id: id, generation: generation)
+        }
     }
 
     package func applyDetailJSONForTesting(_ json: String?, id: String) {

@@ -34,6 +34,9 @@ enum EngineTests {
             }
 
             onMain { engine.select(torrent.id) }
+            try waitUntil("dettaglio del torrent selezionato caricato") {
+                onMain { engine.detail != nil }
+            }
             let detail = onMain { engine.detail }
             try TestRunner.assertNotNil(detail, "Il dettaglio del torrent selezionato deve essere caricato")
             try TestRunner.assertEqual(detail?.metadata, false)
@@ -84,6 +87,9 @@ enum EngineTests {
             try TestRunner.assertEqual(torrent.name, fixture.rootName)
 
             onMain { engine.select(torrent.id) }
+            try waitUntil("dettaglio del torrent fixture caricato") {
+                onMain { engine.detail != nil }
+            }
             guard let detail = onMain({ engine.detail }) else {
                 try TestRunner.assertTrue(false, "Il dettaglio del torrent fixture deve essere disponibile")
                 return
@@ -182,6 +188,9 @@ enum EngineTests {
                 return
             }
             onMain { engine.select(torrent.id) }
+            try waitUntil("dettaglio iniziale presente") {
+                onMain { engine.detail != nil }
+            }
             try TestRunner.assertNotNil(onMain { engine.detail })
 
             // A failed fetch must not leave the previous detail visible.
@@ -189,12 +198,18 @@ enum EngineTests {
             try TestRunner.assertNil(onMain { engine.detail })
 
             onMain { engine.select(torrent.id) }
+            try waitUntil("dettaglio ripristinato") {
+                onMain { engine.detail != nil }
+            }
             try TestRunner.assertNotNil(onMain { engine.detail })
             onMain { engine.applyDetailJSONForTesting("not-json", id: torrent.id) }
             try TestRunner.assertNil(onMain { engine.detail })
 
             // A stale response for another selection must be ignored.
             onMain { engine.select(torrent.id) }
+            try waitUntil("dettaglio ripristinato per stale check") {
+                onMain { engine.detail != nil }
+            }
             onMain { engine.applyDetailJSONForTesting(nil, id: "another-torrent") }
             try TestRunner.assertNotNil(onMain { engine.detail })
 

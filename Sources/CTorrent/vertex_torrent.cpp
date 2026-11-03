@@ -59,76 +59,185 @@ namespace fs = std::filesystem;
 
 namespace {
 
-/// Validate UTF-8 without allocating. Used by json_escape to reject malformed
-/// payloads before they reach the JSON decoder.
+/// Validate UTF-8 strictly according to RFC 3629 without allocating.
+/// Rejects overlong sequences, UTF-16 surrogates, and values above U+10FFFF.
 bool is_valid_utf8(std::string const& input)
 {
     std::size_t i = 0;
-    std::size_t n = input.size();
+    std::size_t const n = input.size();
     while (i < n)
     {
-        unsigned char c = static_cast<unsigned char>(input[i]);
-        std::size_t seq_len;
+        unsigned char const c = static_cast<unsigned char>(input[i]);
         if (c < 0x80)
         {
-            seq_len = 1;
+            ++i;
         }
-        else if ((c >> 5) == 0x6)        // 110xxxxx
+        else if (c >= 0xC2 && c <= 0xDF) // 2-byte sequence
         {
-            seq_len = 2;
+            if (i + 1 >= n) return false;
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            if ((c1 & 0xC0) != 0x80) return false;
+            i += 2;
         }
-        else if ((c >> 4) == 0xE)        // 1110xxxx
+        else if (c >= 0xE0 && c <= 0xEF) // 3-byte sequence
         {
-            seq_len = 3;
+            if (i + 2 >= n) return false;
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
+            if ((c2 & 0xC0) != 0x80) return false;
+            if (c == 0xE0)
+            {
+                if (c1 < 0xA0 || c1 > 0xBF) return false; // reject overlong
+            }
+            else if (c == 0xED)
+            {
+                if (c1 < 0x80 || c1 > 0x9F) return false; // reject surrogates
+            }
+            else
+            {
+                if ((c1 & 0xC0) != 0x80) return false;
+            }
+            i += 3;
         }
-        else if ((c >> 3) == 0x1E)       // 11110xxx
+        else if (c >= 0xF0 && c <= 0xF4) // 4-byte sequence
         {
-            seq_len = 4;
+            if (i + 3 >= n) return false;
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
+            unsigned char const c3 = static_cast<unsigned char>(input[i + 3]);
+            if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) return false;
+            if (c == 0xF0)
+            {
+                if (c1 < 0x90 || c1 > 0xBF) return false; // reject overlong
+            }
+            else if (c == 0xF4)
+            {
+                if (c1 < 0x80 || c1 > 0x8F) return false; // reject > U+10FFFF
+            }
+            else
+            {
+                if ((c1 & 0xC0) != 0x80) return false;
+            }
+            i += 4;
         }
-        else return false;
-
-        if (i + seq_len > n) return false;
-        for (std::size_t j = 1; j < seq_len; ++j)
+        else
         {
-            unsigned char cont = static_cast<unsigned char>(input[i + j]);
-            if ((cont >> 6) != 0x2) return false; // not 10xxxxxx
+            return false;
         }
-        i += seq_len;
     }
     return true;
 }
 
 std::string json_escape(std::string const& input)
 {
-        std::string out;
-        out.reserve(input.size() + 16);
-        for (unsigned char c : input)
+    std::string out;
+    out.reserve(input.size() + 16);
+    std::size_t i = 0;
+    std::size_t const n = input.size();
+
+    while (i < n)
+    {
+        unsigned char const c = static_cast<unsigned char>(input[i]);
+        if (c < 0x80)
         {
-            if (c < 0x80)
+            switch (c)
             {
-                switch (c)
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (c < 0x20)
                 {
-                case '"': out += "\\\""; break;
-                case '\\': out += "\\\\"; break;
-                case '\b': out += "\\b"; break;
-                case '\f': out += "\\f"; break;
-                case '\n': out += "\\n"; break;
-                case '\r': out += "\\r"; break;
-                case '\t': out += "\\t"; break;
-                default:
-                    if (c < 0x20)
-                    {
-                        char buffer[7];
-                        std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
-                        out += buffer;
-                    }
-                    else out += static_cast<char>(c);
+                    char buffer[7];
+                    std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
+                    out += buffer;
+                }
+                else
+                {
+                    out += static_cast<char>(c);
                 }
             }
-            else out += static_cast<char>(c); // replacement char handled by decoder
+            ++i;
         }
-        return out;
+        else if (c >= 0xC2 && c <= 0xDF && i + 1 < n)
+        {
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            if ((c1 & 0xC0) == 0x80)
+            {
+                out += static_cast<char>(c);
+                out += static_cast<char>(c1);
+                i += 2;
+            }
+            else
+            {
+                out += "\\ufffd";
+                ++i;
+            }
+        }
+        else if (c >= 0xE0 && c <= 0xEF && i + 2 < n)
+        {
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
+            bool valid = ((c2 & 0xC0) == 0x80);
+            if (c == 0xE0)
+                valid = valid && (c1 >= 0xA0 && c1 <= 0xBF);
+            else if (c == 0xED)
+                valid = valid && (c1 >= 0x80 && c1 <= 0x9F);
+            else
+                valid = valid && ((c1 & 0xC0) == 0x80);
+
+            if (valid)
+            {
+                out += static_cast<char>(c);
+                out += static_cast<char>(c1);
+                out += static_cast<char>(c2);
+                i += 3;
+            }
+            else
+            {
+                out += "\\ufffd";
+                ++i;
+            }
+        }
+        else if (c >= 0xF0 && c <= 0xF4 && i + 3 < n)
+        {
+            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
+            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
+            unsigned char const c3 = static_cast<unsigned char>(input[i + 3]);
+            bool valid = ((c2 & 0xC0) == 0x80) && ((c3 & 0xC0) == 0x80);
+            if (c == 0xF0)
+                valid = valid && (c1 >= 0x90 && c1 <= 0xBF);
+            else if (c == 0xF4)
+                valid = valid && (c1 >= 0x80 && c1 <= 0x8F);
+            else
+                valid = valid && ((c1 & 0xC0) == 0x80);
+
+            if (valid)
+            {
+                out += static_cast<char>(c);
+                out += static_cast<char>(c1);
+                out += static_cast<char>(c2);
+                out += static_cast<char>(c3);
+                i += 4;
+            }
+            else
+            {
+                out += "\\ufffd";
+                ++i;
+            }
+        }
+        else
+        {
+            out += "\\ufffd";
+            ++i;
+        }
     }
+    return out;
+}
 
 std::string to_hex(lt::sha1_hash const& hash)
 {
@@ -699,15 +808,55 @@ void vt_session_destroy(vt_session* session)
                 }
                 else if (auto* failed = lt::alert_cast<lt::save_resume_data_failed_alert>(alert))
                 {
+                    bool identified = false;
+                    bool matched = false;
                     try
                     {
-                        auto id = torrent_id(
-                            failed->handle.status(lt::status_flags_t{}));
-                        if (requested_ids.erase(id) > 0)
-                            --pending;
+                        if (failed->handle.is_valid())
+                        {
+                            auto const id = to_hex(failed->handle.info_hashes().get_best());
+                            if (!id.empty())
+                            {
+                                identified = true;
+                                if (requested_ids.erase(id) > 0)
+                                {
+                                    --pending;
+                                    matched = true;
+                                }
+                            }
+                        }
                     }
                     catch (...)
                     {
+                    }
+
+                    if (!matched && !identified)
+                    {
+                        try
+                        {
+                            auto id = torrent_id(
+                                failed->handle.status(lt::status_flags_t{}));
+                            if (!id.empty())
+                            {
+                                identified = true;
+                                if (requested_ids.erase(id) > 0)
+                                {
+                                    --pending;
+                                    matched = true;
+                                }
+                            }
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
+
+                    // A valid handle whose id is not in requested_ids is a
+                    // stale alert: it must not release a slot for another
+                    // torrent. Only unknown/invalid handles are forgiven.
+                    if (!matched && !identified && pending > 0)
+                    {
+                        --pending;
                     }
                 }
             }
@@ -1433,6 +1582,28 @@ int vt_set_default_save_path(vt_session* session, const char* path)
         return 0;
     }
     VT_CATCH_ALL(session, -1)
+}
+
+char* vt_json_escape(const char* input)
+{
+    if (!input)
+        return ::strdup("");
+    try
+    {
+        auto escaped = json_escape(std::string(input));
+        return ::strdup(escaped.c_str());
+    }
+    catch (...)
+    {
+        return ::strdup("");
+    }
+}
+
+int vt_is_valid_utf8(const char* input)
+{
+    if (!input)
+        return 0;
+    return is_valid_utf8(std::string(input)) ? 1 : 0;
 }
 
 void vt_free_string(char* value)
