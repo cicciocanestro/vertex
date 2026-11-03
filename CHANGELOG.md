@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.5] — 2026-11-03
 
 ### Correzioni
 - **Errori asincroni**: `last_error` resta riservato alle operazioni sincrone;
