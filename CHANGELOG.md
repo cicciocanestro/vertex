@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.5.6] — 2026-11-03
+
+Release di correzione: ripristina il sentinella dell'ETA sconosciuta, azzerato dal clamp
+JSON introdotto nella 1.5.4. Nessuna modifica alle funzioni principali; la suite passa a
+57 test.
+
+### Correzioni
+- **ETA sconosciuta**: `Torrent.init(from:)` non clampa più `eta` a zero. Il bridge emette
+  `-1` quando l'ETA non è calcolabile (torrent in pausa, in recupero metadati, in verifica
+  o senza velocità di payload); con il clamp a zero l'inspector mostrava "Completato" in
+  "Tempo rimasto" per torrent non finiti. Il sentinella resta `-1` (valori inferiori
+  vengono riportati a `-1`) e la UI torna a mostrare "—".
+
+### Test
+- Nuovo test "Snapshot JSON Decoding: ETA sconosciuta conserva -1": decodifica un torrent
+  in pausa e uno senza metadati, verifica che `eta` resti `-1` e che `Fmt.eta` restituisca
+  "—". Suite 57/57.
+
 ## [1.5.5] — 2026-11-03
 
 ### Correzioni
