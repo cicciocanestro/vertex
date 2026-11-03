@@ -88,6 +88,92 @@ enum ModelsTests {
             try TestRunner.assertEqual(t.error, "")
         }
 
+        TestRunner.run("Snapshot JSON Decoding: ETA sconosciuta conserva -1") {
+            // The C++ bridge emits -1 when the ETA cannot be computed (paused,
+            // metadata, verification, no payload rate). The model must keep that
+            // sentinel: clamping it to 0 made InspectorView show "Completato".
+            let json = """
+            {
+                "download_rate": 0,
+                "upload_rate": 0,
+                "active": 0,
+                "paused_count": 2,
+                "dht_nodes": 0,
+                "alert_error": "",
+                "listen_actual_port": 6881,
+                "listening": true,
+                "bind_address": "",
+                "listen_error": "",
+                "portmap": {
+                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "error": ""
+                },
+                "port": 6881,
+                "torrents": [
+                    {
+                        "id": "paused123456",
+                        "name": "Torrent in pausa",
+                        "state_code": 3,
+                        "progress": 0.4,
+                        "size": 1000,
+                        "downloaded": 400,
+                        "uploaded": 0,
+                        "download_rate": 0,
+                        "upload_rate": 0,
+                        "peers": 0,
+                        "seeds": 0,
+                        "eta": -1,
+                        "finished": false,
+                        "seeding": false,
+                        "paused": true,
+                        "sequential": false,
+                        "has_metadata": true,
+                        "save_path": "/tmp",
+                        "ratio": 0,
+                        "added": 0,
+                        "error": ""
+                    },
+                    {
+                        "id": "metadata1234",
+                        "name": "Torrent senza metadati",
+                        "state_code": 2,
+                        "progress": 0,
+                        "size": 0,
+                        "downloaded": 0,
+                        "uploaded": 0,
+                        "download_rate": 0,
+                        "upload_rate": 0,
+                        "peers": 3,
+                        "seeds": 0,
+                        "eta": -42,
+                        "finished": false,
+                        "seeding": false,
+                        "paused": false,
+                        "sequential": false,
+                        "has_metadata": false,
+                        "save_path": "/tmp",
+                        "ratio": 0,
+                        "added": 0,
+                        "error": ""
+                    }
+                ]
+            }
+            """
+            guard let data = json.data(using: .utf8) else {
+                try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
+                return
+            }
+
+            let snapshot = try JSONDecoder().decode(VertexSnapshot.self, from: data)
+            try TestRunner.assertEqual(snapshot.torrents.count, 2)
+            try TestRunner.assertEqual(snapshot.torrents[0].eta, -1)
+            try TestRunner.assertEqual(Fmt.eta(snapshot.torrents[0].eta), "—")
+            // Anything below -1 is clamped to the sentinel, never to 0.
+            try TestRunner.assertEqual(snapshot.torrents[1].eta, -1)
+            try TestRunner.assertEqual(Fmt.eta(snapshot.torrents[1].eta), "—")
+        }
+
         TestRunner.run("PortMapSnapshot: errori TCP e UDP separati") {
             let json = """
             {

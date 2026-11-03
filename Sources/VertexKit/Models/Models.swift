@@ -114,7 +114,10 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         uploadRate = max(try c.decode(Int64.self, forKey: .uploadRate), 0)
         peers = max(try c.decode(Int.self, forKey: .peers), 0)
         seeds = max(try c.decode(Int.self, forKey: .seeds), 0)
-        eta = max(try c.decode(Int64.self, forKey: .eta), 0)
+        // -1 is the bridge sentinel for "ETA not computable" (paused, queued,
+        // metadata or no payload rate). It must survive decoding: clamping it to
+        // 0 would make Fmt.eta report "Completato" for unfinished torrents.
+        eta = max(try c.decode(Int64.self, forKey: .eta), -1)
         finished = try c.decode(Bool.self, forKey: .finished)
         seeding = try c.decode(Bool.self, forKey: .seeding)
         paused = try c.decode(Bool.self, forKey: .paused)
