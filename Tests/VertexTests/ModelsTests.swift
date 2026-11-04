@@ -307,6 +307,22 @@ enum ModelsTests {
             let byRecent = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .recent)
             try TestRunner.assertEqual(byRecent.first?.id, "B")
 
+            // Ascending / inverted sort order for every criterion.
+            let byNameReversed = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .name, ascending: true)
+            try TestRunner.assertEqual(byNameReversed.map(\.id), ["B", "A"])
+
+            let byProgressAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .progress, ascending: true)
+            try TestRunner.assertEqual(byProgressAsc.first?.id, "A")
+
+            let bySizeAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .size, ascending: true)
+            try TestRunner.assertEqual(bySizeAsc.first?.id, "A")
+
+            let bySpeedAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .speed, ascending: true)
+            try TestRunner.assertEqual(bySpeedAsc.first?.id, "A")
+
+            let byRecentAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .recent, ascending: true)
+            try TestRunner.assertEqual(byRecentAsc.first?.id, "A")
+
             let searched = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "alp", sort: .name)
             try TestRunner.assertEqual(searched.map(\.id), ["A"])
 

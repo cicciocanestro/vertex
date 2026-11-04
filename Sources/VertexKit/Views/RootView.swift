@@ -27,6 +27,7 @@ package struct RootView: View {
         engine: TorrentEngine,
         filter: TorrentFilter = .all,
         sort: TorrentSort = .recent,
+        sortAscending: Bool = false,
         search: String = "",
         selectedID: String? = nil,
         showAddSheet: Bool = false,
@@ -51,6 +52,7 @@ package struct RootView: View {
         }
         _filter = StateObject(wrappedValue: UIState(filter))
         _sort = StateObject(wrappedValue: UIState(sort))
+        _sortAscending = StateObject(wrappedValue: UIState(sortAscending))
         _search = StateObject(wrappedValue: UIState(search))
         _activeModal = StateObject(wrappedValue: UIState(modal))
         _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
@@ -63,6 +65,7 @@ package struct RootView: View {
 
     @StateObject private var filter = UIState<TorrentFilter>(.all)
     @StateObject private var sort = UIState<TorrentSort>(.recent)
+    @StateObject private var sortAscending = UIState(false)
     @StateObject private var search = UIState("")
     @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
@@ -273,6 +276,7 @@ package struct RootView: View {
         FilterBar(
             filter: $filter.value,
             sort: $sort.value,
+            sortAscending: $sortAscending.value,
             counts: counts
         )
     }
@@ -348,7 +352,8 @@ package struct RootView: View {
             to: engine.torrents,
             filter: filter.value,
             search: search.value,
-            sort: sort.value
+            sort: sort.value,
+            ascending: sortAscending.value
         )
     }
 

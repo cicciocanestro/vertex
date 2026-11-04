@@ -132,6 +132,9 @@
 "Nessun tracker disponibile" = "Nessun tracker disponibile";
 "Non scaricare questo file" = "Non scaricare questo file";
 "Scarica questo file" = "Scarica questo file";
+"%ld di %ld selezionati" = "%ld di %ld selezionati";
+"Nessuno" = "Nessuno";
+"Inverti ordine" = "Inverti ordine";
 "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna" = "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna";
 "In ascolto" = "In ascolto";
 "Non in ascolto" = "Non in ascolto";

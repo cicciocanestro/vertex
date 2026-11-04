@@ -237,18 +237,51 @@ struct InspectorView: View {
         if !(engine.detail?.metadata ?? torrent.hasMetadata) {
             waiting(palette, text: "In attesa dei metadati…")
         } else if let files = engine.detail?.files, !files.isEmpty {
-            LazyVStack(spacing: 0) {
-                ForEach(files) { file in
-                    fileRow(file, palette)
-                    if file.id != files.last?.id {
-                        Hairline(palette: palette)
-                            .padding(.leading, 22)
+            VStack(alignment: .leading, spacing: 6) {
+                if files.count > 1 {
+                    filesToolbar(files: files, palette: palette)
+                }
+
+                LazyVStack(spacing: 0) {
+                    ForEach(files) { file in
+                        fileRow(file, palette)
+                        if file.id != files.last?.id {
+                            Hairline(palette: palette)
+                                .padding(.leading, 22)
+                        }
                     }
                 }
             }
         } else {
             waiting(palette, text: "Nessun file disponibile")
         }
+    }
+
+    private func filesToolbar(files: [TorrentFile], palette: Palette) -> some View {
+        let wantedCount = files.filter(\.isWanted).count
+        let allWanted = wantedCount == files.count
+        let noneWanted = wantedCount == 0
+
+        return HStack(spacing: 6) {
+            Text(LF("%ld di %ld selezionati", wantedCount, files.count))
+                .font(Typography.caption)
+                .foregroundStyle(palette.tertiary)
+
+            Spacer()
+
+            Button(L("Tutti")) {
+                engine.setAllFilePriorities(wanted: true, torrentID: torrent.id)
+            }
+            .buttonStyle(SmallButtonStyle())
+            .disabled(allWanted)
+
+            Button(L("Nessuno")) {
+                engine.setAllFilePriorities(wanted: false, torrentID: torrent.id)
+            }
+            .buttonStyle(SmallButtonStyle())
+            .disabled(noneWanted)
+        }
+        .padding(.bottom, 2)
     }
 
     private func fileRow(_ file: TorrentFile, _ palette: Palette) -> some View {

@@ -66,6 +66,7 @@ int vt_add_peer(vt_session* session,
 
 int vt_control(vt_session* session, const char* torrent_id, const char* action);
 int vt_set_file_priority(vt_session* session, const char* torrent_id, int file_index, int priority);
+int vt_set_all_file_priorities(vt_session* session, const char* torrent_id, int priority);
 /* Runtime settings update. Returns 0 on success. bind_address follows the same
    rules as vt_session_create_full: NULL or "" restores listening on every
    interface. Changing it rebinds the sockets and resets the UPnP/NAT-PMP state,

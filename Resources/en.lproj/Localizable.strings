@@ -155,6 +155,9 @@
 "Nessun tracker disponibile" = "No trackers available";
 "Non scaricare questo file" = "Don't download this file";
 "Scarica questo file" = "Download this file";
+"%ld di %ld selezionati" = "%ld of %ld selected";
+"Nessuno" = "None";
+"Inverti ordine" = "Reverse sort order";
 
 /* Network diagnostics */
 "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna" = "Port, UPnP/NAT-PMP mapping and external reachability";

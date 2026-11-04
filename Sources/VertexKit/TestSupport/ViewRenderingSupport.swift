@@ -38,6 +38,7 @@ package enum ViewRenderingSupport {
             FilterBar(
                 filter: .constant(.all),
                 sort: .constant(.recent),
+                sortAscending: .constant(false),
                 counts: TorrentListPipeline.applyWithCounts(
                     to: torrents,
                     filter: .all,

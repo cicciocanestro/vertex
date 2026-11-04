@@ -1459,6 +1459,40 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
     VT_CATCH_ALL(session, -1)
 }
 
+int vt_set_all_file_priorities(vt_session* session, const char* torrent_id_value, int priority)
+{
+    if (!session)
+        return -1;
+    if (!torrent_id_value || priority < 0 || priority > 7)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
+
+    try
+    {
+        auto handle = find_handle(session, torrent_id_value);
+        if (!handle.is_valid())
+        {
+            session->last_error = "Torrent non trovato";
+            return -1;
+        }
+        auto info = handle.torrent_file();
+        if (!info)
+        {
+            session->last_error = "Metadati non disponibili";
+            return -1;
+        }
+        int const count = info->layout().num_files();
+        std::vector<lt::download_priority_t> priorities(
+            std::size_t((std::max)(0, count)),
+            lt::download_priority_t(std::uint8_t(priority)));
+        handle.prioritize_files(priorities);
+        return 0;
+    }
+    VT_CATCH_ALL(session, -1)
+}
+
 int vt_apply_settings_ex(vt_session* session,
                          int listen_port,
                          int download_limit_bytes,

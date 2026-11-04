@@ -408,9 +408,16 @@ package enum TorrentListPipeline {
         to torrents: [Torrent],
         filter: TorrentFilter,
         search: String,
-        sort: TorrentSort
+        sort: TorrentSort,
+        ascending: Bool = false
     ) -> [Torrent] {
-        applyWithCounts(to: torrents, filter: filter, search: search, sort: sort).torrents
+        applyWithCounts(
+            to: torrents,
+            filter: filter,
+            search: search,
+            sort: sort,
+            ascending: ascending
+        ).torrents
     }
 
     /// Returns the visible torrents and the per-filter counts in a single pass
@@ -419,7 +426,8 @@ package enum TorrentListPipeline {
         to torrents: [Torrent],
         filter: TorrentFilter,
         search: String,
-        sort: TorrentSort
+        sort: TorrentSort,
+        ascending: Bool = false
     ) -> TorrentListResult {
         var counts = Dictionary(
             uniqueKeysWithValues: TorrentFilter.allCases.map { ($0, 0) }
@@ -443,15 +451,16 @@ package enum TorrentListPipeline {
 
         switch sort {
         case .recent:
-            list.sort { $0.added > $1.added }
+            list.sort { ascending ? ($0.added < $1.added) : ($0.added > $1.added) }
         case .name:
-            list.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            let target: ComparisonResult = ascending ? .orderedDescending : .orderedAscending
+            list.sort { $0.name.localizedStandardCompare($1.name) == target }
         case .size:
-            list.sort { $0.size > $1.size }
+            list.sort { ascending ? ($0.size < $1.size) : ($0.size > $1.size) }
         case .progress:
-            list.sort { $0.displayProgress > $1.displayProgress }
+            list.sort { ascending ? ($0.displayProgress < $1.displayProgress) : ($0.displayProgress > $1.displayProgress) }
         case .speed:
-            list.sort { $0.downloadRate > $1.downloadRate }
+            list.sort { ascending ? ($0.downloadRate < $1.downloadRate) : ($0.downloadRate > $1.downloadRate) }
         }
 
         return TorrentListResult(torrents: list, counts: counts)

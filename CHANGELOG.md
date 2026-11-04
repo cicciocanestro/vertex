@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.6.0] — 2026-11-04
+
+Release funzionale e di concorrenza: ordinamento invertibile nella barra filtri,
+selezione rapida "Tutti / Nessuno" dei file nei dettagli e operazioni utente
+completamente asincrone sulla coda di sessione.
+
+### Novità
+- **Ordinamento invertibile**: nella barra filtri un pulsante dedicato inverte
+  l'ordine crescente/decrescente per tutti i criteri (Recenti, Nome, Dimensione,
+  Progresso, Velocità); anche riselezionare la voce attiva nel menu inverte la
+  direzione.
+- **Selezione rapida file ("Tutti / Nessuno")**: nel pannello dettagli dei
+  torrent multi-file compare una barra con il conteggio dei file selezionati e i
+  pulsanti `Tutti` e `Nessuno`, supportati da una chiamata bulk atomica nel
+  bridge C++ (`vt_set_all_file_priorities` / `prioritize_files`).
+
+### Prestazioni e Concorrenza
+- **Operazioni asincrone su `sessionQueue`**: `pause`, `resume`, `reannounce`,
+  `toggleSequential`, `remove`, `setFilePriority`, `setAllFilePriorities`,
+  `copyMagnet` e `applySettings` vengono accodate in modo asincrono su
+  `sessionQueue` (`enqueueSessionOperation`) con lettura atomica di
+  `vt_last_error`, evitando qualsiasi attesa sincrona sul `@MainActor` mentre un
+  poll è in volo.
+
+### Test
+- Estesi `ModelsTests` (ordinamento invertito per tutti i criteri) ed
+  `EngineTests` (priorità file bulk e comandi asincroni). Suite 60/60; 221 chiavi
+  localizzate allineate (IT/EN).
+
 ## [1.5.9] — 2026-11-04
 
 Release di rifinitura: decay della sparkline a zero dopo un trasferimento,

@@ -91,6 +91,7 @@ struct HeaderBar: View {
 struct FilterBar: View {
     @Binding var filter: TorrentFilter
     @Binding var sort: TorrentSort
+    @Binding var sortAscending: Bool
     let counts: [TorrentFilter: Int]
 
     @Environment(\.colorScheme) private var scheme
@@ -115,7 +116,12 @@ struct FilterBar: View {
             Menu {
                 ForEach(TorrentSort.allCases) { option in
                     Button {
-                        sort = option
+                        if sort == option {
+                            sortAscending.toggle()
+                        } else {
+                            sort = option
+                            sortAscending = false
+                        }
                     } label: {
                         Label(option.label, systemImage: sort == option ? "checkmark" : option.icon)
                     }
@@ -140,6 +146,16 @@ struct FilterBar: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+
+            IconButton(
+                icon: sortAscending ? "arrow.up" : "arrow.down",
+                help: "Inverti ordine",
+                size: 27
+            ) {
+                withAnimation(.snappy(duration: 0.18)) {
+                    sortAscending.toggle()
+                }
+            }
         }
         .padding(.horizontal, 18)
         .padding(.top, 3)

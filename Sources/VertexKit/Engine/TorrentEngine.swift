@@ -623,8 +623,8 @@ package final class TorrentEngine: ObservableObject {
             return message
         }
 
-        let result = withSession { session in
-            trimmed.withCString { uriPointer in
+        let outcome = withSession { session -> (Int32, String) in
+            let code = trimmed.withCString { uriPointer in
                 path.withCString { pathPointer in
                     vt_add_magnet(
                         session,
@@ -635,11 +635,16 @@ package final class TorrentEngine: ObservableObject {
                     )
                 }
             }
+            return (code, code != 0 ? Self.readLastError(session) : "")
         }
-        guard let result else { return L("Motore non disponibile.") }
+        guard let (result, rawError) = outcome else { return L("Motore non disponibile.") }
 
         if result != 0 {
-            let message = localizedError(takeLastError())
+            let message = localizedError(
+                rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? L("Errore sconosciuto.")
+                    : rawError
+            )
             showToast(message, kind: .error)
             return message
         }
@@ -663,8 +668,8 @@ package final class TorrentEngine: ObservableObject {
             return message
         }
 
-        let result = withSession { session in
-            url.path.withCString { filePointer in
+        let outcome = withSession { session -> (Int32, String) in
+            let code = url.path.withCString { filePointer in
                 path.withCString { pathPointer in
                     vt_add_torrent_file(
                         session,
@@ -675,11 +680,16 @@ package final class TorrentEngine: ObservableObject {
                     )
                 }
             }
+            return (code, code != 0 ? Self.readLastError(session) : "")
         }
-        guard let result else { return L("Motore non disponibile.") }
+        guard let (result, rawError) = outcome else { return L("Motore non disponibile.") }
 
         if result != 0 {
-            let message = localizedError(takeLastError())
+            let message = localizedError(
+                rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? L("Errore sconosciuto.")
+                    : rawError
+            )
             showToast(message, kind: .error)
             return message
         }
@@ -690,36 +700,39 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func togglePause(_ torrent: Torrent) {
-        _ = control(torrent.paused ? "resume" : "pause", id: torrent.id)
+        control(torrent.paused ? "resume" : "pause", id: torrent.id)
     }
 
     func pause(_ torrent: Torrent) {
-        _ = control("pause", id: torrent.id)
+        control("pause", id: torrent.id)
     }
 
     func resume(_ torrent: Torrent) {
-        _ = control("resume", id: torrent.id)
+        control("resume", id: torrent.id)
     }
 
     func reannounce(_ torrent: Torrent) {
-        if control("reannounce", id: torrent.id) {
-            showToast(L("Annuncio inviato ai tracker"), kind: .info)
+        control("reannounce", id: torrent.id) { [weak self] in
+            self?.showToast(L("Annuncio inviato ai tracker"), kind: .info)
         }
     }
 
     func toggleSequential(_ torrent: Torrent) {
-        _ = control(torrent.sequential ? "sequential_off" : "sequential_on", id: torrent.id)
+        control(torrent.sequential ? "sequential_off" : "sequential_on", id: torrent.id)
     }
 
     func remove(_ torrent: Torrent, deleteFiles: Bool) {
-        if control(deleteFiles ? "remove_files" : "remove", id: torrent.id) {
-            if selectedID == torrent.id {
-                select(nil)
+        let torrentID = torrent.id
+        let torrentName = torrent.name
+        control(deleteFiles ? "remove_files" : "remove", id: torrentID) { [weak self] in
+            guard let self else { return }
+            if self.selectedID == torrentID {
+                self.select(nil)
             }
-            showToast(
+            self.showToast(
                 L(deleteFiles ? "Torrent e file rimossi" : "Torrent rimosso"),
                 kind: .info,
-                detail: torrent.name
+                detail: torrentName
             )
         }
     }
@@ -734,18 +747,28 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func setFilePriority(_ file: TorrentFile, wanted: Bool, torrentID: String) {
-        guard session != nil else { return }
-        let result = withSession { session in
+        let index = Int32(file.index)
+        let priority: Int32 = wanted ? 4 : 0
+        enqueueSessionOperation { session in
             torrentID.withCString { idPointer in
-                vt_set_file_priority(session, idPointer, Int32(file.index), wanted ? 4 : 0)
+                vt_set_file_priority(session, idPointer, index, priority)
             }
+        } onSuccess: { [weak self] in
+            self?.forceDetailRefresh = true
+            self?.poll()
         }
-        guard let result else { return }
-        if result != 0 {
-            showToast(localizedError(takeLastError()), kind: .error)
+    }
+
+    func setAllFilePriorities(wanted: Bool, torrentID: String) {
+        let priority: Int32 = wanted ? 4 : 0
+        enqueueSessionOperation { session in
+            torrentID.withCString { idPointer in
+                vt_set_all_file_priorities(session, idPointer, priority)
+            }
+        } onSuccess: { [weak self] in
+            self?.forceDetailRefresh = true
+            self?.poll()
         }
-        forceDetailRefresh = true
-        poll()
     }
 
     func magnetURI(for torrent: Torrent) -> String {
@@ -758,11 +781,26 @@ package final class TorrentEngine: ObservableObject {
     }
 
     func copyMagnet(for torrent: Torrent) {
-        let uri = magnetURI(for: torrent)
-        guard !uri.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(uri, forType: .string)
-        showToast(L("Link magnet copiato"), kind: .info)
+        let id = torrent.id
+        guard !isShuttingDown, let session else { return }
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
+        sessionQueue.async { [weak self] in
+            let uri: String = {
+                guard let s = pointer.value else { return "" }
+                guard let cStr = id.withCString({ vt_magnet_uri(s, $0) }) else { return "" }
+                defer { vt_free_string(cStr) }
+                return String(cString: cStr)
+            }()
+            DispatchQueue.main.async {
+                guard let self, !self.isShuttingDown, self.sessionGeneration == generation, !uri.isEmpty else {
+                    return
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(uri, forType: .string)
+                self.showToast(L("Link magnet copiato"), kind: .info)
+            }
+        }
     }
 
     func reveal(_ torrent: Torrent) {
@@ -856,42 +894,38 @@ package final class TorrentEngine: ObservableObject {
             return
         }
 
-        let result = withSession { session -> Int32 in
-            if downloadPathChanged {
-                let pathResult = configuration.downloadPath.withCString {
-                    vt_set_default_save_path(session, $0)
+        enqueueSessionOperation(
+            errorTitle: L("Impostazioni non applicate"),
+            operation: { session in
+                if downloadPathChanged {
+                    let pathResult = configuration.downloadPath.withCString {
+                        vt_set_default_save_path(session, $0)
+                    }
+                    if pathResult != 0 {
+                        return pathResult
+                    }
                 }
-                if pathResult != 0 {
-                    return pathResult
+                if networkChanged {
+                    return configuration.bindAddress.withCString { bindAddress in
+                        vt_apply_settings_ex(
+                            session,
+                            configuration.port,
+                            configuration.downloadLimit,
+                            configuration.uploadLimit,
+                            configuration.dht ? 1 : 0,
+                            configuration.upnp ? 1 : 0,
+                            configuration.lsd ? 1 : 0,
+                            bindAddress
+                        )
+                    }
                 }
+                return 0
+            },
+            onSuccess: { [weak self] in
+                self?.lastAppliedConfiguration = configuration
+                self?.poll()
             }
-            if networkChanged {
-                return configuration.bindAddress.withCString { bindAddress in
-                    vt_apply_settings_ex(
-                        session,
-                        configuration.port,
-                        configuration.downloadLimit,
-                        configuration.uploadLimit,
-                        configuration.dht ? 1 : 0,
-                        configuration.upnp ? 1 : 0,
-                        configuration.lsd ? 1 : 0,
-                        bindAddress
-                    )
-                }
-            }
-            return 0
-        }
-        guard let result else { return }
-        if result != 0 {
-            showToast(
-                L("Impostazioni non applicate"),
-                kind: .error,
-                detail: localizedError(takeLastError())
-            )
-            return
-        }
-        lastAppliedConfiguration = configuration
-        poll()
+        )
     }
 
     func dismissToast() {
@@ -1207,23 +1241,61 @@ package final class TorrentEngine: ObservableObject {
         return String(cString: pointer)
     }
 
-    @discardableResult
-    private func control(_ action: String, id: String) -> Bool {
-        guard session != nil else { return false }
-        let result = withSession { session in
+    nonisolated private static func readLastError(_ session: OpaquePointer) -> String {
+        guard let pointer = vt_last_error(session) else { return "" }
+        defer { vt_free_string(pointer) }
+        return String(cString: pointer)
+    }
+
+    private func enqueueSessionOperation(
+        errorTitle: String? = nil,
+        operation: @escaping @Sendable (OpaquePointer) -> Int32,
+        onSuccess: (@MainActor () -> Void)? = nil
+    ) {
+        guard !isShuttingDown, let session else { return }
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
+        sessionQueue.async { [weak self] in
+            guard let s = pointer.value else { return }
+            let code = operation(s)
+            let rawError = code != 0 ? Self.readLastError(s) : ""
+            DispatchQueue.main.async {
+                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                    return
+                }
+                if code != 0 {
+                    let message = self.localizedError(
+                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? L("Errore sconosciuto.")
+                            : rawError
+                    )
+                    if let errorTitle {
+                        self.showToast(errorTitle, kind: .error, detail: message)
+                    } else {
+                        self.showToast(message, kind: .error)
+                    }
+                    return
+                }
+                onSuccess?()
+            }
+        }
+    }
+
+    private func control(
+        _ action: String,
+        id: String,
+        onSuccess: (@MainActor () -> Void)? = nil
+    ) {
+        enqueueSessionOperation { session in
             id.withCString { idPointer in
                 action.withCString { actionPointer in
                     vt_control(session, idPointer, actionPointer)
                 }
             }
+        } onSuccess: { [weak self] in
+            onSuccess?()
+            self?.poll()
         }
-        guard let result else { return false }
-        if result != 0 {
-            showToast(localizedError(takeLastError()), kind: .error)
-            return false
-        }
-        poll()
-        return true
     }
 
     private func preparedDestination(_ requested: String?) -> (path: String?, error: String?) {
@@ -1249,17 +1321,6 @@ package final class TorrentEngine: ObservableObject {
         return (path, nil)
     }
 
-    private func takeLastError() -> String {
-        let raw = withSession { session -> String in
-            guard let pointer = vt_last_error(session) else { return "" }
-            defer { vt_free_string(pointer) }
-            return String(cString: pointer)
-        } ?? ""
-        return raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? L("Errore sconosciuto.")
-            : raw
-    }
-
     private func localizedError(_ raw: String) -> String {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.isEmpty { return L("Operazione non riuscita.") }
@@ -1275,6 +1336,7 @@ package final class TorrentEngine: ObservableObject {
         }
         switch value {
         case "Torrent non trovato": return L("Torrent non trovato")
+        case "Metadati non disponibili": return L("In attesa dei metadati…")
         case "Comando non supportato": return L("Comando non supportato")
         case "Parametri non validi": return L("Link o file non valido.")
         case "La destinazione non è una cartella.": return L("La destinazione non è una cartella.")

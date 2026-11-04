@@ -109,6 +109,22 @@ enum EngineTests {
                 }
             }
 
+            // Bulk file priorities: deselect all, then select all.
+            onMain { engine.setAllFilePriorities(wanted: false, torrentID: torrent.id) }
+            try waitFor(engine) {
+                onMain {
+                    let files = engine.detail?.files ?? []
+                    return files.count == 2 && files.allSatisfy { !$0.isWanted }
+                }
+            }
+            onMain { engine.setAllFilePriorities(wanted: true, torrentID: torrent.id) }
+            try waitFor(engine) {
+                onMain {
+                    let files = engine.detail?.files ?? []
+                    return files.count == 2 && files.allSatisfy(\.isWanted)
+                }
+            }
+
             onMain { engine.togglePause(torrent) }
             try waitFor(engine) {
                 onMain { engine.torrents.first?.paused == false }
@@ -144,7 +160,12 @@ enum EngineTests {
             )
 
             onMain { engine.remove(torrent, deleteFiles: false) }
-            onMain { engine.pollNowForTesting() }
+            try waitUntil("rimozione asincrona del torrent") {
+                onMain {
+                    engine.pollNowForTesting()
+                    return engine.torrents.isEmpty && engine.detail == nil
+                }
+            }
             try TestRunner.assertEqual(onMain { engine.torrents.count }, 0)
             try TestRunner.assertNil(onMain { engine.detail })
 
@@ -154,16 +175,19 @@ enum EngineTests {
             // Commands that target a removed torrent must surface an error and
             // must not crash the engine.
             onMain { engine.togglePause(torrent) }
-            try TestRunner.assertNotNil(
-                onMain { engine.toast },
-                "Un comando su un torrent rimosso deve produrre un errore"
-            )
+            try waitUntil("errore comando su torrent rimosso") {
+                onMain { engine.toast != nil }
+            }
             onMain { engine.dismissToast() }
             onMain { engine.setFilePriority(second, wanted: true, torrentID: torrent.id) }
-            try TestRunner.assertNotNil(
-                onMain { engine.toast },
-                "La priorità di un torrent rimosso deve produrre un errore"
-            )
+            try waitUntil("errore priorità su torrent rimosso") {
+                onMain { engine.toast != nil }
+            }
+            onMain { engine.dismissToast() }
+            onMain { engine.setAllFilePriorities(wanted: false, torrentID: torrent.id) }
+            try waitUntil("errore priorità bulk su torrent rimosso") {
+                onMain { engine.toast != nil }
+            }
         }
 
         TestRunner.run("Engine: dettaglio fallito e stato non selezionato") {
