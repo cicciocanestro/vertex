@@ -226,6 +226,52 @@ enum EngineTests {
             let decoded = onMain { engine.detail }
             try TestRunner.assertEqual(decoded?.files.count, 1)
             try TestRunner.assertEqual(decoded?.metadata, true)
+
+            // Rate history must keep appending zeros after a transfer stops so
+            // the sparkline decays back to flat zero instead of freezing, then
+            // stop publishing once all 80 samples are 0.
+            let activeJSON = """
+            {
+                "download_rate": 524288,
+                "upload_rate": 0,
+                "active": 1,
+                "paused_count": 0,
+                "dht_nodes": 0,
+                "alert_error": "",
+                "listen_actual_port": 6881,
+                "listening": true,
+                "bind_address": "",
+                "listen_error": "",
+                "portmap": {
+                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "error": ""
+                },
+                "port": 6881,
+                "torrents": []
+            }
+            """
+            let idleJSON = activeJSON.replacingOccurrences(
+                of: "\"download_rate\": 524288",
+                with: "\"download_rate\": 0"
+            )
+            let activeSnapshot = try JSONDecoder().decode(
+                VertexSnapshot.self,
+                from: Data(activeJSON.utf8)
+            )
+            let idleSnapshot = try JSONDecoder().decode(
+                VertexSnapshot.self,
+                from: Data(idleJSON.utf8)
+            )
+            onMain { engine.applySnapshotForTesting(activeSnapshot) }
+            try TestRunner.assertEqual(onMain { engine.downloadHistory.last }, 524288)
+            for _ in 0..<80 {
+                onMain { engine.applySnapshotForTesting(idleSnapshot) }
+            }
+            try TestRunner.assertTrue(
+                onMain { engine.downloadHistory.allSatisfy { $0 == 0 } },
+                "La history deve scorrere a zero quando il traffico si ferma"
+            )
         }
 
         TestRunner.run("Engine: impostazioni, riavvio PEX e shutdown con completion concorrenti") {

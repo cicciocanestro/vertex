@@ -99,10 +99,7 @@ struct StatusBarView: View {
         .frame(height: 38)
         .background(palette.panel)
         .overlay(alignment: .top) {
-            Rectangle()
-                .fill(palette.stroke)
-                .frame(height: 1)
-                .allowsHitTesting(false)
+            Hairline(palette: palette)
         }
     }
 

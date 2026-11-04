@@ -36,9 +36,7 @@ struct InspectorView: View {
             .padding(.horizontal, 16)
             .frame(height: 44)
 
-            Rectangle()
-                .fill(palette.stroke)
-                .frame(height: 1)
+            Hairline(palette: palette)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -243,9 +241,7 @@ struct InspectorView: View {
                 ForEach(files) { file in
                     fileRow(file, palette)
                     if file.id != files.last?.id {
-                        Rectangle()
-                            .fill(palette.stroke)
-                            .frame(height: 1)
+                        Hairline(palette: palette)
                             .padding(.leading, 22)
                     }
                 }
@@ -308,9 +304,7 @@ struct InspectorView: View {
                 ForEach(trackers) { tracker in
                     trackerRow(tracker, palette)
                     if tracker.id != trackers.last?.id {
-                        Rectangle()
-                            .fill(palette.stroke)
-                            .frame(height: 1)
+                        Hairline(palette: palette)
                     }
                 }
             }

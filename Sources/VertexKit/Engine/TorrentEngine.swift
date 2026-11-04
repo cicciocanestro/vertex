@@ -258,7 +258,7 @@ package final class TorrentEngine: ObservableObject {
     package func torrent(withID id: String) -> Torrent? {
         pollState.torrentsByID[id]
     }
-    @Published var toast: ToastMessage?
+    @Published private(set) var toast: ToastMessage?
     @Published private(set) var isReady = false
     @Published private(set) var isRestartingSession = false
     /// Torrent shown in the inspector. It is the single source of truth for
@@ -598,10 +598,6 @@ package final class TorrentEngine: ObservableObject {
         for completion in completions {
             completion()
         }
-    }
-
-    deinit {
-        pollTask?.cancel()
     }
 
     // MARK: - Public API
@@ -1043,11 +1039,17 @@ package final class TorrentEngine: ObservableObject {
 
         // Idle poll: libtorrent answers every 800 ms, and most of the time
         // nothing changed. Skipping the publish keeps the UI out of re-render
-        // loops when the user is not interacting with the app. The rate
-        // history is appended only when the rest of the state moved, so the
-        // sparkline stays flat in idle too.
+        // loops when the user is not interacting with the app. We keep
+        // appending to the rate history while rates are non-zero or while the
+        // existing history still has non-zero samples, so the sparkline decays
+        // back to zero after a transfer finishes instead of freezing on its
+        // last wave.
         let stateChanged = next != pollState
-        if stateChanged {
+        let historyActive = snapshot.downloadRate > 0
+            || snapshot.uploadRate > 0
+            || next.downloadHistory.contains(where: { $0 > 0 })
+            || next.uploadHistory.contains(where: { $0 > 0 })
+        if stateChanged || historyActive {
             appendHistory(Double(snapshot.downloadRate), to: &next.downloadHistory)
             appendHistory(Double(snapshot.uploadRate), to: &next.uploadHistory)
             pollState = next
@@ -1155,6 +1157,10 @@ package final class TorrentEngine: ObservableObject {
         }
     }
 
+    package func applySnapshotForTesting(_ snapshot: VertexSnapshot) {
+        apply(snapshot)
+    }
+
     package func applyDetailJSONForTesting(_ json: String?, id: String) {
         applyDetailJSON(json, id: id)
     }
@@ -1259,12 +1265,20 @@ package final class TorrentEngine: ObservableObject {
         if value.isEmpty { return L("Operazione non riuscita.") }
         let lower = value.lowercased()
         if lower.contains("already exists") || lower.contains("duplicate") { return L("Questo torrent è già presente.") }
-        if lower.contains("no such file") { return L("File non trovato.") }
+        if lower.contains("no such file") || lower.contains("cannot stat") { return L("File non trovato.") }
         if lower.contains("permission") { return L("Permesso negato.") }
-        if lower.contains("invalid") || lower.contains("parse") { return L("Link o file non valido.") }
+        if lower.contains("invalid")
+            || lower.contains("parse")
+            || lower.contains("exceeds maximum size")
+            || lower.contains("not a regular file") {
+            return L("Link o file non valido.")
+        }
         switch value {
         case "Torrent non trovato": return L("Torrent non trovato")
         case "Comando non supportato": return L("Comando non supportato")
+        case "Parametri non validi": return L("Link o file non valido.")
+        case "La destinazione non è una cartella.": return L("La destinazione non è una cartella.")
+        case "La cartella di destinazione non è scrivibile.": return L("La cartella di destinazione non è scrivibile.")
         case "Errore sconosciuto": return L("Errore sconosciuto")
         default: return value
         }

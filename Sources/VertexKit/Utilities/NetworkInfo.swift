@@ -108,57 +108,16 @@ enum LocalNetwork {
     }
 
     static func primaryIPv4Address() -> String? {
-        var interfaces: [(name: String, address: String)] = []
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else {
-            return nil
-        }
-        defer { freeifaddrs(ifaddr) }
-
-        let requiredFlags = UInt32(IFF_UP | IFF_RUNNING)
-
-        var cursor: UnsafeMutablePointer<ifaddrs>? = first
-        while let current = cursor {
-            let interface = current.pointee
-            cursor = interface.ifa_next
-
-            guard let address = interface.ifa_addr,
-                  address.pointee.sa_family == UInt8(AF_INET),
-                  interface.ifa_flags & requiredFlags == requiredFlags else {
-                continue
-            }
-
-            let name = String(cString: interface.ifa_name)
-            guard !ignoredPrefixes.contains(where: { name.hasPrefix($0) }) else { continue }
-
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            let result = getnameinfo(
-                address,
-                socklen_t(address.pointee.sa_len),
-                &host,
-                socklen_t(host.count),
-                nil,
-                0,
-                NI_NUMERICHOST
-            )
-            guard result == 0 else { continue }
-
-            let ip = String(cString: host)
-            // Skip loopback and link-local (169.254.x.x): not a usable LAN
-            // address. `isUsableLANAddress` is the same rule the binding menu
-            // uses, so the two lists cannot disagree.
-            if !ip.isEmpty, isUsableLANAddress(ip) {
-                interfaces.append((name, ip))
-            }
+        let lanInterfaces = ipv4Interfaces().filter { interface in
+            !ignoredPrefixes.contains(where: { interface.name.hasPrefix($0) })
         }
 
-        if let ethernet = interfaces.first(where: { $0.name == "en0" && isPrivate($0.address) }) {
+        if let ethernet = lanInterfaces.first(where: { $0.name == "en0" && isPrivate($0.address) }) {
             return ethernet.address
         }
-        if let privateAddress = interfaces.first(where: { isPrivate($0.address) }) {
+        if let privateAddress = lanInterfaces.first(where: { isPrivate($0.address) }) {
             return privateAddress.address
         }
-        return interfaces.first?.address
+        return lanInterfaces.first?.address
     }
 }

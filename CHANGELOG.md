@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.5.9] — 2026-11-04
+
+Release di rifinitura: decay della sparkline a zero dopo un trasferimento,
+unificazione del validatore UTF-8 RFC 3629 e di `getifaddrs`, mappatura completa
+degli errori di validazione del bridge e uniformità dei divisori UI.
+
+### Correzioni
+- **Sparkline in idle**: quando un trasferimento termina e le velocità scendono a
+  `0 B/s`, la history continua ad aggiungere campioni nulli finché la curva non
+  si appiattisce a zero prima di attivare lo skip dell'idle poll, evitando che il
+  grafico nella barra di stato resti congelato sull'ultima onda.
+- **Errori localizzati**: mappati in `TorrentEngine.localizedError(_:)` i messaggi
+  di validazione del bridge C++ (`exceeds maximum size`, `not a regular file`,
+  `cannot stat`, `Parametri non validi`, cartella di destinazione non valida o non
+  scrivibile) sulle chiavi localizzate in italiano e inglese.
+
+### Manutenzione
+- **UTF-8 / Dettaglio C++**: unificata la macchina a stati RFC 3629 in
+  `utf8_sequence_length`, condivisa tra `is_valid_utf8` e `json_escape`; in
+  `vt_detail_json` il flag `metadata` viene ricavato direttamente da
+  `handle.torrent_file()` senza una seconda chiamata a `handle.status()`.
+- **Interfacce di rete**: `LocalNetwork.primaryIPv4Address()` riutilizza
+  `ipv4Interfaces()` eliminando il secondo loop `getifaddrs`/`getnameinfo`.
+- **Engine e UI**: `toast` reso `private(set)`, rimosso il `deinit` irraggiungibile
+  in `TorrentEngine` e sostituiti gli ultimi divisori manuali da 1 px con
+  `Hairline(palette:)` in `InspectorView` e `StatusBarView`.
+
+### Test
+- Nuovo test in `EngineTests` che verifica lo scorrimento a zero di
+  `downloadHistory` dopo il termine del traffico e il successivo arresto delle
+  pubblicazioni in idle. Suite 60/60.
+
 ## [1.5.8] — 2026-11-04
 
 Release di affidabilità: completion di shutdown multiple, errori di creazione sessione

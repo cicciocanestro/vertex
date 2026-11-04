@@ -59,71 +59,71 @@ namespace fs = std::filesystem;
 
 namespace {
 
+/// Returns the length in bytes (1..4) of a valid RFC 3629 UTF-8 code point at
+/// `p` when at least that many bytes are available in `remaining`, or 0 when
+/// the byte sequence is malformed (overlong, surrogate, or > U+10FFFF).
+std::size_t utf8_sequence_length(unsigned char const* p, std::size_t remaining)
+{
+    if (remaining == 0)
+        return 0;
+    unsigned char const c = p[0];
+    if (c < 0x80)
+        return 1;
+
+    if (c >= 0xC2 && c <= 0xDF)
+    {
+        if (remaining < 2)
+            return 0;
+        return (p[1] & 0xC0) == 0x80 ? 2 : 0;
+    }
+
+    if (c >= 0xE0 && c <= 0xEF)
+    {
+        if (remaining < 3)
+            return 0;
+        unsigned char const c1 = p[1];
+        unsigned char const c2 = p[2];
+        if ((c2 & 0xC0) != 0x80)
+            return 0;
+        if (c == 0xE0)
+            return (c1 >= 0xA0 && c1 <= 0xBF) ? 3 : 0; // reject overlong
+        if (c == 0xED)
+            return (c1 >= 0x80 && c1 <= 0x9F) ? 3 : 0; // reject surrogates
+        return (c1 & 0xC0) == 0x80 ? 3 : 0;
+    }
+
+    if (c >= 0xF0 && c <= 0xF4)
+    {
+        if (remaining < 4)
+            return 0;
+        unsigned char const c1 = p[1];
+        unsigned char const c2 = p[2];
+        unsigned char const c3 = p[3];
+        if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80)
+            return 0;
+        if (c == 0xF0)
+            return (c1 >= 0x90 && c1 <= 0xBF) ? 4 : 0; // reject overlong
+        if (c == 0xF4)
+            return (c1 >= 0x80 && c1 <= 0x8F) ? 4 : 0; // reject > U+10FFFF
+        return (c1 & 0xC0) == 0x80 ? 4 : 0;
+    }
+
+    return 0;
+}
+
 /// Validate UTF-8 strictly according to RFC 3629 without allocating.
 /// Rejects overlong sequences, UTF-16 surrogates, and values above U+10FFFF.
 bool is_valid_utf8(std::string const& input)
 {
+    auto const* bytes = reinterpret_cast<unsigned char const*>(input.data());
     std::size_t i = 0;
     std::size_t const n = input.size();
     while (i < n)
     {
-        unsigned char const c = static_cast<unsigned char>(input[i]);
-        if (c < 0x80)
-        {
-            ++i;
-        }
-        else if (c >= 0xC2 && c <= 0xDF) // 2-byte sequence
-        {
-            if (i + 1 >= n) return false;
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            if ((c1 & 0xC0) != 0x80) return false;
-            i += 2;
-        }
-        else if (c >= 0xE0 && c <= 0xEF) // 3-byte sequence
-        {
-            if (i + 2 >= n) return false;
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
-            if ((c2 & 0xC0) != 0x80) return false;
-            if (c == 0xE0)
-            {
-                if (c1 < 0xA0 || c1 > 0xBF) return false; // reject overlong
-            }
-            else if (c == 0xED)
-            {
-                if (c1 < 0x80 || c1 > 0x9F) return false; // reject surrogates
-            }
-            else
-            {
-                if ((c1 & 0xC0) != 0x80) return false;
-            }
-            i += 3;
-        }
-        else if (c >= 0xF0 && c <= 0xF4) // 4-byte sequence
-        {
-            if (i + 3 >= n) return false;
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
-            unsigned char const c3 = static_cast<unsigned char>(input[i + 3]);
-            if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) return false;
-            if (c == 0xF0)
-            {
-                if (c1 < 0x90 || c1 > 0xBF) return false; // reject overlong
-            }
-            else if (c == 0xF4)
-            {
-                if (c1 < 0x80 || c1 > 0x8F) return false; // reject > U+10FFFF
-            }
-            else
-            {
-                if ((c1 & 0xC0) != 0x80) return false;
-            }
-            i += 4;
-        }
-        else
-        {
+        std::size_t const len = utf8_sequence_length(bytes + i, n - i);
+        if (len == 0)
             return false;
-        }
+        i += len;
     }
     return true;
 }
@@ -132,14 +132,16 @@ std::string json_escape(std::string const& input)
 {
     std::string out;
     out.reserve(input.size() + 16);
+    auto const* bytes = reinterpret_cast<unsigned char const*>(input.data());
     std::size_t i = 0;
     std::size_t const n = input.size();
 
     while (i < n)
     {
-        unsigned char const c = static_cast<unsigned char>(input[i]);
-        if (c < 0x80)
+        std::size_t const len = utf8_sequence_length(bytes + i, n - i);
+        if (len == 1)
         {
+            unsigned char const c = bytes[i];
             switch (c)
             {
             case '"': out += "\\\""; break;
@@ -163,72 +165,10 @@ std::string json_escape(std::string const& input)
             }
             ++i;
         }
-        else if (c >= 0xC2 && c <= 0xDF && i + 1 < n)
+        else if (len > 1)
         {
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            if ((c1 & 0xC0) == 0x80)
-            {
-                out += static_cast<char>(c);
-                out += static_cast<char>(c1);
-                i += 2;
-            }
-            else
-            {
-                out += "\\ufffd";
-                ++i;
-            }
-        }
-        else if (c >= 0xE0 && c <= 0xEF && i + 2 < n)
-        {
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
-            bool valid = ((c2 & 0xC0) == 0x80);
-            if (c == 0xE0)
-                valid = valid && (c1 >= 0xA0 && c1 <= 0xBF);
-            else if (c == 0xED)
-                valid = valid && (c1 >= 0x80 && c1 <= 0x9F);
-            else
-                valid = valid && ((c1 & 0xC0) == 0x80);
-
-            if (valid)
-            {
-                out += static_cast<char>(c);
-                out += static_cast<char>(c1);
-                out += static_cast<char>(c2);
-                i += 3;
-            }
-            else
-            {
-                out += "\\ufffd";
-                ++i;
-            }
-        }
-        else if (c >= 0xF0 && c <= 0xF4 && i + 3 < n)
-        {
-            unsigned char const c1 = static_cast<unsigned char>(input[i + 1]);
-            unsigned char const c2 = static_cast<unsigned char>(input[i + 2]);
-            unsigned char const c3 = static_cast<unsigned char>(input[i + 3]);
-            bool valid = ((c2 & 0xC0) == 0x80) && ((c3 & 0xC0) == 0x80);
-            if (c == 0xF0)
-                valid = valid && (c1 >= 0x90 && c1 <= 0xBF);
-            else if (c == 0xF4)
-                valid = valid && (c1 >= 0x80 && c1 <= 0x8F);
-            else
-                valid = valid && ((c1 & 0xC0) == 0x80);
-
-            if (valid)
-            {
-                out += static_cast<char>(c);
-                out += static_cast<char>(c1);
-                out += static_cast<char>(c2);
-                out += static_cast<char>(c3);
-                i += 4;
-            }
-            else
-            {
-                out += "\\ufffd";
-                ++i;
-            }
+            out.append(input, i, len);
+            i += len;
         }
         else
         {
@@ -1125,11 +1065,13 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
         out.imbue(std::locale::classic());
 
         out << "{\"files\":[";
+        bool has_metadata = false;
         if (handle.is_valid())
         {
             auto info = handle.torrent_file();
             if (info)
             {
+                has_metadata = true;
                 // Piece granularity is much cheaper for libtorrent: it counts
                 // only hash-checked pieces instead of computing per-block
                 // progress on every inspector refresh.
@@ -1211,10 +1153,7 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
             }
         }
 
-        out << "],\"metadata\":"
-            << (handle.is_valid() && handle.status(lt::status_flags_t{}).has_metadata
-                    ? "true"
-                    : "false");
+        out << "],\"metadata\":" << (has_metadata ? "true" : "false");
         out << "}";
 
         auto text = out.str();
