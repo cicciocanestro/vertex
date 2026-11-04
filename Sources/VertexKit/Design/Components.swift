@@ -186,7 +186,7 @@ struct FilterChip: View {
             HStack(spacing: 6) {
                 Text(L(title))
                 if count > 0 {
-                    Text("\(count)")
+                    Text(verbatim: "\(count)")
                         .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .padding(.horizontal, 5)

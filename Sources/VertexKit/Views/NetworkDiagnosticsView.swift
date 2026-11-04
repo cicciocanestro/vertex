@@ -282,8 +282,9 @@ struct NetworkDiagnosticsView: View {
                 }
 
                 if let publicIP = tester.publicIP {
+                    let endpoint = "\(publicIP):\(testPort)"
                     HStack(spacing: 8) {
-                        Text("\(publicIP):\(testPort)")
+                        Text(verbatim: endpoint)
                             .font(Typography.captionMono)
                             .foregroundStyle(palette.text)
                             .textSelection(.enabled)
@@ -294,7 +295,7 @@ struct NetworkDiagnosticsView: View {
 
                         Button {
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString("\(publicIP):\(testPort)", forType: .string)
+                            NSPasteboard.general.setString(endpoint, forType: .string)
                             engine.showToast(L("Indirizzo copiato"), kind: .info)
                         } label: {
                             Label("Copia", systemImage: "doc.on.doc")

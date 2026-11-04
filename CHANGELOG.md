@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.2] — 2026-11-05
+
+### Correzioni
+- **Formattazione porta e contatori**: rimosso il separatore delle migliaia da
+  `IP:porta` nel pannello Diagnostica rete (`Text(verbatim:)` su
+  `"\(publicIP):\(testPort)"`, che con localizzazione italiana mostrava es.
+  `89.168.20.17:51.413` invece di `89.168.20.17:51413`) e dai badge numerici di
+  conteggio.
+
 ## [1.6.1] — 2026-11-04
 
 Release di reattività: chiusura dell'applicazione istantanea.

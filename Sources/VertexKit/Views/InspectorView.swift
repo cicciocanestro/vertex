@@ -213,7 +213,7 @@ struct InspectorView: View {
         ) { option, selected in
             Text(option.rawValue)
             if option == .files, let count = engine.detail?.files.count, count > 0 {
-                Text("\(count)")
+                Text(verbatim: "\(count)")
                     .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
@@ -376,7 +376,7 @@ struct InspectorView: View {
             Spacer(minLength: 4)
 
             if tracker.peers >= 0 {
-                Text("\(tracker.peers)")
+                Text(verbatim: "\(tracker.peers)")
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(palette.tertiary)
