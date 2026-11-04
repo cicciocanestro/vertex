@@ -40,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         MainActor.assumeIsolated {
+            for window in sender.windows {
+                window.orderOut(nil)
+            }
             TorrentEngine.shared.shutdown {
                 NSApp.reply(toApplicationShouldTerminate: true)
             }

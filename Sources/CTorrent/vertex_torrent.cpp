@@ -659,6 +659,7 @@ vt_session* vt_session_create_full(const char* download_dir,
         settings.set_int(lt::settings_pack::connections_limit, 400);
         settings.set_int(lt::settings_pack::active_limit, 100);
         settings.set_int(lt::settings_pack::alert_queue_size, 1000);
+        settings.set_int(lt::settings_pack::stop_tracker_timeout, 1);
         settings.set_bool(lt::settings_pack::announce_to_all_tiers, true);
         settings.set_bool(lt::settings_pack::announce_to_all_trackers, true);
 
@@ -733,7 +734,8 @@ void vt_session_destroy(vt_session* session)
 
     try
     {
-        // Only wait for resume data of torrents that are still in the session.
+        // Only wait for resume data of torrents that are still in the session
+        // and either need saving or do not yet have a resume file on disk.
         // Stale alerts from removed torrents must neither recreate their files
         // nor decrement the pending counter.
         std::set<std::string> requested_ids;
@@ -744,8 +746,20 @@ void vt_session_destroy(vt_session* session)
                 if (!handle.is_valid())
                     continue;
 
-                auto status = handle.status(lt::status_flags_t{});
-                auto id = torrent_id(status);
+                auto id = to_hex(handle.info_hashes().get_best());
+                if (id.empty() || is_removed(session, id))
+                    continue;
+
+                bool resume_exists = false;
+                if (!session->resume_dir.empty())
+                {
+                    std::error_code ec;
+                    resume_exists = fs::is_regular_file(
+                        fs::path(session->resume_dir) / (id + ".resume"), ec);
+                }
+                if (!handle.need_save_resume_data() && resume_exists)
+                    continue;
+
                 handle.save_resume_data(lt::torrent_handle::save_info_dict);
                 requested_ids.insert(id);
             }
@@ -755,11 +769,23 @@ void vt_session_destroy(vt_session* session)
         }
 
         int pending = int(requested_ids.size());
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-        while (pending > 0 && std::chrono::steady_clock::now() < deadline)
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (pending > 0)
         {
+            auto now = std::chrono::steady_clock::now();
+            if (now >= deadline)
+                break;
+
             std::vector<lt::alert*> alerts;
             session->session->pop_alerts(&alerts);
+            if (alerts.empty())
+            {
+                auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+                session->session->wait_for_alert(
+                    (std::min)(remaining, std::chrono::milliseconds(50)));
+                session->session->pop_alerts(&alerts);
+            }
+
             for (auto* alert : alerts)
             {
                 if (auto* saved = lt::alert_cast<lt::save_resume_data_alert>(alert))
@@ -826,8 +852,6 @@ void vt_session_destroy(vt_session* session)
                     }
                 }
             }
-            if (pending > 0)
-                std::this_thread::sleep_for(std::chrono::milliseconds(40));
         }
     }
     catch (...)

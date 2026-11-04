@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.1] — 2026-11-04
+
+Release di reattività: chiusura dell'applicazione istantanea.
+
+### Prestazioni
+- **Chiusura finestra immediata**: `applicationShouldTerminate` nasconde subito
+  le finestre (`orderOut`) all'invio di `Cmd-Q`, mentre il salvataggio del
+  resume e l'arresto del motore proseguono in background.
+- **Timeout tracker in uscita**: `stop_tracker_timeout` di libtorrent ridotto da
+  5 s a 1 s per evitare che tracker lenti o irraggiungibili trattengano il
+  processo alla chiusura.
+- **Salvataggio resume in `vt_session_destroy`**: sostituito il polling fisso
+  (`sleep_for(40ms)`) con `wait_for_alert` reattivo e saltata la rigenerazione
+  dei resume già aggiornati su disco (`!need_save_resume_data()`).
+
 ## [1.6.0] — 2026-11-04
 
 Release funzionale e di concorrenza: ordinamento invertibile nella barra filtri,
