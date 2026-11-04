@@ -134,6 +134,51 @@ enum CTorrentBridgeTests {
                 )
             }
         }
+        TestRunner.run("Session lifecycle: errore di creazione con percorso non valido") {
+            let workspace = try IntegrationWorkspace()
+            defer { workspace.cleanup() }
+            let resume = try workspace.directory("resume")
+            let invalidDownload = workspace.root.appendingPathComponent("downloads")
+            try Data("x".utf8).write(to: invalidDownload)
+
+            var errorPointer: UnsafeMutablePointer<CChar>?
+            let session = invalidDownload.path.withCString { downloadPath in
+                resume.path.withCString { resumePath in
+                    vt_session_create_full(
+                        downloadPath,
+                        resumePath,
+                        6882,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        nil,
+                        &errorPointer
+                    )
+                }
+            }
+
+            try TestRunner.assertNil(
+                session,
+                "vt_session_create_full deve fallire se la cartella è un file"
+            )
+            guard let errorPointer else {
+                throw TestFailure(
+                    message: "vt_session_create_full deve restituire il messaggio d'errore",
+                    file: #file,
+                    line: #line
+                )
+            }
+            let message = String(cString: errorPointer)
+            vt_free_string(errorPointer)
+            try TestRunner.assertTrue(
+                message.contains(invalidDownload.path),
+                "Il messaggio d'errore deve indicare il percorso non valido: \(message)"
+            )
+        }
+
         TestRunner.run("Binding: ascolto limitato a un indirizzo locale") {
             let port = Int32(try TestsSupport.freeTCPPort())
             try withRawSession(port: port, bindAddress: "127.0.0.1") { session, _, _, _ in
@@ -375,11 +420,11 @@ enum CTorrentBridgeTests {
                 if let bindAddress {
                     return bindAddress.withCString { bindPath in
                         vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
-                                               upnp ? 1 : 0, bindPath)
+                                               upnp ? 1 : 0, bindPath, nil)
                     }
                 }
                 return vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
-                                              upnp ? 1 : 0, nil)
+                                              upnp ? 1 : 0, nil, nil)
             }
         }
         guard let session else {

@@ -663,8 +663,12 @@ vt_session* vt_session_create_full(const char* download_dir,
                                    int enable_pex,
                                    int enable_lsd,
                                    int enable_upnp,
-                                   const char* bind_address)
+                                   const char* bind_address,
+                                   char** error_message)
 {
+    if (error_message)
+        *error_message = nullptr;
+
     try
     {
         auto session = std::make_unique<vt_session>();
@@ -674,10 +678,24 @@ vt_session* vt_session_create_full(const char* download_dir,
         session->bind_address = bind_address ? bind_address : "";
         session->upnp_enabled = enable_upnp != 0;
 
-        if (!session->default_save_path.empty())
-            fs::create_directories(session->default_save_path);
-        if (!session->resume_dir.empty())
-            fs::create_directories(session->resume_dir);
+        auto ensure_directory = [&](std::string const& path) {
+            std::error_code ec;
+            fs::create_directories(path, ec);
+            if (ec)
+            {
+                if (error_message)
+                    *error_message = ::strdup((path + ": " + ec.message()).c_str());
+                return false;
+            }
+            return true;
+        };
+
+        if (!session->default_save_path.empty()
+            && !ensure_directory(session->default_save_path))
+            return nullptr;
+        if (!session->resume_dir.empty()
+            && !ensure_directory(session->resume_dir))
+            return nullptr;
 
         lt::settings_pack settings;
         settings.set_str(lt::settings_pack::user_agent, "Vertex/1.0 libtorrent/" LIBTORRENT_VERSION);
@@ -754,8 +772,16 @@ vt_session* vt_session_create_full(const char* download_dir,
 
         return session.release();
     }
+    catch (std::exception const& e)
+    {
+        if (error_message)
+            *error_message = ::strdup(e.what());
+        return nullptr;
+    }
     catch (...)
     {
+        if (error_message)
+            *error_message = ::strdup("Errore sconosciuto");
         return nullptr;
     }
 }

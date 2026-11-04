@@ -228,7 +228,7 @@ enum EngineTests {
             try TestRunner.assertEqual(decoded?.metadata, true)
         }
 
-        TestRunner.run("Engine: impostazioni, riavvio PEX e shutdown asincrono") {
+        TestRunner.run("Engine: impostazioni, riavvio PEX e shutdown con completion concorrenti") {
             let workspace = try IntegrationWorkspace()
             let (engine, configuration) = try makeEngineWithConfiguration(in: workspace, name: "settings")
             defer { shutdown(engine) }
@@ -249,9 +249,19 @@ enum EngineTests {
                 "La sessione deve essere pronta dopo il riavvio per PEX"
             )
 
-            var completed = false
-            onMain { engine.shutdown { completed = true } }
-            try waitUntil("shutdown dell'engine") { completed }
+            var firstCompleted = false
+            var secondCompleted = false
+            var pausedAgain = configuration
+            pausedAgain.pex = false
+            onMain {
+                engine.setConfigurationForTesting(pausedAgain)
+                engine.applySettings()
+                engine.shutdown { firstCompleted = true }
+                engine.shutdown { secondCompleted = true }
+            }
+            try waitUntil("shutdown con completion concorrenti") {
+                firstCompleted && secondCompleted
+            }
             try TestRunner.assertFalse(onMain { engine.isReady })
         }
 

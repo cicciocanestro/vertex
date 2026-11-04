@@ -77,19 +77,19 @@ package struct RootView: View {
             .animation(.easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(.snappy(duration: 0.22), value: activeModal.value)
             .alert(
-                "Rimuovere il torrent?",
+                L("Rimuovere il torrent?"),
                 isPresented: $showDeleteConfirmation.value,
                 presenting: pendingDeletion.value
             ) { torrent in
-                Button("Rimuovi solo dalla lista") {
+                Button(L("Rimuovi solo dalla lista")) {
                     engine.remove(torrent, deleteFiles: false)
                     clearSelectionIfNeeded(torrent)
                 }
-                Button("Rimuovi e cancella i file", role: .destructive) {
+                Button(L("Rimuovi e cancella i file"), role: .destructive) {
                     engine.remove(torrent, deleteFiles: true)
                     clearSelectionIfNeeded(torrent)
                 }
-                Button("Annulla", role: .cancel) {}
+                Button(L("Annulla"), role: .cancel) {}
             } message: { torrent in
                 Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", torrent.name))
             }

@@ -213,6 +213,7 @@ final class BridgeSession {
                     enablePEX ? 1 : 0,
                     enableLSD ? 1 : 0,
                     0,
+                    nil,
                     nil
                 )
             }

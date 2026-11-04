@@ -1,6 +1,26 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.8] — 2026-11-04
+
+Release di affidabilità: completion di shutdown multiple, errori di creazione sessione
+diagnostici, `request_id` codificato e DMG senza warning di deprecazione.
+
+### Correzioni
+- **Shutdown**: tutte le `completion` richieste durante lo shutdown vengono accodate e
+  chiamate; una seconda richiesta non sovrascrive più la prima mentre è in corso un
+  riavvio della sessione per PEX.
+- **Creazione sessione**: `vt_session_create_full` espone un messaggio d'errore al
+  chiamante; la creazione delle directory usa `std::error_code` e gli errori del file
+  system (inclusi quelli di `FileManager`) arrivano al toast invece di essere ridotti a
+  "motore non disponibile".
+- **Diagnostica porta**: il `request_id` di check-host.net viene codificato come singolo
+  segmento di path, quindi caratteri speciali non possono alterare l'URL.
+- **Localizzazione**: il dialogo di rimozione del torrent e il testo della diagnostica
+  di rete usano esplicitamente `L()`; le chiavi erano già presenti in entrambe le lingue.
+
+### Test
+- Nuovi test per completion concorrenti durante il riavvio PEX, errore di creazione
+  sessione con percorso non valido e codifica del `request_id`. Suite 60/60.
 
 ### Strumenti
 - **DMG senza warning**: `Scripts/make-dmg.sh` usa `diskutil image create/attach` e

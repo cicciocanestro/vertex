@@ -202,7 +202,7 @@ struct NetworkDiagnosticsView: View {
 
             if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
                 && !engine.stats.portmap.hasError {
-                Text("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato.")
+                Text(L("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."))
                     .font(Typography.captionSmall)
                     .foregroundStyle(palette.tertiary)
             }

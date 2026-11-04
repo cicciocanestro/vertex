@@ -39,9 +39,23 @@ enum PortReachabilityTests {
         TestRunner.run("PortReachability: risultato malformato") {
             try malformedResult()
         }
+        TestRunner.run("PortReachability: request ID codificato nel path") {
+            try requestIDEncoding()
+        }
     }
 
     // MARK: - Cases
+
+    private static func requestIDEncoding() throws {
+        let url = try onMain {
+            try PortReachabilityTester.checkResultURL(for: "abc/def?x y")
+        }
+        try TestRunner.assertEqual(
+            url.absoluteString,
+            "https://check-host.net/check-result/abc%2Fdef%3Fx%20y",
+            "Il request ID deve essere codificato come singolo segmento di path"
+        )
+    }
 
     private static func openPort() throws {
         let (tester, stub) = onMain {

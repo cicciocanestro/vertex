@@ -168,10 +168,20 @@ final class PortReachabilityTester: ObservableObject {
         return ExternalCheck(requestID: requestID, nodes: nodes)
     }
 
-    private func fetchCheckResult(requestID: String) async throws -> [String: Any] {
-        guard let url = URL(string: "https://check-host.net/check-result/\(requestID)") else {
+    static func checkResultURL(for requestID: String) throws -> URL {
+        let allowed = CharacterSet(
+            charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+        )
+        guard !requestID.isEmpty,
+              let encoded = requestID.addingPercentEncoding(withAllowedCharacters: allowed),
+              let url = URL(string: "https://check-host.net/check-result/\(encoded)") else {
             throw TestError(L("Risposta del test non valida."))
         }
+        return url
+    }
+
+    private func fetchCheckResult(requestID: String) async throws -> [String: Any] {
+        let url = try Self.checkResultURL(for: requestID)
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 15

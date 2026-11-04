@@ -219,6 +219,11 @@ private final class SessionPointerBox: @unchecked Sendable {
     }
 }
 
+private struct SessionCreationResult {
+    let pointer: OpaquePointer?
+    let error: String?
+}
+
 @MainActor
 package final class TorrentEngine: ObservableObject {
     package static let shared = TorrentEngine()
@@ -270,7 +275,7 @@ package final class TorrentEngine: ObservableObject {
     private var hasLoadedSnapshot = false
     private var isShuttingDown = false
     private var sessionPexEnabled = true
-    private var shutdownCompletion: (() -> Void)?
+    private var shutdownCompletions: [() -> Void] = []
     private var isShutdownComplete = false
     /// All `vt_*` calls run on this serial queue. Creating, polling, reading
     /// details and destroying a session are therefore ordered, and the poll no
@@ -300,19 +305,24 @@ package final class TorrentEngine: ObservableObject {
 
         Self.validateAllPreferences()
         let configuration = Self.currentConfiguration()
+        let creation = Self.makeSession(configuration)
         sessionPexEnabled = configuration.pex
-        session = Self.makeSession(configuration)
+        session = creation.pointer
         isReady = session != nil
         if isReady {
             lastAppliedConfiguration = configuration
         }
 
         if session == nil {
+            let detail = Self.sessionFailureDetail(
+                creation.error,
+                fallback: L("Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.")
+            )
             DispatchQueue.main.async { [weak self] in
                 self?.showToast(
                     L("Impossibile avviare il motore BitTorrent"),
                     kind: .error,
-                    detail: L("Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.")
+                    detail: detail
                 )
             }
         } else {
@@ -327,7 +337,7 @@ package final class TorrentEngine: ObservableObject {
         Preferences.registerDefaults()
         configurationOverride = configuration
         sessionPexEnabled = configuration.pex
-        session = Self.makeSession(configuration)
+        session = Self.makeSession(configuration).pointer
         isReady = session != nil
         if isReady {
             lastAppliedConfiguration = configuration
@@ -409,7 +419,9 @@ package final class TorrentEngine: ObservableObject {
 
     /// Creates and configures a session. This runs off the main actor when
     /// called by the lifecycle queue, so libtorrent I/O cannot block the UI.
-    nonisolated private static func makeSession(_ configuration: SessionConfiguration) -> OpaquePointer? {
+    nonisolated private static func makeSession(
+        _ configuration: SessionConfiguration
+    ) -> SessionCreationResult {
         do {
             try FileManager.default.createDirectory(
                 atPath: configuration.downloadPath,
@@ -420,10 +432,11 @@ package final class TorrentEngine: ObservableObject {
                 withIntermediateDirectories: true
             )
         } catch {
-            return nil
+            return SessionCreationResult(pointer: nil, error: error.localizedDescription)
         }
 
-        return configuration.downloadPath.withCString { downloadPath in
+        var errorPointer: UnsafeMutablePointer<CChar>?
+        let pointer = configuration.downloadPath.withCString { downloadPath in
             configuration.resumePath.withCString { resumePath in
                 configuration.bindAddress.withCString { bindAddress in
                     vt_session_create_full(
@@ -436,11 +449,26 @@ package final class TorrentEngine: ObservableObject {
                         configuration.pex ? 1 : 0,
                         configuration.lsd ? 1 : 0,
                         configuration.upnp ? 1 : 0,
-                        bindAddress
+                        bindAddress,
+                        &errorPointer
                     )
                 }
             }
         }
+
+        let error = errorPointer.map { String(cString: $0) }
+        if let errorPointer {
+            vt_free_string(errorPointer)
+        }
+        return SessionCreationResult(pointer: pointer, error: error)
+    }
+
+    private static func sessionFailureDetail(_ error: String?, fallback: String) -> String {
+        guard let error,
+              !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return fallback
+        }
+        return fallback + "\n" + error
     }
 
     /// PEX is a session plugin in libtorrent: changing it requires recreating
@@ -474,12 +502,13 @@ package final class TorrentEngine: ObservableObject {
         sessionQueue.async { [self] in
             previousSession.destroy()
 
-            let newSession = SessionPointerBox(Self.makeSession(configuration))
+            let creation = Self.makeSession(configuration)
+            let newSession = SessionPointerBox(creation.pointer)
             let fallbackSession: SessionPointerBox?
             if newSession.value == nil, configuration.pex != oldPex {
                 var fallbackConfiguration = configuration
                 fallbackConfiguration.pex = oldPex
-                fallbackSession = SessionPointerBox(Self.makeSession(fallbackConfiguration))
+                fallbackSession = SessionPointerBox(Self.makeSession(fallbackConfiguration).pointer)
             } else {
                 fallbackSession = nil
             }
@@ -489,7 +518,8 @@ package final class TorrentEngine: ObservableObject {
                     newSession: newSession.value,
                     fallbackSession: fallbackSession?.value,
                     configuration: configuration,
-                    oldPex: oldPex
+                    oldPex: oldPex,
+                    creationError: creation.error
                 )
             }
         }
@@ -499,7 +529,8 @@ package final class TorrentEngine: ObservableObject {
         newSession: OpaquePointer?,
         fallbackSession: OpaquePointer?,
         configuration: SessionConfiguration,
-        oldPex: Bool
+        oldPex: Bool,
+        creationError: String?
     ) {
         isRestartingSession = false
 
@@ -536,7 +567,10 @@ package final class TorrentEngine: ObservableObject {
             showToast(
                 L("La modifica a Peer Exchange non è stata applicata."),
                 kind: .error,
-                detail: L("La sessione precedente è stata ripristinata.")
+                detail: Self.sessionFailureDetail(
+                    creationError,
+                    fallback: L("La sessione precedente è stata ripristinata.")
+                )
             )
         } else {
             session = nil
@@ -548,7 +582,10 @@ package final class TorrentEngine: ObservableObject {
             showToast(
                 L("Impossibile riavviare il motore BitTorrent"),
                 kind: .error,
-                detail: L("La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.")
+                detail: Self.sessionFailureDetail(
+                    creationError,
+                    fallback: L("La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.")
+                )
             )
         }
     }
@@ -556,9 +593,11 @@ package final class TorrentEngine: ObservableObject {
     private func completeShutdown() {
         guard !isShutdownComplete else { return }
         isShutdownComplete = true
-        let completion = shutdownCompletion
-        shutdownCompletion = nil
-        completion?()
+        let completions = shutdownCompletions
+        shutdownCompletions.removeAll()
+        for completion in completions {
+            completion()
+        }
     }
 
     deinit {
@@ -882,7 +921,7 @@ package final class TorrentEngine: ObservableObject {
             if isShutdownComplete {
                 completion?()
             } else if let completion {
-                shutdownCompletion = completion
+                shutdownCompletions.append(completion)
             }
             return
         }
@@ -890,7 +929,7 @@ package final class TorrentEngine: ObservableObject {
         isShuttingDown = true
         sessionGeneration += 1
         isPollInFlight = false
-        shutdownCompletion = completion
+        shutdownCompletions = completion.map { [$0] } ?? []
         pollTask?.cancel()
         pollTask = nil
         toastTask?.cancel()

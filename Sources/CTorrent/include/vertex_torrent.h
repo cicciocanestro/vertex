@@ -18,7 +18,10 @@ typedef struct vt_session vt_session;
    outgoing connection use that address only; libtorrent rejects incoming
    traffic on any other local interface. NULL or "" listens on every interface,
    which is the default. It accepts a literal IPv4 or IPv6 address, not a device
-   name. */
+   name.
+
+   On failure returns NULL and, when error_message is not NULL, stores a
+   malloc'd description of the failure to free with vt_free_string. */
 vt_session* vt_session_create_full(const char* download_dir,
                                    const char* resume_dir,
                                    int listen_port,
@@ -28,7 +31,8 @@ vt_session* vt_session_create_full(const char* download_dir,
                                    int enable_pex,
                                    int enable_lsd,
                                    int enable_upnp,
-                                   const char* bind_address);
+                                   const char* bind_address,
+                                   char** error_message);
 
 /* Saves resume data and destroys the session. It can wait up to ~3 seconds:
    callers must invoke it off the main/UI thread. */
