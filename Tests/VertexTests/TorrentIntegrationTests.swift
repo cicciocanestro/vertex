@@ -41,6 +41,10 @@ enum TorrentIntegrationTests {
         TestRunner.run("Fallimenti: torrent, peer e percorso non scrivibile") {
             try failurePaths()
         }
+
+        TestRunner.run("Binding live: kill-switch su caduta tunnel e ripresa download") {
+            try networkSwitchDuringDownload()
+        }
     }
 
     private static func transfer(_ fixture: IntegrationFixture) throws {
@@ -448,5 +452,68 @@ enum TorrentIntegrationTests {
             defaultRoot.path,
             "La destinazione non scrivibile non è stata riparata"
         )
+    }
+
+    private static func networkSwitchDuringDownload() throws {
+        let fixture = IntegrationFixture.v1
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let seed = try IntegrationSwarm.makeSeed(fixture, workspace: workspace)
+        defer { seed.session.close() }
+
+        let downloadRoot = try workspace.directory("leech-bind")
+        let resumeRoot = try workspace.directory("leech-bind-resume")
+        let leechPort = try TestsSupport.freeTCPPort()
+        let leech = try BridgeSession(
+            downloadDirectory: downloadRoot,
+            resumeDirectory: resumeRoot,
+            port: leechPort,
+            bindAddress: "127.0.0.1"
+        )
+        defer { leech.close() }
+
+        try leech.addTorrentFile(
+            fixture.torrentURL.path,
+            savePath: downloadRoot.path
+        )
+        let torrent = try leech.waitForTorrent(fixture.rootName)
+
+        // Simulate tunnel drop BEFORE connecting: switch bind_address to a
+        // non-local TEST-NET-3 address (203.0.113.9). The socket must fail
+        // closed (listening == false, listenError populated) and any peer
+        // connection attempt must not transfer data over other interfaces.
+        try leech.applySettings(port: leechPort, bindAddress: "203.0.113.9")
+        try TestsSupport.waitFor("kill-switch: listen_error su indirizzo tunnel caduto") {
+            let snap = try leech.snapshot()
+            return !snap.listening && !snap.listenError.isEmpty && snap.bindAddress == "203.0.113.9"
+        }
+
+        try leech.addPeer(torrentID: torrent.id, port: seed.port)
+        Thread.sleep(forTimeInterval: 0.35)
+        let blockedSnap = try leech.snapshot()
+        try TestRunner.assertFalse(
+            blockedSnap.listening,
+            "Con tunnel giù il socket non deve essere in ascolto"
+        )
+        try TestRunner.assertEqual(
+            blockedSnap.torrents.first?.downloaded ?? -1,
+            0,
+            "Con tunnel giù (fail-closed) non deve passare alcun byte"
+        )
+
+        // Simulate tunnel recovery: rebind back to 127.0.0.1 (or automatic)
+        // and verify listenError clears and the download completes cleanly.
+        try leech.applySettings(port: leechPort, bindAddress: "127.0.0.1")
+        try TestsSupport.waitFor("ripristino tunnel: ascolto attivo e listen_error azzerato") {
+            let snap = try leech.snapshot()
+            return snap.listening && snap.listenError.isEmpty && snap.bindAddress == "127.0.0.1"
+        }
+
+        try leech.addPeer(torrentID: torrent.id, port: seed.port)
+        try IntegrationSwarm.waitForCompletion(leech, name: fixture.rootName)
+        for file in fixture.files {
+            try fixture.assertDownloaded(in: downloadRoot, path: file.path)
+        }
     }
 }

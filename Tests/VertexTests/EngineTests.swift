@@ -306,6 +306,38 @@ enum EngineTests {
             onMain { engine.applySettings() }
             try TestRunner.assertNil(onMain { engine.toast }, "Le impostazioni valide non devono produrre errori")
 
+            // Dynamic bindAddress switch: simulate binding to a downed tunnel IP
+            // (203.0.113.9), verify listenError is surfaced and socket stops
+            // listening, then restore automatic binding ("") and verify recovery.
+            var tunnelDown = configuration
+            tunnelDown.bindAddress = "203.0.113.9"
+            onMain {
+                engine.setConfigurationForTesting(tunnelDown)
+                engine.applySettings()
+            }
+            try waitFor(engine) {
+                onMain {
+                    engine.stats.bindAddress == "203.0.113.9"
+                        && !engine.stats.isListening
+                        && !engine.stats.listenError.isEmpty
+                }
+            }
+            try TestRunner.assertTrue(onMain { engine.stats.isBoundToAddress })
+
+            var automaticBind = configuration
+            automaticBind.bindAddress = ""
+            onMain {
+                engine.setConfigurationForTesting(automaticBind)
+                engine.applySettings()
+            }
+            try waitFor(engine) {
+                onMain {
+                    !engine.stats.isBoundToAddress
+                        && engine.stats.isListening
+                        && engine.stats.listenError.isEmpty
+                }
+            }
+
             // Changing PEX requires recreating the libtorrent session.
             var restarted = configuration
             restarted.pex = true
@@ -430,6 +462,7 @@ enum EngineTests {
     ) throws {
         try TestsSupport.waitFor("condizione dell'engine", timeout: timeout) {
             onMain {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
                 engine.pollNowForTesting()
                 return condition()
             }

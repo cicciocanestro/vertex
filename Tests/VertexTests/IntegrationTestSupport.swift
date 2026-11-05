@@ -187,7 +187,8 @@ final class BridgeSession {
         port: Int,
         enableDHT: Bool = false,
         enablePEX: Bool = false,
-        enableLSD: Bool = false
+        enableLSD: Bool = false,
+        bindAddress: String? = nil
     ) throws {
         self.downloadDirectory = downloadDirectory
         self.resumeDirectory = resumeDirectory
@@ -203,7 +204,24 @@ final class BridgeSession {
 
         let created = downloadDirectory.path.withCString { downloadPath in
             resumeDirectory.path.withCString { resumePath in
-                vt_session_create_full(
+                if let bindAddress {
+                    return bindAddress.withCString { bindPointer in
+                        vt_session_create_full(
+                            downloadPath,
+                            resumePath,
+                            Int32(port),
+                            0,
+                            0,
+                            enableDHT ? 1 : 0,
+                            enablePEX ? 1 : 0,
+                            enableLSD ? 1 : 0,
+                            0,
+                            bindPointer,
+                            nil
+                        )
+                    }
+                }
+                return vt_session_create_full(
                     downloadPath,
                     resumePath,
                     Int32(port),
@@ -224,16 +242,51 @@ final class BridgeSession {
         self.pointer = created
 
         // Keep tests hermetic even if the caller requests discovery features.
-        _ = vt_apply_settings_ex(
-            pointer,
-            Int32(port),
-            0,
-            0,
-            enableDHT ? 1 : 0,
-            0,
-            enableLSD ? 1 : 0,
-            nil
+        try applySettings(
+            port: port,
+            enableDHT: enableDHT,
+            enableLSD: enableLSD,
+            bindAddress: bindAddress
         )
+    }
+
+    func applySettings(
+        port: Int,
+        downloadLimit: Int = 0,
+        uploadLimit: Int = 0,
+        enableDHT: Bool = false,
+        enableLSD: Bool = false,
+        bindAddress: String? = nil
+    ) throws {
+        let result: Int32
+        if let bindAddress {
+            result = bindAddress.withCString { bindPointer in
+                vt_apply_settings_ex(
+                    pointer,
+                    Int32(port),
+                    Int32(downloadLimit),
+                    Int32(uploadLimit),
+                    enableDHT ? 1 : 0,
+                    0,
+                    enableLSD ? 1 : 0,
+                    bindPointer
+                )
+            }
+        } else {
+            result = vt_apply_settings_ex(
+                pointer,
+                Int32(port),
+                Int32(downloadLimit),
+                Int32(uploadLimit),
+                enableDHT ? 1 : 0,
+                0,
+                enableLSD ? 1 : 0,
+                nil
+            )
+        }
+        if result != 0 {
+            throw IntegrationTestError.bridge(lastError())
+        }
     }
 
     deinit {
