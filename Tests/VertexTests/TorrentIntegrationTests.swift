@@ -510,6 +510,14 @@ enum TorrentIntegrationTests {
             return snap.listening && snap.listenError.isEmpty && snap.bindAddress == "127.0.0.1"
         }
 
+        // Connect from both sides (or retry connect) so that even if
+        // libtorrent's peer_list still holds the earlier failed attempt in a
+        // backoff state on a slower CI runner, the swarm links up immediately.
+        let actualLeechPort = try leech.snapshot().listenActualPort
+        try seed.session.addPeer(
+            torrentID: torrent.id,
+            port: actualLeechPort > 0 ? actualLeechPort : leechPort
+        )
         try leech.addPeer(torrentID: torrent.id, port: seed.port)
         try IntegrationSwarm.waitForCompletion(leech, name: fixture.rootName)
         for file in fixture.files {
