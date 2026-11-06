@@ -122,10 +122,11 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
   UPnP/NAT-PMP.
 - **Interfaccia di rete**: vincolando il client a un indirizzo IPv4 locale (per esempio
   quello di un tunnel WireGuard) il motore usa quell'indirizzo sia per il socket in ascolto
-  sia come sorgente delle connessioni in uscita, e libtorrent rifiuta il traffico che arriva
-  sulle altre interfacce. Togliendo l'associazione torna il comportamento predefinito su
-  tutte le interfacce. Sono accettati solo indirizzi IPv4 letterali; se l'indirizzo sparisce
-  mentre il client è in esecuzione l'ascolto fallisce e la diagnostica spiega perché.
+  (`listen_interfaces`) sia come sorgente delle connessioni in uscita
+  (`outgoing_interfaces`), e libtorrent rifiuta il traffico che arriva sulle altre
+  interfacce. Togliendo l'associazione torna il comportamento predefinito su tutte le
+  interfacce. Sono accettati solo indirizzi IPv4 letterali; se l'indirizzo sparisce mentre il
+  client è in esecuzione l'ascolto fallisce e la diagnostica spiega perché.
 - Avvio in pausa e sequenziale predefiniti per i nuovi torrent; le scelte nella finestra di
   aggiunta restano valide solo per quel torrent.
 - Tema scuro, chiaro o di sistema.
@@ -134,6 +135,59 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
   non validi vengono segnalati.
 - Per un uso domestico normale lascia attivi DHT, PEX, LSD e UPnP. Disattiva DHT/PEX/LSD per
   ridurre la scoperta dei peer e UPnP su router non fidati. BitTorrent non è anonimo.
+
+### Associazione all'interfaccia: comportamento alla disconnessione di WireGuard
+
+**Requisiti:** macOS 15.0 (Sequoia) o successivo · Apple Silicon (`arm64`)
+
+Quando selezioni un indirizzo in **Impostazioni → Rete → Interfaccia di rete** (es.
+`10.8.0.2`), Vertex configura `libtorrent` con `listen_interfaces = "<ipv4_associato>:<porta>"`
+e `outgoing_interfaces = "<ipv4_associato>"`:
+
+- **Cambia interfaccia in automatico?** **No.** Se l'interfaccia del tunnel sparisce, Vertex
+  non riporta `listen_interfaces` o `outgoing_interfaces` su `0.0.0.0` / `[::]` né
+  sull'interfaccia fisica della LAN (`en0`).
+- **Cosa succede ai trasferimenti attivi?** I trasferimenti **si fermano**. I socket
+  associati all'indirizzo rimosso vengono invalidati da macOS, i nuovi tentativi in uscita
+  falliscono il bind sull'IP sorgente assente e le connessioni in ingresso sulle altre
+  interfacce locali vengono rifiutate da `libtorrent` (`invalid_local_interface`).
+- **Diagnostica nella UI:** `listen_failed_alert` viene intercettato dall'engine,
+  l'indicatore della porta nella barra di stato diventa rosso e **Diagnostica rete (`⌘⇧D`)**
+  mostra *"Non in ascolto"* / *"Ascolto non disponibile"* con l'errore del socket finché
+  l'indirizzo del tunnel non torna attivo o l'impostazione non viene cambiata manualmente.
+
+> *Nota: quanto sopra descrive il comportamento di binding dei socket di Vertex
+> (`listen_interfaces` / `outgoing_interfaces` in libtorrent 2.1.2) e come verificarlo; come
+> previsto dalla licenza MIT, il software è fornito "così com'è" ("as is"), senza garanzie.*
+
+#### Test di disconnessione riproducibile (manuale, con WireGuard)
+
+1. Su **macOS 15.0+ (Apple Silicon `arm64`)**, attiva un tunnel WireGuard (es. `utun4` con
+   IPv4 `10.8.0.2`).
+2. In Vertex apri **Impostazioni (`⌘,`) → Rete → Interfaccia di rete** e seleziona
+   `utun4 · 10.8.0.2`.
+3. Avvia un trasferimento e verifica i socket IPv4 aperti:
+   ```bash
+   lsof -nP -c Vertex -i4
+   ```
+   Ogni socket TCP/UDP di `Vertex` risulta vincolato a `10.8.0.2`.
+4. Disconnetti il tunnel WireGuard mentre il download è attivo.
+5. **Risultato osservato:**
+   - La velocità di trasferimento scende a `0 B/s` senza passare su `en0`;
+   - `lsof -nP -c Vertex -i4` non mostra alcuna connessione peer stabilita sull'IP della LAN;
+   - **Diagnostica rete (`⌘⇧D`)** segnala *"Ascolto non disponibile"*.
+
+#### Test di disconnessione riproducibile (automatico, senza VPN)
+
+`Tests/VertexTests/TorrentIntegrationTests.swift` (`networkSwitchDuringDownload`) avvia uno
+swarm locale deterministico, sposta `bind_address` su un indirizzo RFC 5737 TEST-NET-3 non
+assegnato (`203.0.113.9`) per simulare la caduta del tunnel, verifica `listening == false`,
+`listenError != ""` e `downloaded == 0` byte, poi ripristina l'indirizzo valido e verifica
+il completamento del download:
+
+```bash
+./build.sh test
+```
 
 ### Scorciatoie
 
@@ -205,7 +259,8 @@ richiede dipendenze per entrambe le architetture.
 - `Sources/CTorrent` — bridge C++/C verso libtorrent: sessione, aggiunta torrent, snapshot
   JSON, dettagli file/tracker, resume data, priorità, validazione percorsi e comandi.
 - `Sources/VertexKit` — libreria principale:
-  - `Engine/TorrentEngine.swift` — polling serializzato del motore e stato pubblicato;
+  - `Engine/Preferences.swift` — chiavi, default, validazione preferenze e configurazione sessione;
+  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — ciclo di vita della sessione, polling serializzato e azioni utente;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno;
   - `Views/` — lista, righe, inspector, sheet di aggiunta, impostazioni, diagnostica, status bar;
   - `Utilities/` — validazione input, drag&drop, localizzazione, rete;

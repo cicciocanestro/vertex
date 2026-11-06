@@ -118,11 +118,11 @@ needed at runtime.
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
 - **Network interface**: binding the client to one local IPv4 address (for example the
-  address of a WireGuard tunnel) sets both the listening socket and the outgoing source, and
-  libtorrent rejects traffic arriving on the other interfaces. Removing the binding restores
-  the default of listening on every interface. Only literal IPv4 addresses are accepted; if
-  the address disappears while the client runs, listening fails and the diagnostics panel
-  reports why.
+  address of a WireGuard tunnel) sets both the listening socket (`listen_interfaces`) and the
+  outgoing source (`outgoing_interfaces`), and libtorrent rejects traffic arriving on the
+  other interfaces. Removing the binding restores the default of listening on every
+  interface. Only literal IPv4 addresses are accepted; if the address disappears while the
+  client runs, listening fails and the diagnostics panel reports why.
 - Start-paused and sequential defaults for new torrents; per-torrent choices stay local to
   the add window.
 - Dark, light or system appearance.
@@ -131,6 +131,59 @@ needed at runtime.
   validated and invalid values are reported.
 - Leave DHT, PEX, LSD and UPnP enabled for normal home use. Disable DHT/PEX/LSD for less
   peer discovery and UPnP on untrusted routers. BitTorrent is not anonymous.
+
+### Interface binding: behavior when a WireGuard interface disappears
+
+**Requirements:** macOS 15.0 (Sequoia) or later · Apple Silicon (`arm64`)
+
+When an address is selected in **Settings → Network → Network interface** (e.g. `10.8.0.2`),
+Vertex passes `listen_interfaces = "<bound_ipv4>:<port>"` and
+`outgoing_interfaces = "<bound_ipv4>"` to `libtorrent`:
+
+- **Does it switch interfaces?** **No.** When the bound tunnel interface disappears, Vertex
+  does not rewrite `listen_interfaces` or `outgoing_interfaces` back to `0.0.0.0` / `[::]` or
+  to your physical LAN interface (`en0`).
+- **What happens to active transfers?** Active transfers **stop**. Existing sockets bound to
+  the removed tunnel address are invalidated by macOS, new outgoing peer/tracker connections
+  fail to bind to the missing source IP, and incoming connections on other local interfaces
+  are rejected by `libtorrent` (`invalid_local_interface`).
+- **UI diagnostics:** `listen_failed_alert` is captured by the engine, the status-bar port
+  indicator turns red, and **Network Diagnostics (`⌘⇧D`)** displays *"Not listening"* /
+  *"Listening unavailable"* with the underlying socket error until the address becomes
+  available again or the user changes the setting.
+
+> *Note: This describes Vertex's socket-binding behavior (`listen_interfaces` /
+> `outgoing_interfaces` in libtorrent 2.1.2) and how to verify it; as stated in the MIT
+> license, the software is provided "as is" without warranty.*
+
+#### Reproducible disconnect test (manual, with WireGuard)
+
+1. On **macOS 15.0+ (Apple Silicon `arm64`)**, connect a WireGuard tunnel (e.g. `utun4` with
+   IPv4 `10.8.0.2`).
+2. In Vertex, open **Settings (`⌘,`) → Network → Network interface** and select
+   `utun4 · 10.8.0.2`.
+3. Start an active transfer and inspect open IPv4 sockets:
+   ```bash
+   lsof -nP -c Vertex -i4
+   ```
+   Every TCP/UDP socket owned by `Vertex` is bound to `10.8.0.2`.
+4. Disconnect the WireGuard tunnel while the transfer is running.
+5. **Observed result:**
+   - Transfer payload rate drops to `0 B/s` and transfers do **not** switch to `en0`;
+   - `lsof -nP -c Vertex -i4` shows no peer sockets established on the physical LAN IP;
+   - **Network Diagnostics (`⌘⇧D`)** reports *"Listening unavailable"*.
+
+#### Reproducible disconnect test (automated, no VPN required)
+
+`Tests/VertexTests/TorrentIntegrationTests.swift` (`networkSwitchDuringDownload`) runs a
+deterministic loopback swarm, switches `bind_address` to an unassigned RFC 5737 TEST-NET-3
+address (`203.0.113.9`) to simulate a dropped tunnel interface, verifies
+`listening == false`, `listenError != ""`, and `downloaded == 0` bytes, then restores the
+valid bind address and verifies download completion:
+
+```bash
+./build.sh test
+```
 
 ### Shortcuts
 
@@ -202,7 +255,8 @@ both architectures.
 - `Sources/CTorrent` — C++/C bridge to libtorrent: session, adding torrents, JSON snapshot,
   file/tracker details, resume data, priorities, path validation and commands.
 - `Sources/VertexKit` — core application library:
-  - `Engine/TorrentEngine.swift` — serialized engine polling and published state;
+  - `Engine/Preferences.swift` — preference keys, defaults, validation and session configuration;
+  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — serialized engine lifecycle, polling and user actions;
   - `Engine/PortReachabilityTester.swift` — external TCP test;
   - `Views/` — list, rows, inspector, add sheet, settings, diagnostics, status bar;
   - `Utilities/` — input validation, drop handling, localization, network info;
