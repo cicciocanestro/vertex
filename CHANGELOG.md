@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.0] — 2026-11-06
+
+Release architetturale: modularizzazione completa di `TorrentEngine` e test di
+regressione live sul binding di rete e kill-switch.
+
+### Architettura e Manutenzione
+- **Modularizzazione di `TorrentEngine`**: diviso il file monolitico in quattro
+  file specializzati senza alterare la concorrenza né le garanzie di `sessionQueue`:
+  - `Preferences.swift`: chiavi, default, validazione preferenze e configurazione di sessione;
+  - `TorrentEngine.swift`: stato reattivo `@Published`, ciclo vitale della sessione e primitive di coda seriale;
+  - `TorrentEngine+Polling.swift`: gestione del loop di polling, `PollState`, snapshot e caricamento dettagli;
+  - `TorrentEngine+Actions.swift`: comandi utente, gestione file e preferenze applicate.
+
+### Test
+- **Test live sul binding WireGuard**: nuovo test d'integrazione che verifica a caldo
+  il comportamento fail-closed (nessun leak di dati) alla caduta dell'interfaccia tunnel
+  e la successiva ripresa deterministica del download al ripristino dell'indirizzo.
+- **Test dinamico `bindAddress`**: verifica della commutazione a caldo dell'indirizzo di
+  ascolto in `EngineTests` con gestione di `listenError` e ripristino automatico.
+- Suite automatica: 61/61 test superati.
+
 ## [1.6.2] — 2026-11-05
 
 ### Correzioni
