@@ -23,6 +23,12 @@ enum ModelsTests {
                     "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                     "error": ""
                 },
+                "proxy": {
+                    "enabled": true,
+                    "type": "SOCKS5",
+                    "hostname": "127.0.0.1",
+                    "port": 1080
+                },
                 "port": 6881,
                 "torrents": [
                     {
@@ -73,6 +79,9 @@ enum ModelsTests {
             try TestRunner.assertEqual(snapshot.listenError, "")
             try TestRunner.assertTrue(snapshot.stats.isBoundToAddress)
             try TestRunner.assertEqual(snapshot.stats.bindAddress, "10.8.0.2")
+            try TestRunner.assertTrue(snapshot.stats.isProxyActive)
+            try TestRunner.assertEqual(snapshot.stats.proxy.hostname, "127.0.0.1")
+            try TestRunner.assertEqual(snapshot.stats.proxy.port, 1080)
             try TestRunner.assertEqual(snapshot.torrents.count, 1)
 
             let t = snapshot.torrents[0]
@@ -108,6 +117,12 @@ enum ModelsTests {
                     "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                     "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                     "error": ""
+                },
+                "proxy": {
+                    "enabled": false,
+                    "type": "None",
+                    "hostname": "",
+                    "port": 0
                 },
                 "port": 6881,
                 "torrents": [

@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.8.0] — 2026-11-07
+
+Release privacy & anonimato: supporto completo per proxy SOCKS5 (Tor, VPN proxy, tunnel SSH).
+
+### Novità
+- **Proxy SOCKS5**: nuova opzione nelle impostazioni di rete per instradare tutto il
+  traffico torrent verso un proxy SOCKS5 (con supporto opzionale all'autenticazione RFC 1929).
+- **Anti-Leak / Fail-Closed**: libtorrent instrada tutte le connessioni verso tracker, peer
+  e risoluzione degli hostname attraverso il proxy configurato (`proxy_hostnames`,
+  `proxy_tracker_connections`, `proxy_peer_connections`). UPnP e NAT-PMP vengono
+  automaticamente disabilitati per prevenire leak dell'IP locale del router.
+- **Diagnostica e StatusBar**: visualizzazione dello stato proxy in `NetworkDiagnosticsView`
+  e indicatore SOCKS5 nella `StatusBarView`.
+
+### Bridge C++
+- Nuova API `vt_apply_proxy_settings` che configura a caldo il proxy libtorrent.
+- Inclusione dello stato proxy (`enabled`, `type`, `hostname`, `port`) nello snapshot JSON.
+
+### Test
+- Test di configurazione SOCKS5 in `CTorrentBridgeTests`.
+- Test d'integrazione live `SOCKS5 Proxy live: routing fail-closed con proxy non raggiungibile`
+  in `TorrentIntegrationTests`. Suite automatica: 63/63 test superati.
+
 ## [1.7.0] — 2026-11-06
 
 Release architetturale: modularizzazione completa di `TorrentEngine` e test di

@@ -254,3 +254,16 @@
 "Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo." = "Vertex is bound to %@: on the public server forward TCP and UDP %ld to this address.";
 "Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta." = "If the address is no longer listed among the interfaces, the tunnel is down and Vertex does not open the port.";
 "Diagnostica rete · associato a %@" = "Network diagnostics · bound to %@";
+"Proxy SOCKS5" = "SOCKS5 Proxy";
+"Usa proxy SOCKS5" = "Use SOCKS5 proxy";
+"Instrada tracker e peer attraverso un proxy anonimo" = "Route trackers and peers through an anonymous proxy";
+"Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale." = "All connections to trackers and peers route through SOCKS5 proxy. UPnP and NAT-PMP are disabled to prevent local IP leaks.";
+"Server e porta" = "Server and port";
+"Host proxy SOCKS5 e porta" = "SOCKS5 proxy host and port";
+"Autenticazione" = "Authentication";
+"Facoltativa (RFC 1929)" = "Optional (RFC 1929)";
+"Utente" = "User";
+"Password" = "Password";
+"Proxy attivo" = "Proxy active";
+"Tutto il traffico verso tracker e peer è instradato via SOCKS5" = "All traffic to trackers and peers is routed via SOCKS5";
+"Proxy SOCKS5 attivo (%@:%ld)" = "SOCKS5 proxy active (%@:%ld)";

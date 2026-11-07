@@ -80,6 +80,17 @@ int vt_apply_settings_ex(vt_session* session,
                          int enable_lsd,
                          const char* bind_address);
 
+/* Proxy configuration (SOCKS5). proxy_type: 0 = None, 1 = SOCKS5.
+   hostname: server name or IP. port: proxy port (default 1080).
+   username/password: optional credentials for RFC 1929 authentication.
+   Returns 0 on success. */
+int vt_apply_proxy_settings(vt_session* session,
+                            int proxy_type,
+                            const char* hostname,
+                            int port,
+                            const char* username,
+                            const char* password);
+
 /* Updates the fallback folder used when a torrent is added without an explicit
    save path. The folder is created if needed. Returns 0 on success. */
 int vt_set_default_save_path(vt_session* session, const char* path);

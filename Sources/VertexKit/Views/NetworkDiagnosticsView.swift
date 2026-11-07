@@ -36,6 +36,7 @@ struct NetworkDiagnosticsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     statusGrid(palette)
+                    proxyCard(palette)
                     listenErrorCard(palette)
                     mappingCard(palette)
                     reachabilityCard(palette)
@@ -140,6 +141,40 @@ struct NetworkDiagnosticsView: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
         .vertexCard(palette, radius: 11)
+    }
+
+    @ViewBuilder
+    private func proxyCard(_ palette: Palette) -> some View {
+        if engine.stats.isProxyActive {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(text: "Proxy SOCKS5")
+
+                HStack(spacing: 9) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(Typography.bodyLargeMedium)
+                        .foregroundStyle(Theme.mint)
+                        .frame(width: 20)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(L("Proxy attivo"))
+                                .font(Typography.bodyLargeMedium)
+                                .foregroundStyle(palette.text)
+                            Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
+                                .font(Typography.captionMono)
+                                .foregroundStyle(Theme.mint)
+                        }
+                        Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
+                            .font(Typography.micro)
+                            .foregroundStyle(palette.secondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(12)
+                .vertexCard(palette, radius: 12)
+            }
+        }
     }
 
     /// Shown only when the pinned address cannot be used: that is what happens

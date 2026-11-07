@@ -15,6 +15,11 @@ package enum PrefKey {
     package static let startPaused = "startPaused"
     package static let sequentialDefault = "sequentialDefault"
     package static let appearance = "appearance"
+    package static let proxyEnabled = "proxyEnabled"
+    package static let proxyHost = "proxyHost"
+    package static let proxyPort = "proxyPort"
+    package static let proxyUser = "proxyUser"
+    package static let proxyPassword = "proxyPassword"
 }
 
 package enum Preferences {
@@ -144,6 +149,11 @@ package enum PrefDefault {
     package static let startPaused = false
     package static let sequentialDefault = false
     package static let appearance = "dark"
+    package static let proxyEnabled = false
+    package static let proxyHost = "127.0.0.1"
+    package static let proxyPort = 1080
+    package static let proxyUser = ""
+    package static let proxyPassword = ""
 
     package static var dictionary: [String: Any] {
         [
@@ -158,7 +168,12 @@ package enum PrefDefault {
             PrefKey.upnpEnabled: upnpEnabled,
             PrefKey.startPaused: startPaused,
             PrefKey.sequentialDefault: sequentialDefault,
-            PrefKey.appearance: appearance
+            PrefKey.appearance: appearance,
+            PrefKey.proxyEnabled: proxyEnabled,
+            PrefKey.proxyHost: proxyHost,
+            PrefKey.proxyPort: proxyPort,
+            PrefKey.proxyUser: proxyUser,
+            PrefKey.proxyPassword: proxyPassword
         ]
     }
 }
@@ -175,6 +190,11 @@ package struct SessionConfiguration: Sendable, Equatable {
     package var upnp: Bool
     /// Local address the session is pinned to; empty means every interface.
     package var bindAddress: String
+    package var proxyEnabled: Bool
+    package var proxyHost: String
+    package var proxyPort: Int32
+    package var proxyUser: String
+    package var proxyPassword: String
 
     package init(
         downloadPath: String,
@@ -186,7 +206,12 @@ package struct SessionConfiguration: Sendable, Equatable {
         pex: Bool = false,
         lsd: Bool = false,
         upnp: Bool = false,
-        bindAddress: String = ""
+        bindAddress: String = "",
+        proxyEnabled: Bool = false,
+        proxyHost: String = "127.0.0.1",
+        proxyPort: Int32 = 1080,
+        proxyUser: String = "",
+        proxyPassword: String = ""
     ) {
         self.downloadPath = downloadPath
         self.resumePath = resumePath
@@ -198,6 +223,11 @@ package struct SessionConfiguration: Sendable, Equatable {
         self.lsd = lsd
         self.upnp = upnp
         self.bindAddress = bindAddress
+        self.proxyEnabled = proxyEnabled
+        self.proxyHost = proxyHost
+        self.proxyPort = proxyPort
+        self.proxyUser = proxyUser
+        self.proxyPassword = proxyPassword
     }
 }
 
@@ -241,6 +271,23 @@ extension TorrentEngine {
             }
         }
 
+        // proxy port
+        let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
+        let proxyPort = Preferences.validPort(rawProxyPort)
+        if Int(proxyPort) != rawProxyPort && rawProxyPort != 0 {
+            defaults.set(Int(proxyPort), forKey: PrefKey.proxyPort)
+        } else if rawProxyPort == 0 {
+            defaults.set(PrefDefault.proxyPort, forKey: PrefKey.proxyPort)
+        }
+
+        // proxy host
+        if let rawHost = defaults.string(forKey: PrefKey.proxyHost) {
+            let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed != rawHost {
+                defaults.set(trimmed.isEmpty ? PrefDefault.proxyHost : trimmed, forKey: PrefKey.proxyHost)
+            }
+        }
+
         // download path
         let rawPath = defaults.string(forKey: PrefKey.downloadPath)
         let resolved = Preferences.resolvedDownloadPath(rawPath)
@@ -256,6 +303,11 @@ extension TorrentEngine {
     /// single write path and avoids sanitizing/writing on every read.
     nonisolated static func currentConfiguration() -> SessionConfiguration {
         let defaults = UserDefaults.standard
+        let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
+        let proxyPort = rawProxyPort > 0 ? Preferences.validPort(rawProxyPort) : Int32(PrefDefault.proxyPort)
+        let rawHost = defaults.string(forKey: PrefKey.proxyHost)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let proxyHost = rawHost.isEmpty ? PrefDefault.proxyHost : rawHost
+
         return SessionConfiguration(
             downloadPath: Preferences.downloadPath,
             resumePath: Preferences.resumeDirectory.path,
@@ -266,7 +318,12 @@ extension TorrentEngine {
             pex: defaults.bool(forKey: PrefKey.pexEnabled),
             lsd: defaults.bool(forKey: PrefKey.lsdEnabled),
             upnp: defaults.bool(forKey: PrefKey.upnpEnabled),
-            bindAddress: Preferences.normalizedBindAddress(defaults.string(forKey: PrefKey.bindAddress))
+            bindAddress: Preferences.normalizedBindAddress(defaults.string(forKey: PrefKey.bindAddress)),
+            proxyEnabled: defaults.bool(forKey: PrefKey.proxyEnabled),
+            proxyHost: proxyHost,
+            proxyPort: proxyPort,
+            proxyUser: defaults.string(forKey: PrefKey.proxyUser) ?? "",
+            proxyPassword: defaults.string(forKey: PrefKey.proxyPassword) ?? ""
         )
     }
 }

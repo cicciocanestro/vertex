@@ -75,6 +75,20 @@ struct StatusBarView: View {
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
+            if engine.stats.isProxyActive {
+                HStack(spacing: 3) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(Typography.captionMicroSemibold)
+                    Text("SOCKS5")
+                        .font(Typography.badge)
+                }
+                .foregroundStyle(Theme.mint)
+                .help(LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port))
+
+                Text("·")
+                    .foregroundStyle(palette.tertiary)
+            }
+
             Button(action: onOpenDiagnostics) {
                 HStack(spacing: 4) {
                     Image(systemName: engine.stats.isBoundToAddress

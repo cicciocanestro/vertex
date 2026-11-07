@@ -174,6 +174,24 @@ package final class TorrentEngine: ObservableObject {
         if let errorPointer {
             vt_free_string(errorPointer)
         }
+
+        if let pointer, configuration.proxyEnabled {
+            configuration.proxyHost.withCString { hostPointer in
+                configuration.proxyUser.withCString { userPointer in
+                    configuration.proxyPassword.withCString { passPointer in
+                        _ = vt_apply_proxy_settings(
+                            pointer,
+                            1,
+                            hostPointer,
+                            configuration.proxyPort,
+                            userPointer,
+                            passPointer
+                        )
+                    }
+                }
+            }
+        }
+
         return SessionCreationResult(pointer: pointer, error: error)
     }
 

@@ -223,3 +223,16 @@
 "Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo." = "Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.";
 "Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta." = "Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta.";
 "Diagnostica rete · associato a %@" = "Diagnostica rete · associato a %@";
+"Proxy SOCKS5" = "Proxy SOCKS5";
+"Usa proxy SOCKS5" = "Usa proxy SOCKS5";
+"Instrada tracker e peer attraverso un proxy anonimo" = "Instrada tracker e peer attraverso un proxy anonimo";
+"Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale." = "Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale.";
+"Server e porta" = "Server e porta";
+"Host proxy SOCKS5 e porta" = "Host proxy SOCKS5 e porta";
+"Autenticazione" = "Autenticazione";
+"Facoltativa (RFC 1929)" = "Facoltativa (RFC 1929)";
+"Utente" = "Utente";
+"Password" = "Password";
+"Proxy attivo" = "Proxy attivo";
+"Tutto il traffico verso tracker e peer è instradato via SOCKS5" = "Tutto il traffico verso tracker e peer è instradato via SOCKS5";
+"Proxy SOCKS5 attivo (%@:%ld)" = "Proxy SOCKS5 attivo (%@:%ld)";

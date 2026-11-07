@@ -45,6 +45,10 @@ enum TorrentIntegrationTests {
         TestRunner.run("Binding live: kill-switch su caduta tunnel e ripresa download") {
             try networkSwitchDuringDownload()
         }
+
+        TestRunner.run("SOCKS5 Proxy live: routing fail-closed con proxy non raggiungibile") {
+            try proxyFailClosed()
+        }
     }
 
     private static func transfer(_ fixture: IntegrationFixture) throws {
@@ -523,5 +527,50 @@ enum TorrentIntegrationTests {
         for file in fixture.files {
             try fixture.assertDownloaded(in: downloadRoot, path: file.path)
         }
+    }
+
+    private static func proxyFailClosed() throws {
+        let fixture = IntegrationFixture.v1
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let seed = try IntegrationSwarm.makeSeed(fixture, workspace: workspace)
+        defer { seed.session.close() }
+
+        let downloadRoot = try workspace.directory("leech-proxy")
+        let resumeRoot = try workspace.directory("leech-proxy-resume")
+        let leechPort = try TestsSupport.freeTCPPort()
+        let leech = try BridgeSession(
+            downloadDirectory: downloadRoot,
+            resumeDirectory: resumeRoot,
+            port: leechPort
+        )
+        defer { leech.close() }
+
+        try leech.addTorrentFile(
+            fixture.torrentURL.path,
+            savePath: downloadRoot.path
+        )
+        let torrent = try leech.waitForTorrent(fixture.rootName)
+
+        // Point proxy to a closed local port (e.g. 59999).
+        // With proxy_peer_connections = true, no packets can escape directly to the seed.
+        let deadProxyPort = 59999
+        let proxyHost = "127.0.0.1"
+        let setProxyResult = proxyHost.withCString { hostPtr in
+            vt_apply_proxy_settings(leech.pointer, 1, hostPtr, Int32(deadProxyPort), nil, nil)
+        }
+        try TestRunner.assertEqual(setProxyResult, 0)
+
+        try leech.addPeer(torrentID: torrent.id, port: seed.port)
+        Thread.sleep(forTimeInterval: 0.35)
+
+        let snap = try leech.snapshot()
+        try TestRunner.assertTrue(snap.stats.isProxyActive)
+        try TestRunner.assertEqual(
+            snap.torrents.first?.downloaded ?? -1,
+            0,
+            "Con proxy SOCKS5 non raggiungibile nessun byte deve essere trasferito (fail-closed)"
+        )
     }
 }

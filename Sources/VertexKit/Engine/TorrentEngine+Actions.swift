@@ -276,6 +276,7 @@ extension TorrentEngine {
 
         let downloadPathChanged: Bool
         let networkChanged: Bool
+        let proxyChanged: Bool
         if let previous {
             downloadPathChanged = previous.downloadPath != configuration.downloadPath
             networkChanged = previous.port != configuration.port
@@ -285,12 +286,18 @@ extension TorrentEngine {
                 || previous.upnp != configuration.upnp
                 || previous.lsd != configuration.lsd
                 || previous.bindAddress != configuration.bindAddress
+            proxyChanged = previous.proxyEnabled != configuration.proxyEnabled
+                || previous.proxyHost != configuration.proxyHost
+                || previous.proxyPort != configuration.proxyPort
+                || previous.proxyUser != configuration.proxyUser
+                || previous.proxyPassword != configuration.proxyPassword
         } else {
             downloadPathChanged = true
             networkChanged = true
+            proxyChanged = true
         }
 
-        guard downloadPathChanged || networkChanged else {
+        guard downloadPathChanged || networkChanged || proxyChanged else {
             lastAppliedConfiguration = configuration
             return
         }
@@ -307,7 +314,7 @@ extension TorrentEngine {
                     }
                 }
                 if networkChanged {
-                    return configuration.bindAddress.withCString { bindAddress in
+                    let netResult = configuration.bindAddress.withCString { bindAddress in
                         vt_apply_settings_ex(
                             session,
                             configuration.port,
@@ -318,6 +325,25 @@ extension TorrentEngine {
                             configuration.lsd ? 1 : 0,
                             bindAddress
                         )
+                    }
+                    if netResult != 0 {
+                        return netResult
+                    }
+                }
+                if proxyChanged {
+                    return configuration.proxyHost.withCString { hostPointer in
+                        configuration.proxyUser.withCString { userPointer in
+                            configuration.proxyPassword.withCString { passPointer in
+                                vt_apply_proxy_settings(
+                                    session,
+                                    configuration.proxyEnabled ? 1 : 0,
+                                    hostPointer,
+                                    configuration.proxyPort,
+                                    userPointer,
+                                    passPointer
+                                )
+                            }
+                        }
                     }
                 }
                 return 0

@@ -41,6 +41,11 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
     @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
+    @AppStorage(PrefKey.proxyEnabled) private var proxyEnabled = PrefDefault.proxyEnabled
+    @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
+    @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
+    @AppStorage(PrefKey.proxyUser) private var proxyUser = PrefDefault.proxyUser
+    @AppStorage(PrefKey.proxyPassword) private var proxyPassword = PrefDefault.proxyPassword
     /// The raw appearance string is kept in UserDefaults; we bridge it to the
     /// enum for the picker and back so the `SegmentedPicker` works with the
     /// enum type directly.
@@ -159,6 +164,30 @@ struct SettingsSheet: View {
 
                         if !bindAddress.isEmpty {
                             Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
+                                .font(Typography.captionTinyNarrow)
+                                .foregroundStyle(palette.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.horizontal, 4)
+                        }
+
+                        section("Proxy SOCKS5", palette) {
+                            toggleRow(
+                                icon: "shield.lefthalf.filled",
+                                title: "Usa proxy SOCKS5",
+                                subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
+                                isOn: $proxyEnabled,
+                                palette: palette
+                            )
+                            if proxyEnabled {
+                                Hairline(palette: palette).padding(.leading, 28)
+                                proxyHostRow(palette)
+                                Hairline(palette: palette).padding(.leading, 28)
+                                proxyAuthRow(palette)
+                            }
+                        }
+
+                        if proxyEnabled {
+                            Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
                                 .font(Typography.captionTinyNarrow)
                                 .foregroundStyle(palette.tertiary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -450,6 +479,114 @@ struct SettingsSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func proxyHostRow(_ palette: Palette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "server.rack")
+                .font(Typography.bodyMedium)
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L("Server e porta"))
+                    .font(Typography.bodyMedium)
+                    .foregroundStyle(palette.text)
+                Text(L("Host proxy SOCKS5 e porta"))
+                    .font(Typography.captionTiny)
+                    .foregroundStyle(palette.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            TextField("127.0.0.1", text: $proxyHost)
+                .textFieldStyle(.plain)
+                .font(Typography.captionMono)
+                .foregroundStyle(palette.text)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 120, height: 26)
+                .padding(.horizontal, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(palette.input)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(palette.stroke, lineWidth: 1)
+                )
+
+            Text(":")
+                .font(Typography.captionMono)
+                .foregroundStyle(palette.tertiary)
+
+            TextField("1080", value: $proxyPort, formatter: NumberFormatter())
+                .textFieldStyle(.plain)
+                .font(Typography.captionMono)
+                .foregroundStyle(palette.text)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 55, height: 26)
+                .padding(.horizontal, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(palette.input)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(palette.stroke, lineWidth: 1)
+                )
+        }
+        .padding(.vertical, 7)
+    }
+
+    private func proxyAuthRow(_ palette: Palette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "key")
+                .font(Typography.bodyMedium)
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L("Autenticazione"))
+                    .font(Typography.bodyMedium)
+                    .foregroundStyle(palette.text)
+                Text(L("Facoltativa (RFC 1929)"))
+                    .font(Typography.captionTiny)
+                    .foregroundStyle(palette.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            TextField(L("Utente"), text: $proxyUser)
+                .textFieldStyle(.plain)
+                .font(Typography.captionSmall)
+                .foregroundStyle(palette.text)
+                .frame(width: 85, height: 26)
+                .padding(.horizontal, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(palette.input)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(palette.stroke, lineWidth: 1)
+                )
+
+            SecureField(L("Password"), text: $proxyPassword)
+                .textFieldStyle(.plain)
+                .font(Typography.captionSmall)
+                .foregroundStyle(palette.text)
+                .frame(width: 85, height: 26)
+                .padding(.horizontal, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(palette.input)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(palette.stroke, lineWidth: 1)
+                )
+        }
+        .padding(.vertical, 7)
     }
 
     private func toggleRow(

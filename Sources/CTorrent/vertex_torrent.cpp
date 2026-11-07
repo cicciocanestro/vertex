@@ -374,6 +374,10 @@ struct vt_session
     portmap_state udp;
     // Error whose TCP/UDP protocol could not be determined from the alert.
     std::string portmap_error;
+    // Proxy configuration state
+    int proxy_type = 0; // 0 = none, 1 = socks5
+    std::string proxy_host;
+    int proxy_port = 1080;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     // Bounded FIFO: such alerts only arrive shortly after the removal. The set
     // mirrors the deque so membership tests stay O(1) instead of scanning the
@@ -1054,6 +1058,12 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"listening\":" << (session->listening ? "true" : "false") << ",";
         out << "\"bind_address\":\"" << json_escape(session->bind_address) << "\",";
         out << "\"listen_error\":\"" << json_escape(session->listen_error) << "\",";
+        out << "\"proxy\":{";
+        out << "\"enabled\":" << (session->proxy_type != 0 ? "true" : "false") << ",";
+        out << "\"type\":\"" << (session->proxy_type == 1 ? "SOCKS5" : "None") << "\",";
+        out << "\"hostname\":\"" << json_escape(session->proxy_host) << "\",";
+        out << "\"port\":" << session->proxy_port;
+        out << "},";
         out << "\"portmap\":{";
         out << "\"tcp\":{\"mapped\":" << (session->tcp.mapped ? "true" : "false")
             << ",\"external_port\":" << session->tcp.external_port
@@ -1555,6 +1565,72 @@ int vt_apply_settings_ex(vt_session* session,
         }
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             enable_dht, enable_upnp, enable_lsd);
+        session->session->apply_settings(settings);
+        return 0;
+    }
+    VT_CATCH_ALL(session, -1)
+}
+
+int vt_apply_proxy_settings(vt_session* session,
+                            int proxy_type,
+                            const char* hostname,
+                            int port,
+                            const char* username,
+                            const char* password)
+{
+    if (!session || !session->session)
+        return -1;
+
+    try
+    {
+        lt::settings_pack settings;
+        if (proxy_type == 1 && hostname && *hostname)
+        {
+            session->proxy_type = 1;
+            session->proxy_host = hostname;
+            session->proxy_port = port > 0 ? port : 1080;
+
+            settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::socks5);
+            settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
+            settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
+
+            if (username && *username)
+                settings.set_str(lt::settings_pack::proxy_username, username);
+            else
+                settings.set_str(lt::settings_pack::proxy_username, "");
+
+            if (password && *password)
+                settings.set_str(lt::settings_pack::proxy_password, password);
+            else
+                settings.set_str(lt::settings_pack::proxy_password, "");
+
+            // Leak prevention: all tracker and peer traffic routed through SOCKS5 proxy
+            settings.set_bool(lt::settings_pack::proxy_tracker_connections, true);
+            settings.set_bool(lt::settings_pack::proxy_peer_connections, true);
+            settings.set_bool(lt::settings_pack::proxy_hostnames, true);
+
+            // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
+            settings.set_bool(lt::settings_pack::enable_upnp, false);
+            settings.set_bool(lt::settings_pack::enable_natpmp, false);
+            reset_portmap_state(session);
+        }
+        else
+        {
+            session->proxy_type = 0;
+            session->proxy_host.clear();
+            session->proxy_port = 0;
+
+            settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+            settings.set_str(lt::settings_pack::proxy_hostname, "");
+            settings.set_str(lt::settings_pack::proxy_username, "");
+            settings.set_str(lt::settings_pack::proxy_password, "");
+
+            // Restore UPnP / NAT-PMP setting according to session preference
+            settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
+            settings.set_bool(lt::settings_pack::enable_natpmp, session->upnp_enabled);
+            reset_portmap_state(session);
+        }
+
         session->session->apply_settings(settings);
         return 0;
     }

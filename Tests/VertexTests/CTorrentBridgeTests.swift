@@ -240,6 +240,54 @@ enum CTorrentBridgeTests {
             }
         }
 
+        TestRunner.run("Bridge: configurazione SOCKS5 proxy") {
+            try withRawSession(port: 6888) { session, _, _, _ in
+                // Initially proxy is disabled
+                vt_session_poll(session)
+                guard let cInit = vt_snapshot_json(session) else {
+                    try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                    return
+                }
+                let initSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cInit).utf8))
+                vt_free_string(cInit)
+                try TestRunner.assertFalse(initSnap.stats.isProxyActive)
+                try TestRunner.assertEqual(initSnap.proxy.type, "None")
+
+                // Apply SOCKS5 proxy
+                let proxyHost = "127.0.0.1"
+                let applyResult = proxyHost.withCString { hostPtr in
+                    vt_apply_proxy_settings(session, 1, hostPtr, 1080, "testuser", "testpass")
+                }
+                try TestRunner.assertEqual(applyResult, 0, "vt_apply_proxy_settings deve restituire 0")
+
+                vt_session_poll(session)
+                guard let cActive = vt_snapshot_json(session) else {
+                    try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                    return
+                }
+                let activeSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cActive).utf8))
+                vt_free_string(cActive)
+                try TestRunner.assertTrue(activeSnap.stats.isProxyActive)
+                try TestRunner.assertEqual(activeSnap.proxy.type, "SOCKS5")
+                try TestRunner.assertEqual(activeSnap.proxy.hostname, "127.0.0.1")
+                try TestRunner.assertEqual(activeSnap.proxy.port, 1080)
+
+                // Disable proxy
+                let disableResult = vt_apply_proxy_settings(session, 0, nil, 0, nil, nil)
+                try TestRunner.assertEqual(disableResult, 0, "Disabilitare proxy deve restituire 0")
+
+                vt_session_poll(session)
+                guard let cDisabled = vt_snapshot_json(session) else {
+                    try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                    return
+                }
+                let disabledSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cDisabled).utf8))
+                vt_free_string(cDisabled)
+                try TestRunner.assertFalse(disabledSnap.stats.isProxyActive)
+                try TestRunner.assertEqual(disabledSnap.proxy.type, "None")
+            }
+        }
+
         TestRunner.run("Bridge: sanitizzazione UTF-8 e json_escape") {
             let validASCII = "Hello \"World\" \\ \n \t"
             try validASCII.withCString { cStr in

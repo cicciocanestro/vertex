@@ -77,7 +77,12 @@ enum PreferencesTests {
                 PrefKey.upnpEnabled,
                 PrefKey.startPaused,
                 PrefKey.sequentialDefault,
-                PrefKey.appearance
+                PrefKey.appearance,
+                PrefKey.proxyEnabled,
+                PrefKey.proxyHost,
+                PrefKey.proxyPort,
+                PrefKey.proxyUser,
+                PrefKey.proxyPassword
             ]
             try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
             try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
@@ -90,6 +95,11 @@ enum PreferencesTests {
             try TestRunner.assertEqual(defaults[PrefKey.upnpEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.startPaused] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "dark")
+            try TestRunner.assertEqual(defaults[PrefKey.proxyEnabled] as? Bool, false)
+            try TestRunner.assertEqual(defaults[PrefKey.proxyHost] as? String, "127.0.0.1")
+            try TestRunner.assertEqual(defaults[PrefKey.proxyPort] as? Int, 1080)
+            try TestRunner.assertEqual(defaults[PrefKey.proxyUser] as? String, "")
+            try TestRunner.assertEqual(defaults[PrefKey.proxyPassword] as? String, "")
         }
 
         TestRunner.run("ResolvedDownloadPath: sanitizzazione e percorsi fallback") {
@@ -115,7 +125,8 @@ enum PreferencesTests {
             let defaults = UserDefaults.standard
             let keys = [
                 PrefKey.listenPort, PrefKey.downloadLimitKB, PrefKey.uploadLimitKB,
-                PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath
+                PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath,
+                PrefKey.proxyPort, PrefKey.proxyHost
             ]
             let backup = keys.compactMap { defaults.object(forKey: $0) }
             defer {
@@ -138,6 +149,8 @@ enum PreferencesTests {
             defaults.set(Int32.max, forKey: PrefKey.uploadLimitKB)
             defaults.set("utun3", forKey: PrefKey.bindAddress)
             defaults.set("chartreuse", forKey: PrefKey.appearance)
+            defaults.set(88888, forKey: PrefKey.proxyPort)
+            defaults.set("  proxy.local  ", forKey: PrefKey.proxyHost)
             // A .torrent file is a common mis-selection: the path must be resolved
             // to its parent directory rather than left pointing at the file.
             defaults.set("/tmp/corrupt-download.torrent", forKey: PrefKey.downloadPath)
@@ -152,6 +165,8 @@ enum PreferencesTests {
             )
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.bindAddress), "")
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.appearance), "dark")
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 6881)
+            try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")
             try TestRunner.assertEqual(
                 defaults.string(forKey: PrefKey.downloadPath),
                 "/tmp"

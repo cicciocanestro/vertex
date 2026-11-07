@@ -203,6 +203,25 @@ package struct PortMapSnapshot: Decodable, Equatable {
     package var hasError: Bool { tcp.hasError || udp.hasError || !error.isEmpty }
 }
 
+package struct ProxyInfo: Decodable, Equatable {
+    package var enabled: Bool = false
+    package var type: String = "None"
+    package var hostname: String = ""
+    package var port: Int = 0
+
+    package init(
+        enabled: Bool = false,
+        type: String = "None",
+        hostname: String = "",
+        port: Int = 0
+    ) {
+        self.enabled = enabled
+        self.type = type
+        self.hostname = hostname
+        self.port = port
+    }
+}
+
 package struct SessionStats: Equatable {
     package var downloadRate: Int64 = 0
     package var uploadRate: Int64 = 0
@@ -217,12 +236,14 @@ package struct SessionStats: Equatable {
     package var bindAddress: String = ""
     /// Last listen failure reported by libtorrent, empty when the socket is open.
     package var listenError: String = ""
+    package var proxy = ProxyInfo()
 
     package var effectivePort: Int {
         actualPort > 0 ? actualPort : port
     }
 
     package var isBoundToAddress: Bool { !bindAddress.isEmpty }
+    package var isProxyActive: Bool { proxy.enabled && !proxy.hostname.isEmpty && proxy.port > 0 }
 
     package init(
         downloadRate: Int64 = 0,
@@ -235,7 +256,8 @@ package struct SessionStats: Equatable {
         isListening: Bool = false,
         portmap: PortMapSnapshot = PortMapSnapshot(),
         bindAddress: String = "",
-        listenError: String = ""
+        listenError: String = "",
+        proxy: ProxyInfo = ProxyInfo()
     ) {
         self.downloadRate = downloadRate
         self.uploadRate = uploadRate
@@ -248,6 +270,7 @@ package struct SessionStats: Equatable {
         self.portmap = portmap
         self.bindAddress = bindAddress
         self.listenError = listenError
+        self.proxy = proxy
     }
 }
 
@@ -265,6 +288,7 @@ package struct VertexSnapshot: Decodable {
     package let bindAddress: String
     package let listenError: String
     package let alertError: String
+    package let proxy: ProxyInfo
 
     enum CodingKeys: String, CodingKey {
         case torrents
@@ -280,6 +304,7 @@ package struct VertexSnapshot: Decodable {
         case bindAddress = "bind_address"
         case listenError = "listen_error"
         case alertError = "alert_error"
+        case proxy
     }
 
     package var stats: SessionStats {
@@ -294,8 +319,27 @@ package struct VertexSnapshot: Decodable {
             isListening: listening,
             portmap: portmap,
             bindAddress: bindAddress,
-            listenError: listenError
+            listenError: listenError,
+            proxy: proxy
         )
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        torrents = try c.decode([Torrent].self, forKey: .torrents)
+        downloadRate = try c.decode(Int64.self, forKey: .downloadRate)
+        uploadRate = try c.decode(Int64.self, forKey: .uploadRate)
+        active = try c.decode(Int.self, forKey: .active)
+        pausedCount = try c.decode(Int.self, forKey: .pausedCount)
+        dhtNodes = try c.decode(Int.self, forKey: .dhtNodes)
+        port = try c.decode(Int.self, forKey: .port)
+        listenActualPort = try c.decode(Int.self, forKey: .listenActualPort)
+        listening = try c.decode(Bool.self, forKey: .listening)
+        portmap = try c.decode(PortMapSnapshot.self, forKey: .portmap)
+        bindAddress = try c.decode(String.self, forKey: .bindAddress)
+        listenError = try c.decode(String.self, forKey: .listenError)
+        alertError = try c.decode(String.self, forKey: .alertError)
+        proxy = try c.decodeIfPresent(ProxyInfo.self, forKey: .proxy) ?? ProxyInfo()
     }
 }
 
