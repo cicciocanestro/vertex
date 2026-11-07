@@ -72,6 +72,8 @@ package final class TorrentEngine: ObservableObject {
     var lastAppliedPollID = 0
     var configurationOverride: SessionConfiguration?
     var lastAppliedConfiguration: SessionConfiguration?
+    var proxyCheckTick = 0
+    var proxyHealthError: String?
 
     private init() {
         Preferences.registerDefaults()

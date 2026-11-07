@@ -61,7 +61,93 @@ extension TorrentEngine {
         }
         lastAppliedPollID = id
         guard let snapshot else { return }
+
+        // Perform an active TCP health-check probe on the configured proxy
+        // every ~2.4 seconds (every 3 polls) or immediately if there is a detected error.
+        // If the proxy is not reachable (e.g. Tor or local proxy is down),
+        // we override the proxy error so the UI badge turns coral immediately.
+        if snapshot.stats.proxy.enabled && !snapshot.stats.proxy.hostname.isEmpty && snapshot.stats.proxy.port > 0 {
+            proxyCheckTick += 1
+            if proxyCheckTick % 3 == 0 || (proxyHealthError != nil && proxyCheckTick % 2 == 0) {
+                let host = snapshot.stats.proxy.hostname
+                let port = snapshot.stats.proxy.port
+                DispatchQueue.global(qos: .utility).async { [weak self] in
+                    let isReachable = Self.probeTCPConnection(host: host, port: port, timeoutSeconds: 0.5)
+                    DispatchQueue.main.async {
+                        guard let self, self.sessionGeneration == generation, !self.isShuttingDown else { return }
+                        let newError: String? = isReachable ? nil : "Connection refused"
+                        if self.proxyHealthError != newError {
+                            self.proxyHealthError = newError
+                            self.pollState.stats.proxy.error = newError ?? ""
+                        }
+                    }
+                }
+            }
+        } else {
+            proxyHealthError = nil
+            proxyCheckTick = 0
+        }
+
         apply(snapshot)
+    }
+
+    nonisolated static func probeTCPConnection(host: String, port: Int, timeoutSeconds: Double) -> Bool {
+        var hints = addrinfo()
+        hints.ai_family = AF_UNSPEC
+        hints.ai_socktype = SOCK_STREAM
+
+        var res: UnsafeMutablePointer<addrinfo>?
+        let portStr = String(port)
+        guard getaddrinfo(host, portStr, &hints, &res) == 0, let first = res else {
+            return false
+        }
+        defer { freeaddrinfo(res) }
+
+        var connected = false
+        var ptr: UnsafeMutablePointer<addrinfo>? = first
+        while let current = ptr {
+            let fd = socket(current.pointee.ai_family, current.pointee.ai_socktype, current.pointee.ai_protocol)
+            if fd >= 0 {
+                // Set non-blocking to honor timeout
+                let flags = fcntl(fd, F_GETFL, 0)
+                _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+
+                let connRes = connect(fd, current.pointee.ai_addr, current.pointee.ai_addrlen)
+                if connRes == 0 {
+                    connected = true
+                    close(fd)
+                    break
+                } else if errno == EINPROGRESS {
+                    var writeSet = fd_set()
+                    memset(&writeSet, 0, MemoryLayout<fd_set>.size)
+                    let fdVal = fd
+                    let mask = Int32(1) << (fdVal % 32)
+                    withUnsafeMutablePointer(to: &writeSet) { setPtr in
+                        let rawPtr = UnsafeMutableRawPointer(setPtr).assumingMemoryBound(to: Int32.self)
+                        rawPtr[Int(fdVal / 32)] |= mask
+                    }
+
+                    var tv = timeval()
+                    tv.tv_sec = Int(timeoutSeconds)
+                    tv.tv_usec = Int32((timeoutSeconds - Double(Int(timeoutSeconds))) * 1_000_000)
+
+                    let selRes = Darwin.select(fd + 1, nil, &writeSet, nil, &tv)
+                    if selRes > 0 {
+                        var soError: Int32 = 0
+                        var len = socklen_t(MemoryLayout<Int32>.size)
+                        if getsockopt(fd, SOL_SOCKET, SO_ERROR, &soError, &len) == 0 && soError == 0 {
+                            connected = true
+                        }
+                    }
+                }
+                close(fd)
+                if connected {
+                    break
+                }
+            }
+            ptr = current.pointee.ai_next
+        }
+        return connected
     }
 
     private func appendHistory(_ value: Double, to history: inout [Double]) {
@@ -105,6 +191,9 @@ extension TorrentEngine {
         var next = pollState
         next.torrents = snapshot.torrents
         next.stats = snapshot.stats
+        if let proxyHealthError {
+            next.stats.proxy.error = proxyHealthError
+        }
         next.torrentsByID = Dictionary(
             snapshot.torrents.map { ($0.id, $0) },
             uniquingKeysWith: { _, latest in latest }

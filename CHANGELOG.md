@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.2] — 2026-11-07
+
+### Diagnostica e UX
+- **Health-check attivo del proxy SOCKS5**: aggiunto un controllo TCP asincrono e
+  periodico verso il server/proxy configurato (ad es. Tor su `127.0.0.1:9050`).
+  Se il proxy viene spento o non risponde, il badge `SOCKS5` nella barra di stato
+  e la card in `NetworkDiagnosticsView` diventano immediatamente corallo/avviso
+  con il messaggio di errore, tornando verdi appena il proxy riprende a funzionare.
+
 ## [1.8.1] — 2026-11-07
 
 ### Sicurezza e UX
