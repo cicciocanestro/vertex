@@ -146,27 +146,34 @@ struct NetworkDiagnosticsView: View {
     @ViewBuilder
     private func proxyCard(_ palette: Palette) -> some View {
         if engine.stats.isProxyActive {
+            let hasError = engine.stats.proxy.hasError
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(text: "Proxy SOCKS5")
 
                 HStack(spacing: 9) {
-                    Image(systemName: "shield.lefthalf.filled")
+                    Image(systemName: hasError ? "exclamationmark.shield.fill" : "shield.lefthalf.filled")
                         .font(Typography.bodyLargeMedium)
-                        .foregroundStyle(Theme.mint)
+                        .foregroundStyle(hasError ? Theme.coral : Theme.mint)
                         .frame(width: 20)
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(L("Proxy attivo"))
+                            Text(L(hasError ? "Proxy non raggiungibile" : "Proxy attivo"))
                                 .font(Typography.bodyLargeMedium)
                                 .foregroundStyle(palette.text)
                             Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
                                 .font(Typography.captionMono)
-                                .foregroundStyle(Theme.mint)
+                                .foregroundStyle(hasError ? Theme.coral : Theme.mint)
                         }
-                        Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
-                            .font(Typography.micro)
-                            .foregroundStyle(palette.secondary)
+                        if hasError {
+                            Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.error))
+                                .font(Typography.micro)
+                                .foregroundStyle(Theme.coral)
+                        } else {
+                            Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
+                                .font(Typography.micro)
+                                .foregroundStyle(palette.secondary)
+                        }
                     }
 
                     Spacer()

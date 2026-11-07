@@ -82,6 +82,8 @@ enum ModelsTests {
             try TestRunner.assertTrue(snapshot.stats.isProxyActive)
             try TestRunner.assertEqual(snapshot.stats.proxy.hostname, "127.0.0.1")
             try TestRunner.assertEqual(snapshot.stats.proxy.port, 1080)
+            try TestRunner.assertFalse(snapshot.stats.proxy.hasError)
+            try TestRunner.assertEqual(snapshot.stats.proxy.error, "")
             try TestRunner.assertEqual(snapshot.torrents.count, 1)
 
             let t = snapshot.torrents[0]

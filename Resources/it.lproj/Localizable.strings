@@ -234,5 +234,8 @@
 "Utente" = "Utente";
 "Password" = "Password";
 "Proxy attivo" = "Proxy attivo";
+"Proxy non raggiungibile" = "Proxy non raggiungibile";
 "Tutto il traffico verso tracker e peer è instradato via SOCKS5" = "Tutto il traffico verso tracker e peer è instradato via SOCKS5";
+"Errore di connessione: %@. Il traffico è bloccato per prevenire leak." = "Errore di connessione: %@. Il traffico è bloccato per prevenire leak.";
 "Proxy SOCKS5 attivo (%@:%ld)" = "Proxy SOCKS5 attivo (%@:%ld)";
+"Proxy SOCKS5 non raggiungibile (%@:%ld): %@" = "Proxy SOCKS5 non raggiungibile (%@:%ld): %@";

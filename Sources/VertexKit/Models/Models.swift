@@ -208,17 +208,35 @@ package struct ProxyInfo: Decodable, Equatable {
     package var type: String = "None"
     package var hostname: String = ""
     package var port: Int = 0
+    package var error: String = ""
+
+    package var hasError: Bool { !error.isEmpty }
 
     package init(
         enabled: Bool = false,
         type: String = "None",
         hostname: String = "",
-        port: Int = 0
+        port: Int = 0,
+        error: String = ""
     ) {
         self.enabled = enabled
         self.type = type
         self.hostname = hostname
         self.port = port
+        self.error = error
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, type, hostname, port, error
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        type = try c.decodeIfPresent(String.self, forKey: .type) ?? "None"
+        hostname = try c.decodeIfPresent(String.self, forKey: .hostname) ?? ""
+        port = try c.decodeIfPresent(Int.self, forKey: .port) ?? 0
+        error = try c.decodeIfPresent(String.self, forKey: .error) ?? ""
     }
 }
 

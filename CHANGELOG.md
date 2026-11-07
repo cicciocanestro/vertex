@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.1] — 2026-11-07
+
+### Sicurezza e UX
+- **Kill-Switch rigoroso con `anonymous_mode`**: quando il proxy SOCKS5 è attivo,
+  libtorrent imposta `anonymous_mode = true`. Se il server SOCKS5 (o Tor) cade o
+  è spento, qualsiasi connessione esistente o futura viene troncata all'istante
+  senza fallback sulla connessione in chiaro (fail-closed totale).
+- **Badge di warning e diagnostica proxy**: catturato `lt::socks5_alert` nel
+  bridge C++; se il proxy è irraggiungibile o rifiuta le connessioni, il badge
+  `SOCKS5` nella barra di stato diventa corallo (`Theme.coral`) con icona di
+  avviso e tooltip esplicito. Anche la card in `NetworkDiagnosticsView` mostra lo
+  stato d'errore di connessione.
+
 ## [1.8.0] — 2026-11-07
 
 Release privacy & anonimato: supporto completo per proxy SOCKS5 (Tor, VPN proxy, tunnel SSH).

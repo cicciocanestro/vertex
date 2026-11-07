@@ -378,6 +378,7 @@ struct vt_session
     int proxy_type = 0; // 0 = none, 1 = socks5
     std::string proxy_host;
     int proxy_port = 1080;
+    std::string proxy_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     // Bounded FIFO: such alerts only arrive shortly after the removal. The set
     // mirrors the deque so membership tests stay O(1) instead of scanning the
@@ -982,6 +983,17 @@ void vt_session_poll(vt_session* session)
             {
                 session->last_alert_error = error->error.message();
             }
+            else if (auto* socks = lt::alert_cast<lt::socks5_alert>(alert))
+            {
+                if (socks->error)
+                    session->proxy_error = socks->error.message();
+            }
+            else if (auto* peer_conn = lt::alert_cast<lt::peer_connect_alert>(alert))
+            {
+                // If a peer connection succeeded over proxy, clear previous proxy error
+                if (session->proxy_type != 0 && !session->proxy_error.empty())
+                    session->proxy_error.clear();
+            }
         }
     }
     catch (...)
@@ -1062,7 +1074,8 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"enabled\":" << (session->proxy_type != 0 ? "true" : "false") << ",";
         out << "\"type\":\"" << (session->proxy_type == 1 ? "SOCKS5" : "None") << "\",";
         out << "\"hostname\":\"" << json_escape(session->proxy_host) << "\",";
-        out << "\"port\":" << session->proxy_port;
+        out << "\"port\":" << session->proxy_port << ",";
+        out << "\"error\":\"" << json_escape(session->proxy_error) << "\"";
         out << "},";
         out << "\"portmap\":{";
         out << "\"tcp\":{\"mapped\":" << (session->tcp.mapped ? "true" : "false")
@@ -1589,6 +1602,7 @@ int vt_apply_proxy_settings(vt_session* session,
             session->proxy_type = 1;
             session->proxy_host = hostname;
             session->proxy_port = port > 0 ? port : 1080;
+            session->proxy_error.clear();
 
             settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::socks5);
             settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
@@ -1609,6 +1623,10 @@ int vt_apply_proxy_settings(vt_session* session,
             settings.set_bool(lt::settings_pack::proxy_peer_connections, true);
             settings.set_bool(lt::settings_pack::proxy_hostnames, true);
 
+            // Enforce strict anonymous mode: if the proxy fails, connections are never
+            // fallen back to the clearnet adapter and active connections drop.
+            settings.set_bool(lt::settings_pack::anonymous_mode, true);
+
             // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
             settings.set_bool(lt::settings_pack::enable_upnp, false);
             settings.set_bool(lt::settings_pack::enable_natpmp, false);
@@ -1619,11 +1637,13 @@ int vt_apply_proxy_settings(vt_session* session,
             session->proxy_type = 0;
             session->proxy_host.clear();
             session->proxy_port = 0;
+            session->proxy_error.clear();
 
             settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
             settings.set_str(lt::settings_pack::proxy_hostname, "");
             settings.set_str(lt::settings_pack::proxy_username, "");
             settings.set_str(lt::settings_pack::proxy_password, "");
+            settings.set_bool(lt::settings_pack::anonymous_mode, false);
 
             // Restore UPnP / NAT-PMP setting according to session preference
             settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
