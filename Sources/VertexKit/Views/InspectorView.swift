@@ -180,8 +180,10 @@ struct InspectorView: View {
             statCell("Scaricati", Fmt.bytes(torrent.downloaded), palette)
             statCell("Caricati", Fmt.bytes(torrent.uploaded), palette)
             statCell("Rapporto", Fmt.ratio(torrent.ratio), palette)
-            statCell("Download", Fmt.rate(torrent.downloadRate), palette, accent: Theme.mint)
-            statCell("Upload", Fmt.rate(torrent.uploadRate), palette, accent: Theme.violet)
+            statCell("Download", Fmt.rate(torrent.downloadRate), palette,
+                     accent: torrent.downloadRate > 0 ? Theme.mint : nil)
+            statCell("Upload", Fmt.rate(torrent.uploadRate), palette,
+                     accent: torrent.uploadRate > 0 ? Theme.violet : nil)
             statCell("Peer / Seed", "\(torrent.peers) / \(torrent.seeds)", palette)
             statCell("Tempo rimasto", etaText, palette)
         }
@@ -319,6 +321,17 @@ struct InspectorView: View {
                     .truncationMode(.middle)
                     .help(file.path)
 
+                // Nested files are only distinguishable by their folder: the
+                // row used to show the last path component alone.
+                let folder = fileFolder(file.path)
+                if !folder.isEmpty {
+                    Text(folder)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(palette.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
                 if file.progress > 0 && file.progress < 1 {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
@@ -412,6 +425,10 @@ struct InspectorView: View {
 
     private func fileName(_ path: String) -> String {
         (path as NSString).lastPathComponent
+    }
+
+    private func fileFolder(_ path: String) -> String {
+        (path as NSString).deletingLastPathComponent
     }
 
     private var shortHash: String {

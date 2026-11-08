@@ -315,7 +315,9 @@ package struct RootView: View {
 
     @ViewBuilder
     private func content(torrents: [Torrent]) -> some View {
-        if engine.torrents.isEmpty && search.value.isEmpty {
+        if engine.isReady && !engine.hasLoadedSnapshot && engine.torrents.isEmpty {
+            LoadingStateView()
+        } else if engine.torrents.isEmpty && search.value.isEmpty {
             EmptyStateView(
                 onAdd: openAddSheet,
                 onPasteMagnet: pasteMagnet

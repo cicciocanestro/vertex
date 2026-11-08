@@ -87,8 +87,15 @@ struct TorrentRow: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 3) {
-                SpeedText(value: torrent.downloadRate, upload: false)
-                SpeedText(value: torrent.uploadRate, upload: true)
+                // Zero rates are the common case for seeds and paused rows:
+                // repeating "0 B/s" on every row is pure noise. The column
+                // keeps its width so the rows stay aligned.
+                if torrent.downloadRate > 0 {
+                    SpeedText(value: torrent.downloadRate, upload: false)
+                }
+                if torrent.uploadRate > 0 {
+                    SpeedText(value: torrent.uploadRate, upload: true)
+                }
             }
             .frame(width: 88, alignment: .trailing)
 
@@ -113,7 +120,7 @@ struct TorrentRow: View {
             .allowsHitTesting(hover.value || selected)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(backgroundFill(palette))

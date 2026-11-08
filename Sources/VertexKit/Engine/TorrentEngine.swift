@@ -53,7 +53,9 @@ package final class TorrentEngine: ObservableObject {
     var unfinishedIDs: Set<String> = []
     var detailTick = 0
     var forceDetailRefresh = false
-    var hasLoadedSnapshot = false
+    /// True after the first snapshot has been applied. Published so the list
+    /// can show a loading placeholder instead of flashing the empty state.
+    @Published var hasLoadedSnapshot = false
     var isShuttingDown = false
     var sessionPexEnabled = true
     var shutdownCompletions: [() -> Void] = []
@@ -82,6 +84,7 @@ package final class TorrentEngine: ObservableObject {
         #if DEBUG
         if DemoData.isEnabled {
             isReady = true
+            applyDemoSnapshot()
             startPolling()
             return
         }

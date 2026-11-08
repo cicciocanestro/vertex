@@ -80,6 +80,7 @@
 "Porta %ld" = "Porta %ld";
 "Diagnostica rete" = "Diagnostica rete";
 "Nessun torrent" = "Nessun torrent";
+"Caricamento torrent…" = "Caricamento torrent…";
 "Aggiungi un file .torrent o incolla un link magnet per iniziare." = "Aggiungi un file .torrent o incolla un link magnet per iniziare.";
 "Aggiungi torrent" = "Aggiungi torrent";
 "Incolla magnet" = "Incolla magnet";

@@ -23,7 +23,7 @@ struct StatusBarView: View {
             HStack(spacing: 7) {
                 PulsingDot(color: dhtEnabled ? Theme.green : palette.tertiary)
                 Text(dhtLabel)
-                    .font(Typography.captionMedium)
+                    .font(Typography.smallMedium)
                     .foregroundStyle(palette.secondary)
             }
 
@@ -59,20 +59,20 @@ struct StatusBarView: View {
                             Text(verbatim: "↑ \(uploadLimitKB) KB/s")
                         }
                     }
-                    .font(.system(size: 9.3, weight: .medium, design: .rounded))
+                    .font(.system(size: 9.6, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(palette.tertiary)
                 }
 
                 Text(LF("%ld attivi", engine.stats.active))
-                    .font(Typography.captionMedium)
+                    .font(Typography.smallMedium)
                     .foregroundStyle(palette.secondary)
 
                 Text("·")
                     .foregroundStyle(palette.tertiary)
 
                 Text(LF("%ld torrent", engine.torrents.count))
-                    .font(Typography.captionMedium)
+                    .font(Typography.smallMedium)
                     .foregroundStyle(palette.secondary)
             }
 
@@ -102,7 +102,7 @@ struct StatusBarView: View {
                         : "network")
                         .font(Typography.captionMicroSemibold)
                     Text(LF("Porta %ld", engine.stats.effectivePort))
-                        .font(.system(size: 9.5, weight: .regular, design: .rounded))
+                        .font(.system(size: 10, weight: .regular, design: .rounded))
                         .monospacedDigit()
                 }
                 .foregroundStyle(engine.stats.isListening ? palette.tertiary : Theme.coral)
@@ -116,7 +116,7 @@ struct StatusBarView: View {
                 : L("Diagnostica rete"))
         }
         .padding(.horizontal, 18)
-        .frame(height: 38)
+        .frame(height: 40)
         .background(palette.panel)
         .overlay(alignment: .top) {
             Hairline(palette: palette)

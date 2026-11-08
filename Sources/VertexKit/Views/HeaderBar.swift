@@ -14,17 +14,19 @@ struct HeaderBar: View {
         HStack(spacing: 12) {
             LogoMark(size: 32)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Vertex")
-                    .font(Typography.modalTitle)
-                    .foregroundStyle(palette.text)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Vertex")
+                        .font(Typography.modalTitle)
+                        .foregroundStyle(palette.text)
+                    Text(verbatim: "v\(AppInfo.version)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(palette.tertiary)
+                }
                 Text("TORRENT CLIENT")
                     .font(Typography.badge)
                     .tracking(1.6)
                     .foregroundStyle(palette.tertiary)
-                Text("v\(AppInfo.version)")
-                    .font(.system(size: 8.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(palette.secondary)
             }
 
             Spacer(minLength: 20)
@@ -147,15 +149,22 @@ struct FilterBar: View {
             .menuIndicator(.hidden)
             .fixedSize()
 
-            IconButton(
-                icon: sortAscending ? "arrow.up" : "arrow.down",
-                help: "Inverti ordine",
-                size: 27
-            ) {
+            Button {
                 withAnimation(.snappy(duration: 0.18)) {
                     sortAscending.toggle()
                 }
+            } label: {
+                Image(systemName: sortAscending ? "arrow.up" : "arrow.down")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(palette.secondary)
+                    .frame(width: 34, height: 27)
+                    .background(Capsule().fill(palette.input))
+                    .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
+                    .contentShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .help("Inverti ordine")
+            .accessibilityLabel(Text(L("Inverti ordine")))
         }
         .padding(.horizontal, 18)
         .padding(.top, 3)

@@ -66,6 +66,26 @@ struct EmptyStateView: View {
     }
 }
 
+/// Shown until the first snapshot arrives, so a launch with existing torrents
+/// does not flash the "no torrents" state.
+struct LoadingStateView: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let palette = Palette(scheme: scheme)
+        VStack(spacing: 14) {
+            LogoMark(size: 64)
+            ProgressView()
+                .controlSize(.small)
+            Text(L("Caricamento torrent…"))
+                .font(Typography.bodyLarge)
+                .foregroundStyle(palette.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 22)
+    }
+}
+
 struct NoResultsView: View {
     let query: String
     let onReset: () -> Void

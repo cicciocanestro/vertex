@@ -6,6 +6,7 @@ struct ProgressRing: View {
     var size: CGFloat = 46
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var spin = UIState(false)
 
     private var lineWidth: CGFloat { max(3, size * 0.085) }
@@ -22,7 +23,7 @@ struct ProgressRing: View {
                     style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.smooth(duration: 0.45), value: progress)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.45), value: progress)
 
             icon
         }
@@ -80,9 +81,14 @@ struct ProgressRing: View {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.system(size: size * 0.25, weight: .semibold))
                 .foregroundStyle(iconColor)
-                .rotationEffect(.degrees(spin.value ? 360 : 0))
-                .animation(.linear(duration: 1.8).repeatForever(autoreverses: false), value: spin.value)
-                .onAppear { spin.value = true }
+                .rotationEffect(.degrees(reduceMotion ? 0 : (spin.value ? 360 : 0)))
+                .animation(
+                    reduceMotion ? nil : .linear(duration: 1.8).repeatForever(autoreverses: false),
+                    value: spin.value
+                )
+                .onAppear {
+                    if !reduceMotion { spin.value = true }
+                }
         case .downloading:
             Text(Fmt.percent(progress))
                 .font(.system(size: size * 0.215, weight: .semibold, design: .rounded))
@@ -168,6 +174,7 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .onHover { hover.value = $0 }
         .help(L(help))
+        .accessibilityLabel(Text(help.isEmpty ? icon : L(help)))
     }
 }
 
@@ -280,6 +287,7 @@ struct Sparkline: View {
 
 struct PulsingDot: View {
     let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var pulse = UIState(false)
 
     var body: some View {
@@ -296,6 +304,7 @@ struct PulsingDot: View {
         }
         .frame(width: 12, height: 12)
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.easeOut(duration: 1.9).repeatForever(autoreverses: false)) {
                 pulse.value = true
             }

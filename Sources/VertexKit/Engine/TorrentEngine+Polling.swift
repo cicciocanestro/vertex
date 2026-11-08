@@ -187,7 +187,7 @@ extension TorrentEngine {
             }
         }
         unfinishedIDs = unfinished
-        hasLoadedSnapshot = true
+        if !hasLoadedSnapshot { hasLoadedSnapshot = true }
 
         var next = pollState
         next.torrents = snapshot.torrents
@@ -268,7 +268,7 @@ extension TorrentEngine {
         next.downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
         next.uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)
         pollState = next
-        hasLoadedSnapshot = true
+        if !hasLoadedSnapshot { hasLoadedSnapshot = true }
         if let id = selectedID {
             detail = DemoData.detail(for: list.first { $0.id == id })
         }

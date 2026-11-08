@@ -97,6 +97,7 @@
 
 /* Empty state and search results */
 "Nessun torrent" = "No torrents";
+"Caricamento torrent…" = "Loading torrents…";
 "Aggiungi un file .torrent o incolla un link magnet per iniziare." = "Add a .torrent file or paste a magnet link to get started.";
 "Aggiungi torrent" = "Add torrent";
 "Incolla magnet" = "Paste magnet";
