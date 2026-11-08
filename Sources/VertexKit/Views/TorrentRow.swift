@@ -96,6 +96,19 @@ struct TorrentRow: View {
                 if torrent.uploadRate > 0 {
                     SpeedText(value: torrent.uploadRate, upload: true)
                 }
+                // For a finished torrent the ratio is the useful number, and
+                // it used to live in the 10 pt meta line. Finished torrents
+                // with no upload yet keep the column empty.
+                if torrent.finished && torrent.ratio > 0 {
+                    Text(verbatim: "×\(Fmt.ratio(torrent.ratio))")
+                        .font(.system(size: 9.8, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.violet.opacity(0.9))
+                        .help(L("Rapporto"))
+                        .accessibilityLabel(
+                            Text(verbatim: "\(L("Rapporto")) \(Fmt.ratio(torrent.ratio))")
+                        )
+                }
             }
             .frame(width: 88, alignment: .trailing)
 
@@ -209,7 +222,6 @@ struct TorrentRow: View {
             parts.append(LF("%ld peer", torrent.peers))
         case .seeding:
             parts.append(L("In seed"))
-            parts.append(LF("rapporto %@", Fmt.ratio(torrent.ratio)))
         case .completed:
             parts.append(L("Completato"))
         }

@@ -17,15 +17,17 @@
 - **Barra di stato responsive**: sotto 1120 pt nasconde limiti e contatori invece di comprimere
   le velocità fino a mandarle a capo; i valori di velocità restano su una sola riga.
 - **Impostazioni**: indice delle sezioni con `ScrollViewReader` (Proxy SOCKS5 e le sezioni
-  finali non restano più nascoste sotto la piega), indicatori di scorrimento visibili.
+  finali non restano più nascoste sotto la piega), sempre fisso sopra lo scroll, indicatori
+  di scorrimento visibili.
 - **Diagnostica**: UPnP/NAT-PMP disattivato (per scelta o per proxy) non è più mostrato come
   errore di mapping.
 - **UI**: contrasto di testi secondari e bordi nel tema chiaro, ETA “—” per i torrent in seed,
   contatori dei filtri sempre visibili, limite mostrato in KB/s come digitato, sparkline
   nascosta quando il traffico è zero.
 - **Lista torrent**: righe leggermente più compatte, velocità a zero nascoste (niente più
-  “↓ 0 B/s” ripetuto), versione inline nell'header, controllo di ordinamento coerente e
-  placeholder di caricamento prima del primo snapshot.
+  “↓ 0 B/s” ripetuto), rapporto (`×…`) nella colonna di destra dei torrent completati,
+  versione inline nell'header, controllo di ordinamento coerente e placeholder di
+  caricamento prima del primo snapshot.
 - **Inspector**: colore d'accento solo per download/upload attivi e percorso della cartella
   sotto il nome dei file annidati.
 - **Accessibilità**: etichette VoiceOver per i pulsanti a icona e rispetto di “Riduci

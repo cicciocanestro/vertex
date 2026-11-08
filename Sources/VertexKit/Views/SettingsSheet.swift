@@ -117,150 +117,156 @@ struct SettingsSheet: View {
                 )
 
                 ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            sectionIndex(palette) { item in
-                                withAnimation(.snappy(duration: 0.22)) {
-                                    scrollProxy.scrollTo(item.rawValue, anchor: .top)
-                                }
-                            }
-
-                            section(.folders, palette) {
-                                destinationRow(palette)
-                            }
-
-                            section(.performance, palette) {
-                                numericRow(
-                                    icon: "arrow.down",
-                                    title: "Limite download",
-                                    subtitle: "0 significa illimitato",
-                                    value: $downloadLimitKB,
-                                    suffix: "KB/s",
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                numericRow(
-                                    icon: "arrow.up",
-                                    title: "Limite upload",
-                                    subtitle: "0 significa illimitato",
-                                    value: $uploadLimitKB,
-                                    suffix: "KB/s",
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                numericRow(
-                                    icon: "network",
-                                    title: "Porta di ascolto",
-                                    subtitle: "Usata per le connessioni in ingresso",
-                                    value: $listenPort,
-                                    suffix: "TCP/UDP",
-                                    palette: palette
-                                )
-                            }
-
-                            section(.network, palette) {
-                                bindingRow(palette)
-                                Hairline(palette: palette).padding(.leading, 28)
-                                toggleRow(
-                                    icon: "globe",
-                                    title: "DHT",
-                                    subtitle: "Trova peer senza tracker centralizzati",
-                                    isOn: $dhtEnabled,
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                toggleRow(
-                                    icon: "person.2",
-                                    title: "Peer Exchange (PEX)",
-                                    subtitle: "Scambia peer con i client connessi",
-                                    isOn: $pexEnabled,
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                toggleRow(
-                                    icon: "dot.radiowaves.left.and.right",
-                                    title: "Local Service Discovery (LSD)",
-                                    subtitle: "Scopre peer sulla rete locale",
-                                    isOn: $lsdEnabled,
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                toggleRow(
-                                    icon: "wifi.router",
-                                    title: "UPnP / NAT-PMP",
-                                    subtitle: "Apri automaticamente la porta sul router",
-                                    isOn: $upnpEnabled,
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                diagnosticsRow(palette)
-                            }
-                            .disabled(engine.isRestartingSession)
-
-                            if !bindAddress.isEmpty {
-                                Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                                    .font(Typography.captionTinyNarrow)
-                                    .foregroundStyle(palette.tertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.horizontal, 4)
-                            }
-
-                            section(.proxy, palette) {
-                                toggleRow(
-                                    icon: "shield.lefthalf.filled",
-                                    title: "Usa proxy SOCKS5",
-                                    subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
-                                    isOn: $proxyEnabled,
-                                    palette: palette
-                                )
-                                if proxyEnabled {
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    proxyHostRow(palette)
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    proxyAuthRow(palette)
-                                }
-                            }
-
-                            if proxyEnabled {
-                                Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
-                                    .font(Typography.captionTinyNarrow)
-                                    .foregroundStyle(palette.tertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.horizontal, 4)
-                            }
-
-                            section(.behavior, palette) {
-                                toggleRow(
-                                    icon: "pause.circle",
-                                    title: "Avvia i nuovi torrent in pausa",
-                                    subtitle: "Potrai riprenderli quando vuoi",
-                                    isOn: $startPaused,
-                                    palette: palette
-                                )
-                                Hairline(palette: palette).padding(.leading, 28)
-                                toggleRow(
-                                    icon: "arrow.down.to.line",
-                                    title: "Download sequenziale",
-                                    subtitle: "Scarica i file in ordine, utile per lo streaming",
-                                    isOn: $sequentialDefault,
-                                    palette: palette
-                                )
-                            }
-
-                            section(.appearance, palette) {
-                                appearancePicker(palette)
-                                    .padding(.vertical, 9)
-                            }
-
-                            section(.info, palette) {
-                                versionRow(palette)
+                    VStack(spacing: 0) {
+                        sectionIndex(palette) { item in
+                            withAnimation(.snappy(duration: 0.22)) {
+                                scrollProxy.scrollTo(item.rawValue, anchor: .top)
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 22)
-                        .padding(.top, 4)
-                        .padding(.bottom, 16)
+                        .padding(.top, 2)
+                        .padding(.bottom, 4)
+
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 14) {
+                                section(.folders, palette) {
+                                    destinationRow(palette)
+                                }
+
+                                section(.performance, palette) {
+                                    numericRow(
+                                        icon: "arrow.down",
+                                        title: "Limite download",
+                                        subtitle: "0 significa illimitato",
+                                        value: $downloadLimitKB,
+                                        suffix: "KB/s",
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    numericRow(
+                                        icon: "arrow.up",
+                                        title: "Limite upload",
+                                        subtitle: "0 significa illimitato",
+                                        value: $uploadLimitKB,
+                                        suffix: "KB/s",
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    numericRow(
+                                        icon: "network",
+                                        title: "Porta di ascolto",
+                                        subtitle: "Usata per le connessioni in ingresso",
+                                        value: $listenPort,
+                                        suffix: "TCP/UDP",
+                                        palette: palette
+                                    )
+                                }
+
+                                section(.network, palette) {
+                                    bindingRow(palette)
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    toggleRow(
+                                        icon: "globe",
+                                        title: "DHT",
+                                        subtitle: "Trova peer senza tracker centralizzati",
+                                        isOn: $dhtEnabled,
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    toggleRow(
+                                        icon: "person.2",
+                                        title: "Peer Exchange (PEX)",
+                                        subtitle: "Scambia peer con i client connessi",
+                                        isOn: $pexEnabled,
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    toggleRow(
+                                        icon: "dot.radiowaves.left.and.right",
+                                        title: "Local Service Discovery (LSD)",
+                                        subtitle: "Scopre peer sulla rete locale",
+                                        isOn: $lsdEnabled,
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    toggleRow(
+                                        icon: "wifi.router",
+                                        title: "UPnP / NAT-PMP",
+                                        subtitle: "Apri automaticamente la porta sul router",
+                                        isOn: $upnpEnabled,
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    diagnosticsRow(palette)
+                                }
+                                .disabled(engine.isRestartingSession)
+
+                                if !bindAddress.isEmpty {
+                                    Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
+                                        .font(Typography.captionTinyNarrow)
+                                        .foregroundStyle(palette.tertiary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .padding(.horizontal, 4)
+                                }
+
+                                section(.proxy, palette) {
+                                    toggleRow(
+                                        icon: "shield.lefthalf.filled",
+                                        title: "Usa proxy SOCKS5",
+                                        subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
+                                        isOn: $proxyEnabled,
+                                        palette: palette
+                                    )
+                                    if proxyEnabled {
+                                        Hairline(palette: palette).padding(.leading, 28)
+                                        proxyHostRow(palette)
+                                        Hairline(palette: palette).padding(.leading, 28)
+                                        proxyAuthRow(palette)
+                                    }
+                                }
+
+                                if proxyEnabled {
+                                    Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
+                                        .font(Typography.captionTinyNarrow)
+                                        .foregroundStyle(palette.tertiary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .padding(.horizontal, 4)
+                                }
+
+                                section(.behavior, palette) {
+                                    toggleRow(
+                                        icon: "pause.circle",
+                                        title: "Avvia i nuovi torrent in pausa",
+                                        subtitle: "Potrai riprenderli quando vuoi",
+                                        isOn: $startPaused,
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    toggleRow(
+                                        icon: "arrow.down.to.line",
+                                        title: "Download sequenziale",
+                                        subtitle: "Scarica i file in ordine, utile per lo streaming",
+                                        isOn: $sequentialDefault,
+                                        palette: palette
+                                    )
+                                }
+
+                                section(.appearance, palette) {
+                                    appearancePicker(palette)
+                                        .padding(.vertical, 9)
+                                }
+
+                                section(.info, palette) {
+                                    versionRow(palette)
+                                }
+                            }
+                            .padding(.horizontal, 22)
+                            .padding(.top, 4)
+                            .padding(.bottom, 16)
+                        }
+                        .scrollIndicators(.automatic)
                     }
-                    .scrollIndicators(.automatic)
                 }
 
                 ModalFooterBar(palette: palette) {
