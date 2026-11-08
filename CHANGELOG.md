@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+### Corretto
+- **Autenticazione SOCKS5 (RFC 1929)**: con il campo **Utente** compilato il bridge configura
+  libtorrent con il tipo `socks5_pw`, quindi le credenziali vengono realmente inviate. Senza
+  username resta `socks5`. Lo stato effettivo è esposto nello snapshot (`proxy.auth`) e nella
+  Diagnostica rete come badge `RFC 1929`.
+- **Anti-leak UPnP/NAT-PMP con proxy attivo**: un aggiornamento di porta, limiti, DHT o
+  interfaccia non riattiva più la mappatura sul router (`vt_apply_settings_ex` forza la
+  disattivazione finché il proxy è attivo).
+- **Errori SOCKS5**: gli alert del proxy riportati da libtorrent non vengono più cancellati
+  dalla sonda TCP di raggiungibilità; il badge riflette anche gli errori di handshake.
+- **Sonda proxy**: `Darwin.select`/`fd_set` sostituiti da `poll`, eliminando il limite
+  `FD_SETSIZE` e il rischio di scritture fuori bounds.
+- **Barra di stato responsive**: sotto 1120 pt nasconde limiti e contatori invece di comprimere
+  le velocità fino a mandarle a capo; i valori di velocità restano su una sola riga.
+- **Impostazioni**: indice delle sezioni con `ScrollViewReader` (Proxy SOCKS5 e le sezioni
+  finali non restano più nascoste sotto la piega), indicatori di scorrimento visibili.
+- **Diagnostica**: UPnP/NAT-PMP disattivato (per scelta o per proxy) non è più mostrato come
+  errore di mapping.
+- **UI**: contrasto di testi secondari e bordi nel tema chiaro, ETA “—” per i torrent in seed,
+  contatori dei filtri sempre visibili, limite mostrato in KB/s come digitato, sparkline
+  nascosta quando il traffico è zero.
+
 ## [1.8.3] — 2026-11-08
 
 ### Diagnostica e UX

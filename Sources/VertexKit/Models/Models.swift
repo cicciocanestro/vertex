@@ -208,6 +208,9 @@ package struct ProxyInfo: Decodable, Equatable {
     package var type: String = "None"
     package var hostname: String = ""
     package var port: Int = 0
+    /// True when credentials are configured and libtorrent uses the socks5_pw
+    /// proxy type (RFC 1929). Exposed for diagnostics and regression tests.
+    package var auth: Bool = false
     package var error: String = ""
 
     package var hasError: Bool { !error.isEmpty }
@@ -217,17 +220,19 @@ package struct ProxyInfo: Decodable, Equatable {
         type: String = "None",
         hostname: String = "",
         port: Int = 0,
+        auth: Bool = false,
         error: String = ""
     ) {
         self.enabled = enabled
         self.type = type
         self.hostname = hostname
         self.port = port
+        self.auth = auth
         self.error = error
     }
 
     enum CodingKeys: String, CodingKey {
-        case enabled, type, hostname, port, error
+        case enabled, type, hostname, port, auth, error
     }
 
     package init(from decoder: any Decoder) throws {
@@ -236,6 +241,7 @@ package struct ProxyInfo: Decodable, Equatable {
         type = try c.decodeIfPresent(String.self, forKey: .type) ?? "None"
         hostname = try c.decodeIfPresent(String.self, forKey: .hostname) ?? ""
         port = try c.decodeIfPresent(Int.self, forKey: .port) ?? 0
+        auth = try c.decodeIfPresent(Bool.self, forKey: .auth) ?? false
         error = try c.decodeIfPresent(String.self, forKey: .error) ?? ""
     }
 }

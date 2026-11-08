@@ -10,13 +10,11 @@ struct StatusBarView: View {
 
     @Environment(\.colorScheme) private var scheme
 
-    private var downloadLimitBytes: Int64 {
-        Int64(Preferences.limitBytes(fromKB: downloadLimitKB))
-    }
-
-    private var uploadLimitBytes: Int64 {
-        Int64(Preferences.limitBytes(fromKB: uploadLimitKB))
-    }
+    /// Below this width the status bar drops the least essential groups
+    /// (limits and torrent counters) instead of compressing the speed labels
+    /// until they wrap onto a second line.
+    private static let compactWidthThreshold: CGFloat = 1120
+    @StateObject private var compactLayout = UIState(false)
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -46,32 +44,37 @@ struct StatusBarView: View {
 
             Spacer(minLength: 10)
 
-            if downloadLimitBytes > 0 || uploadLimitBytes > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "gauge.with.dots.needle.33percent")
-                        .font(.system(size: 9, weight: .medium))
-                    if downloadLimitBytes > 0 {
-                        Text("↓ \(Fmt.rate(downloadLimitBytes))")
+            if !compactLayout.value {
+                if downloadLimitKB > 0 || uploadLimitKB > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "gauge.with.dots.needle.33percent")
+                            .font(.system(size: 9, weight: .medium))
+                        // Show the value the user typed in Settings. Converting it to
+                        // bytes and formatting it with 1000-based units turned 150
+                        // KB/s into "154 KB/s".
+                        if downloadLimitKB > 0 {
+                            Text(verbatim: "↓ \(downloadLimitKB) KB/s")
+                        }
+                        if uploadLimitKB > 0 {
+                            Text(verbatim: "↑ \(uploadLimitKB) KB/s")
+                        }
                     }
-                    if uploadLimitBytes > 0 {
-                        Text("↑ \(Fmt.rate(uploadLimitBytes))")
-                    }
+                    .font(.system(size: 9.3, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(palette.tertiary)
                 }
-                .font(.system(size: 9.3, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(palette.tertiary)
+
+                Text(LF("%ld attivi", engine.stats.active))
+                    .font(Typography.captionMedium)
+                    .foregroundStyle(palette.secondary)
+
+                Text("·")
+                    .foregroundStyle(palette.tertiary)
+
+                Text(LF("%ld torrent", engine.torrents.count))
+                    .font(Typography.captionMedium)
+                    .foregroundStyle(palette.secondary)
             }
-
-            Text(LF("%ld attivi", engine.stats.active))
-                .font(Typography.captionMedium)
-                .foregroundStyle(palette.secondary)
-
-            Text("·")
-                .foregroundStyle(palette.tertiary)
-
-            Text(LF("%ld torrent", engine.torrents.count))
-                .font(Typography.captionMedium)
-                .foregroundStyle(palette.secondary)
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
@@ -117,6 +120,13 @@ struct StatusBarView: View {
         .background(palette.panel)
         .overlay(alignment: .top) {
             Hairline(palette: palette)
+        }
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width < Self.compactWidthThreshold
+        } action: { compact in
+            if compactLayout.value != compact {
+                compactLayout.value = compact
+            }
         }
     }
 

@@ -185,17 +185,24 @@ struct FilterChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(L(title))
-                if count > 0 {
-                    Text(verbatim: "\(count)")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(
-                            Capsule()
-                                .fill(selected ? Theme.mint.opacity(0.2) : Color.primary.opacity(0.07))
-                        )
-                }
+                // Always render the badge, including zero: a chip that grows or
+                // shrinks whenever a torrent changes category makes the whole
+                // filter bar jitter, and a missing number is ambiguous.
+                Text(verbatim: "\(count)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(count == 0
+                        ? palette.tertiary
+                        : (selected ? palette.text : palette.secondary))
+                    .frame(minWidth: 18)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        Capsule()
+                            .fill(selected
+                                  ? Theme.mint.opacity(0.2)
+                                  : Color.primary.opacity(count > 0 ? 0.07 : 0.035))
+                    )
             }
             .font(.system(size: 12, weight: selected ? .semibold : .medium))
             .foregroundStyle(selected ? palette.text : palette.secondary)
@@ -231,7 +238,10 @@ struct Sparkline: View {
     var body: some View {
         Canvas { context, size in
             guard values.count > 1 else { return }
-            let peak = max(values.max() ?? 0, 1)
+            // A series of zeros would draw a flat line that reads like a
+            // separator: render nothing until there is actual traffic.
+            let peak = values.max() ?? 0
+            guard peak > 0 else { return }
             var path = Path()
 
             for (index, value) in values.enumerated() {
@@ -389,6 +399,7 @@ struct SpeedText: View {
             Text(Fmt.rate(value))
                 .font(.system(size: compact ? 9.5 : 10.5, weight: .medium, design: .rounded))
                 .monospacedDigit()
+                .lineLimit(1)
         }
         .foregroundStyle(color)
     }

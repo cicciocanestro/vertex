@@ -376,6 +376,9 @@ struct vt_session
     std::string portmap_error;
     // Proxy configuration state
     int proxy_type = 0; // 0 = none, 1 = socks5
+    // True when a username is configured: libtorrent only performs RFC 1929
+    // authentication with the socks5_pw proxy type and a non-empty username.
+    bool proxy_auth = false;
     std::string proxy_host;
     int proxy_port = 1080;
     std::string proxy_error;
@@ -1075,6 +1078,7 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"type\":\"" << (session->proxy_type == 1 ? "SOCKS5" : "None") << "\",";
         out << "\"hostname\":\"" << json_escape(session->proxy_host) << "\",";
         out << "\"port\":" << session->proxy_port << ",";
+        out << "\"auth\":" << (session->proxy_auth ? "true" : "false") << ",";
         out << "\"error\":\"" << json_escape(session->proxy_error) << "\"";
         out << "},";
         out << "\"portmap\":{";
@@ -1605,9 +1609,14 @@ int vt_apply_proxy_settings(vt_session* session,
             session->proxy_port = port > 0 ? port : 1080;
             session->proxy_error.clear();
 
-            bool const has_auth = (username && *username) || (password && *password);
+            // libtorrent offers username/password authentication only when the
+            // proxy type is socks5_pw AND the username is non-empty
+            // (socks5_stream.hpp sends the no-auth method when m_user is empty).
+            // A password without a username therefore cannot authenticate.
+            session->proxy_auth = username && *username;
             settings.set_int(lt::settings_pack::proxy_type,
-                             has_auth ? lt::settings_pack::socks5_pw : lt::settings_pack::socks5);
+                             session->proxy_auth ? lt::settings_pack::socks5_pw
+                                                 : lt::settings_pack::socks5);
             settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
             settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
 
@@ -1638,6 +1647,7 @@ int vt_apply_proxy_settings(vt_session* session,
         else
         {
             session->proxy_type = 0;
+            session->proxy_auth = false;
             session->proxy_host.clear();
             session->proxy_port = 0;
             session->proxy_error.clear();

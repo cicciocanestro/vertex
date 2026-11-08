@@ -82,7 +82,9 @@ int vt_apply_settings_ex(vt_session* session,
 
 /* Proxy configuration (SOCKS5). proxy_type: 0 = None, 1 = SOCKS5.
    hostname: server name or IP. port: proxy port (default 1080).
-   username/password: optional credentials for RFC 1929 authentication.
+   username/password: optional credentials for RFC 1929 authentication. When
+   username is non-empty libtorrent is configured with the socks5_pw type so
+   the credentials are actually sent; a password alone cannot authenticate.
    Returns 0 on success. */
 int vt_apply_proxy_settings(vt_session* session,
                             int proxy_type,

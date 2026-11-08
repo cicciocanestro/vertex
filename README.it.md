@@ -126,7 +126,9 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 
 - Cartella di download, limiti globali di velocità, porta di ascolto, DHT, PEX, LSD,
   UPnP/NAT-PMP.
-- **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali RFC 1929).
+- **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali
+  RFC 1929). Le credenziali vengono inviate quando il campo **Utente** è compilato: in quel
+  caso il bridge usa il tipo `socks5_pw` di libtorrent; senza utente il proxy resta `socks5`.
   Tutto il traffico verso tracker e peer passa dal proxy, mentre UPnP/NAT-PMP viene disattivato
   sul router locale. Un badge dedicato nella barra di stato (`SOCKS5`) ne monitora la raggiungibilità
   in tempo reale: verde menta quando è attivo, rosso corallo `[!]` quando il proxy non risponde.

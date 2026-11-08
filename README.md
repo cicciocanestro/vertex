@@ -124,7 +124,9 @@ needed at runtime.
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
 - **SOCKS5 proxy**: toggle and configure an anonymous proxy (host, port, and optional RFC 1929
-  user/password). Traffic to peers and trackers is routed through the proxy, while local
+  user/password). Credentials are sent when the **Username** field is filled in: the bridge
+  switches libtorrent to the `socks5_pw` type; without a username it stays `socks5`.
+  Traffic to peers and trackers is routed through the proxy, while local
   router port-mapping (UPnP/NAT-PMP) is disabled. A dedicated status bar badge (`SOCKS5`)
   monitors reachability in real time: mint green when active, coral red `[!]` when the proxy
   is unreachable or down.

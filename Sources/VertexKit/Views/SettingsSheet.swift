@@ -25,6 +25,34 @@ private enum AppearanceOption: String, CaseIterable, Identifiable {
     }
 }
 
+/// Sections of the settings sheet. The order is the same as the scroll content
+/// and drives the section index shown at the top, so a section that is below
+/// the fold (for example the SOCKS5 proxy) is always discoverable.
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case folders
+    case performance
+    case network
+    case proxy
+    case behavior
+    case appearance
+    case info
+
+    var id: String { rawValue }
+
+    /// Localization key, shared with the section header.
+    var titleKey: String {
+        switch self {
+        case .folders: return "Cartelle"
+        case .performance: return "Prestazioni"
+        case .network: return "Rete"
+        case .proxy: return "Proxy SOCKS5"
+        case .behavior: return "Comportamento"
+        case .appearance: return "Aspetto"
+        case .info: return "Informazioni"
+        }
+    }
+}
+
 struct SettingsSheet: View {
     @ObservedObject var engine: TorrentEngine
 
@@ -88,144 +116,152 @@ struct SettingsSheet: View {
                     onClose: onClose
                 )
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        section("Cartelle", palette) {
-                            destinationRow(palette)
-                        }
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionIndex(palette) { item in
+                                withAnimation(.snappy(duration: 0.22)) {
+                                    scrollProxy.scrollTo(item.rawValue, anchor: .top)
+                                }
+                            }
 
-                        section("Prestazioni", palette) {
-                            numericRow(
-                                icon: "arrow.down",
-                                title: "Limite download",
-                                subtitle: "0 significa illimitato",
-                                value: $downloadLimitKB,
-                                suffix: "KB/s",
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            numericRow(
-                                icon: "arrow.up",
-                                title: "Limite upload",
-                                subtitle: "0 significa illimitato",
-                                value: $uploadLimitKB,
-                                suffix: "KB/s",
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            numericRow(
-                                icon: "network",
-                                title: "Porta di ascolto",
-                                subtitle: "Usata per le connessioni in ingresso",
-                                value: $listenPort,
-                                suffix: "TCP/UDP",
-                                palette: palette
-                            )
-                        }
+                            section(.folders, palette) {
+                                destinationRow(palette)
+                            }
 
-                        section("Rete", palette) {
-                            bindingRow(palette)
-                            Hairline(palette: palette).padding(.leading, 28)
-                            toggleRow(
-                                icon: "globe",
-                                title: "DHT",
-                                subtitle: "Trova peer senza tracker centralizzati",
-                                isOn: $dhtEnabled,
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            toggleRow(
-                                icon: "person.2",
-                                title: "Peer Exchange (PEX)",
-                                subtitle: "Scambia peer con i client connessi",
-                                isOn: $pexEnabled,
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            toggleRow(
-                                icon: "dot.radiowaves.left.and.right",
-                                title: "Local Service Discovery (LSD)",
-                                subtitle: "Scopre peer sulla rete locale",
-                                isOn: $lsdEnabled,
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            toggleRow(
-                                icon: "wifi.router",
-                                title: "UPnP / NAT-PMP",
-                                subtitle: "Apri automaticamente la porta sul router",
-                                isOn: $upnpEnabled,
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            diagnosticsRow(palette)
-                        }
-                        .disabled(engine.isRestartingSession)
+                            section(.performance, palette) {
+                                numericRow(
+                                    icon: "arrow.down",
+                                    title: "Limite download",
+                                    subtitle: "0 significa illimitato",
+                                    value: $downloadLimitKB,
+                                    suffix: "KB/s",
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                numericRow(
+                                    icon: "arrow.up",
+                                    title: "Limite upload",
+                                    subtitle: "0 significa illimitato",
+                                    value: $uploadLimitKB,
+                                    suffix: "KB/s",
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                numericRow(
+                                    icon: "network",
+                                    title: "Porta di ascolto",
+                                    subtitle: "Usata per le connessioni in ingresso",
+                                    value: $listenPort,
+                                    suffix: "TCP/UDP",
+                                    palette: palette
+                                )
+                            }
 
-                        if !bindAddress.isEmpty {
-                            Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                                .font(Typography.captionTinyNarrow)
-                                .foregroundStyle(palette.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, 4)
-                        }
+                            section(.network, palette) {
+                                bindingRow(palette)
+                                Hairline(palette: palette).padding(.leading, 28)
+                                toggleRow(
+                                    icon: "globe",
+                                    title: "DHT",
+                                    subtitle: "Trova peer senza tracker centralizzati",
+                                    isOn: $dhtEnabled,
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                toggleRow(
+                                    icon: "person.2",
+                                    title: "Peer Exchange (PEX)",
+                                    subtitle: "Scambia peer con i client connessi",
+                                    isOn: $pexEnabled,
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                toggleRow(
+                                    icon: "dot.radiowaves.left.and.right",
+                                    title: "Local Service Discovery (LSD)",
+                                    subtitle: "Scopre peer sulla rete locale",
+                                    isOn: $lsdEnabled,
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                toggleRow(
+                                    icon: "wifi.router",
+                                    title: "UPnP / NAT-PMP",
+                                    subtitle: "Apri automaticamente la porta sul router",
+                                    isOn: $upnpEnabled,
+                                    palette: palette
+                                )
+                                Hairline(palette: palette).padding(.leading, 28)
+                                diagnosticsRow(palette)
+                            }
+                            .disabled(engine.isRestartingSession)
 
-                        section("Proxy SOCKS5", palette) {
-                            toggleRow(
-                                icon: "shield.lefthalf.filled",
-                                title: "Usa proxy SOCKS5",
-                                subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
-                                isOn: $proxyEnabled,
-                                palette: palette
-                            )
+                            if !bindAddress.isEmpty {
+                                Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
+                                    .font(Typography.captionTinyNarrow)
+                                    .foregroundStyle(palette.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.horizontal, 4)
+                            }
+
+                            section(.proxy, palette) {
+                                toggleRow(
+                                    icon: "shield.lefthalf.filled",
+                                    title: "Usa proxy SOCKS5",
+                                    subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
+                                    isOn: $proxyEnabled,
+                                    palette: palette
+                                )
+                                if proxyEnabled {
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    proxyHostRow(palette)
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    proxyAuthRow(palette)
+                                }
+                            }
+
                             if proxyEnabled {
+                                Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
+                                    .font(Typography.captionTinyNarrow)
+                                    .foregroundStyle(palette.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.horizontal, 4)
+                            }
+
+                            section(.behavior, palette) {
+                                toggleRow(
+                                    icon: "pause.circle",
+                                    title: "Avvia i nuovi torrent in pausa",
+                                    subtitle: "Potrai riprenderli quando vuoi",
+                                    isOn: $startPaused,
+                                    palette: palette
+                                )
                                 Hairline(palette: palette).padding(.leading, 28)
-                                proxyHostRow(palette)
-                                Hairline(palette: palette).padding(.leading, 28)
-                                proxyAuthRow(palette)
+                                toggleRow(
+                                    icon: "arrow.down.to.line",
+                                    title: "Download sequenziale",
+                                    subtitle: "Scarica i file in ordine, utile per lo streaming",
+                                    isOn: $sequentialDefault,
+                                    palette: palette
+                                )
+                            }
+
+                            section(.appearance, palette) {
+                                appearancePicker(palette)
+                                    .padding(.vertical, 9)
+                            }
+
+                            section(.info, palette) {
+                                versionRow(palette)
                             }
                         }
-
-                        if proxyEnabled {
-                            Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
-                                .font(Typography.captionTinyNarrow)
-                                .foregroundStyle(palette.tertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.horizontal, 4)
-                        }
-
-                        section("Comportamento", palette) {
-                            toggleRow(
-                                icon: "pause.circle",
-                                title: "Avvia i nuovi torrent in pausa",
-                                subtitle: "Potrai riprenderli quando vuoi",
-                                isOn: $startPaused,
-                                palette: palette
-                            )
-                            Hairline(palette: palette).padding(.leading, 28)
-                            toggleRow(
-                                icon: "arrow.down.to.line",
-                                title: "Download sequenziale",
-                                subtitle: "Scarica i file in ordine, utile per lo streaming",
-                                isOn: $sequentialDefault,
-                                palette: palette
-                            )
-                        }
-
-                        section("Aspetto", palette) {
-                            appearancePicker(palette)
-                                .padding(.vertical, 9)
-                        }
-
-                        section("Informazioni", palette) {
-                            versionRow(palette)
-                        }
+                        .padding(.horizontal, 22)
+                        .padding(.top, 4)
+                        .padding(.bottom, 16)
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 4)
-                    .padding(.bottom, 16)
+                    .scrollIndicators(.automatic)
                 }
-                .scrollIndicators(.hidden)
 
                 ModalFooterBar(palette: palette) {
                     Text(engine.isRestartingSession
@@ -271,12 +307,12 @@ struct SettingsSheet: View {
     }
 
     private func section<Content: View>(
-        _ title: String,
+        _ item: SettingsSection,
         _ palette: Palette,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            SectionLabel(text: title)
+            SectionLabel(text: item.titleKey)
             VStack(spacing: 0) {
                 content()
             }
@@ -284,6 +320,49 @@ struct SettingsSheet: View {
             .padding(.vertical, 1)
             .vertexCard(palette, radius: 12)
         }
+        .id(item.rawValue)
+    }
+
+    /// Two compact rows listing every section, so the content below the fold
+    /// (Proxy, Comportamento, Aspetto, Informazioni) is visible on open.
+    private func sectionIndex(
+        _ palette: Palette,
+        onSelect: @escaping (SettingsSection) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionLabel(text: "Sezioni")
+            HStack(spacing: 6) {
+                ForEach(Array(SettingsSection.allCases.prefix(4))) { item in
+                    indexChip(item, palette: palette, onSelect: onSelect)
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Array(SettingsSection.allCases.suffix(3))) { item in
+                    indexChip(item, palette: palette, onSelect: onSelect)
+                }
+            }
+        }
+        .padding(.bottom, 2)
+    }
+
+    private func indexChip(
+        _ item: SettingsSection,
+        palette: Palette,
+        onSelect: @escaping (SettingsSection) -> Void
+    ) -> some View {
+        Button {
+            onSelect(item)
+        } label: {
+            Text(L(item.titleKey))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(palette.secondary)
+                .padding(.horizontal, 9)
+                .frame(height: 22)
+                .background(Capsule().fill(palette.input))
+                .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private func destinationRow(_ palette: Palette) -> some View {

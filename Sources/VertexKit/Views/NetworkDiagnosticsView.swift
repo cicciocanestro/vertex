@@ -12,6 +12,20 @@ struct NetworkDiagnosticsView: View {
     /// every render.
     @StateObject private var localIP = UIState(LocalNetwork.primaryIPv4Address() ?? "—")
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
+    @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
+
+    /// Why UPnP/NAT-PMP cannot run at all. When this is non-nil the mapping
+    /// rows must not look like a failure: the user disabled the feature, or the
+    /// SOCKS5 proxy disabled it on purpose to avoid leaking the local IP.
+    private var upnpDisabledReason: String? {
+        if engine.stats.isProxyActive {
+            return L("Disattivato dal proxy SOCKS5 per prevenire leak.")
+        }
+        if !upnpEnabled {
+            return L("Disattivato in Impostazioni → Rete.")
+        }
+        return nil
+    }
 
     /// Port to probe from outside: the NAT-mapped external TCP port if any, otherwise the listen port.
     private var testPort: Int {
@@ -164,6 +178,16 @@ struct NetworkDiagnosticsView: View {
                             Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
                                 .font(Typography.captionMono)
                                 .foregroundStyle(hasError ? Theme.coral : Theme.mint)
+                            if engine.stats.proxy.auth {
+                                Text(verbatim: "RFC 1929")
+                                    .font(Typography.captionMicroSemibold)
+                                    .foregroundStyle(hasError ? Theme.coral : Theme.mint)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1.5)
+                                    .background(
+                                        Capsule().fill((hasError ? Theme.coral : Theme.mint).opacity(0.12))
+                                    )
+                            }
                         }
                         if hasError {
                             Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.error))
@@ -220,34 +244,62 @@ struct NetworkDiagnosticsView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(text: "Mapping UPnP / NAT-PMP")
 
-            VStack(spacing: 0) {
-                mappingRow("TCP", info: engine.stats.portmap.tcp, palette: palette)
-                Hairline(palette: palette)
-                mappingRow("UDP", info: engine.stats.portmap.udp, palette: palette)
+            if let reason = upnpDisabledReason {
+                HStack(spacing: 9) {
+                    Image(systemName: "wifi.router")
+                        .font(Typography.bodyMedium)
+                        .foregroundStyle(palette.tertiary)
+                        .frame(width: 20)
 
-                if !engine.stats.portmap.error.isEmpty {
-                    Hairline(palette: palette)
-                    HStack(alignment: .top, spacing: 7) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(Typography.captionTiny)
-                            .foregroundStyle(Theme.coral)
-                        Text(engine.stats.portmap.error)
-                            .font(Typography.captionSmall)
-                            .foregroundStyle(palette.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("UPnP / NAT-PMP disattivato"))
+                            .font(Typography.bodyLargeMedium)
+                            .foregroundStyle(palette.text)
+                        Text(reason)
+                            .font(Typography.micro)
+                            .foregroundStyle(palette.tertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.vertical, 8)
-                }
-            }
-            .padding(.horizontal, 12)
-            .vertexCard(palette, radius: 12)
 
-            if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
-                && !engine.stats.portmap.hasError {
-                Text(L("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."))
-                    .font(Typography.captionSmall)
-                    .foregroundStyle(palette.tertiary)
+                    Spacer(minLength: 4)
+                }
+                .padding(12)
+                .vertexCard(palette, radius: 12)
+            } else {
+                mappingRows(palette)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func mappingRows(_ palette: Palette) -> some View {
+        VStack(spacing: 0) {
+            mappingRow("TCP", info: engine.stats.portmap.tcp, palette: palette)
+            Hairline(palette: palette)
+            mappingRow("UDP", info: engine.stats.portmap.udp, palette: palette)
+
+            if !engine.stats.portmap.error.isEmpty {
+                Hairline(palette: palette)
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(Typography.captionTiny)
+                        .foregroundStyle(Theme.coral)
+                    Text(engine.stats.portmap.error)
+                        .font(Typography.captionSmall)
+                        .foregroundStyle(palette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 8)
+            }
+        }
+        .padding(.horizontal, 12)
+        .vertexCard(palette, radius: 12)
+
+        if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
+            && !engine.stats.portmap.hasError {
+            Text(L("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."))
+                .font(Typography.captionSmall)
+                .foregroundStyle(palette.tertiary)
         }
     }
 

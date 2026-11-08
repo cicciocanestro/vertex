@@ -271,6 +271,10 @@ enum CTorrentBridgeTests {
                 try TestRunner.assertEqual(activeSnap.proxy.type, "SOCKS5")
                 try TestRunner.assertEqual(activeSnap.proxy.hostname, "127.0.0.1")
                 try TestRunner.assertEqual(activeSnap.proxy.port, 1080)
+                try TestRunner.assertTrue(
+                    activeSnap.proxy.auth,
+                    "Con un utente configurato il bridge deve usare socks5_pw (RFC 1929)"
+                )
                 try TestRunner.assertFalse(activeSnap.portmap.tcp.mapped)
                 try TestRunner.assertFalse(activeSnap.portmap.udp.mapped)
 
@@ -294,8 +298,30 @@ enum CTorrentBridgeTests {
                 let stillProxySnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cStillProxy).utf8))
                 vt_free_string(cStillProxy)
                 try TestRunner.assertTrue(stillProxySnap.stats.isProxyActive)
+                try TestRunner.assertTrue(
+                    stillProxySnap.proxy.auth,
+                    "Un aggiornamento delle impostazioni non deve perdere l'autenticazione proxy"
+                )
                 try TestRunner.assertFalse(stillProxySnap.portmap.tcp.mapped)
                 try TestRunner.assertFalse(stillProxySnap.portmap.udp.mapped)
+
+                // Re-applying without a username must fall back to plain socks5:
+                // libtorrent cannot authenticate with an empty username.
+                let noAuthApply = proxyHost.withCString { hostPtr in
+                    vt_apply_proxy_settings(session, 1, hostPtr, 1080, nil, nil)
+                }
+                try TestRunner.assertEqual(noAuthApply, 0)
+                vt_session_poll(session)
+                guard let cNoAuth = vt_snapshot_json(session) else {
+                    try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                    return
+                }
+                let noAuthSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cNoAuth).utf8))
+                vt_free_string(cNoAuth)
+                try TestRunner.assertFalse(
+                    noAuthSnap.proxy.auth,
+                    "Senza username il proxy deve usare socks5 senza autenticazione"
+                )
 
                 // Disable proxy
                 let disableResult = vt_apply_proxy_settings(session, 0, nil, 0, nil, nil)
@@ -310,6 +336,7 @@ enum CTorrentBridgeTests {
                 vt_free_string(cDisabled)
                 try TestRunner.assertFalse(disabledSnap.stats.isProxyActive)
                 try TestRunner.assertEqual(disabledSnap.proxy.type, "None")
+                try TestRunner.assertFalse(disabledSnap.proxy.auth)
             }
         }
 

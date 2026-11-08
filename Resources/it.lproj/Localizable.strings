@@ -47,6 +47,7 @@
 "Raggiungibilità esterna" = "Raggiungibilità esterna";
 "Se la porta risulta chiusa" = "Se la porta risulta chiusa";
 "Cartelle" = "Cartelle";
+"Sezioni" = "Sezioni";
 "Prestazioni" = "Prestazioni";
 "Rete" = "Rete";
 "Comportamento" = "Comportamento";
@@ -148,6 +149,9 @@
 "porta esterna %ld" = "porta esterna %ld";
 "non mappata" = "non mappata";
 "Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato." = "Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato.";
+"UPnP / NAT-PMP disattivato" = "UPnP / NAT-PMP disattivato";
+"Disattivato dal proxy SOCKS5 per prevenire leak." = "Disattivato dal proxy SOCKS5 per prevenire leak.";
+"Disattivato in Impostazioni → Rete." = "Disattivato in Impostazioni → Rete.";
 "Test TCP tramite check-host.net" = "Test TCP tramite check-host.net";
 "Copia" = "Copia";
 "Testa porta" = "Testa porta";

@@ -36,36 +36,42 @@ struct Palette {
         isDark ? Color.white.opacity(0.93) : Color(hex: 0x11131A)
     }
 
+    // Secondary and tertiary are used for informative text (subtitles, stat
+    // labels, status bar), not only for decoration: the values below keep both
+    // themes above ~4.5:1 on the card backgrounds, which the previous 0.34 /
+    // 0.38 alpha values did not.
     var secondary: Color {
-        isDark ? Color.white.opacity(0.52) : Color(hex: 0x11131A).opacity(0.56)
+        isDark ? Color.white.opacity(0.60) : Color(hex: 0x11131A).opacity(0.68)
     }
 
     var tertiary: Color {
-        isDark ? Color.white.opacity(0.34) : Color(hex: 0x11131A).opacity(0.38)
+        isDark ? Color.white.opacity(0.46) : Color(hex: 0x11131A).opacity(0.58)
     }
 
+    // Cards are slightly more opaque and their border more visible, so the
+    // light theme does not look like white cards on a white background.
     var card: Color {
-        isDark ? Color.white.opacity(0.035) : Color.white.opacity(0.72)
+        isDark ? Color.white.opacity(0.045) : Color.white.opacity(0.85)
     }
 
     var cardHover: Color {
-        isDark ? Color.white.opacity(0.07) : Color.white.opacity(0.95)
+        isDark ? Color.white.opacity(0.08) : Color.white.opacity(0.98)
     }
 
     var stroke: Color {
-        isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.07)
+        isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.12)
     }
 
     var strokeStrong: Color {
-        isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12)
+        isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.20)
     }
 
     var panel: Color {
-        isDark ? Color(hex: 0x10131A).opacity(0.82) : Color.white.opacity(0.78)
+        isDark ? Color(hex: 0x10131A).opacity(0.82) : Color.white.opacity(0.86)
     }
 
     var input: Color {
-        isDark ? Color.white.opacity(0.055) : Color.black.opacity(0.045)
+        isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.055)
     }
 
     var background: Color {
@@ -88,14 +94,14 @@ struct AmbientBackground: View {
             palette.background
 
             RadialGradient(
-                colors: [Theme.mint.opacity(scheme == .dark ? 0.15 : 0.2), .clear],
+                colors: [Theme.mint.opacity(scheme == .dark ? 0.15 : 0.12), .clear],
                 center: .init(x: 0.12, y: 0.02),
                 startRadius: 0,
                 endRadius: 820
             )
 
             RadialGradient(
-                colors: [Theme.violet.opacity(scheme == .dark ? 0.16 : 0.14), .clear],
+                colors: [Theme.violet.opacity(scheme == .dark ? 0.16 : 0.09), .clear],
                 center: .init(x: 0.92, y: 0.98),
                 startRadius: 0,
                 endRadius: 900

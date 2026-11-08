@@ -183,8 +183,14 @@ struct InspectorView: View {
             statCell("Download", Fmt.rate(torrent.downloadRate), palette, accent: Theme.mint)
             statCell("Upload", Fmt.rate(torrent.uploadRate), palette, accent: Theme.violet)
             statCell("Peer / Seed", "\(torrent.peers) / \(torrent.seeds)", palette)
-            statCell("Tempo rimasto", Fmt.eta(torrent.eta), palette)
+            statCell("Tempo rimasto", etaText, palette)
         }
+    }
+
+    /// ETA only makes sense for an active download: a finished/seeding torrent
+    /// would otherwise show "Completato" under "Tempo rimasto".
+    private var etaText: String {
+        torrent.finished ? "—" : Fmt.eta(torrent.eta)
     }
 
     private func statCell(
