@@ -54,7 +54,11 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **Interface binding**: pin the engine to one local address, so traffic only leaves through
   it. It is what makes the client usable behind CGNAT together with a WireGuard tunnel and
   port forwarding on a VPS.
-- **Network diagnostics**: effective port, local IP, mapping state and TCP reachability.
+- **SOCKS5 proxy with fail-closed leak prevention**: route trackers and peers through an
+  anonymous proxy (such as Tor on `127.0.0.1:9050` or a VPN SOCKS5 proxy) with optional
+  authentication. Automatically enables strict `anonymous_mode`, disables UPnP/NAT-PMP to
+  prevent local IP leaks, and halts traffic immediately if the proxy is unreachable.
+- **Network diagnostics**: effective port, local IP, proxy status, mapping state and TCP reachability.
 - Italian or English interface based on the system language.
 - **No telemetry**. The only network traffic is BitTorrent and, when you start the port
   test, api.ipify.org and check-host.net.
@@ -104,8 +108,10 @@ needed at runtime.
 
 - Open from the port in the status bar, **Settings → Network → Network diagnostics**, or
   `⌘⇧D`.
-- Shows the effective port, local IP, UPnP/NAT-PMP state and DHT nodes. Mapping errors are
-  reported separately for TCP and UDP, with the transport that produced them.
+- Shows the effective port, local IP, SOCKS5 proxy status, UPnP/NAT-PMP state and DHT nodes.
+  Mapping errors are reported separately for TCP and UDP, with the transport that produced them.
+- When SOCKS5 proxy is active, a dedicated card displays the proxy host and port, highlighting
+  connectivity errors if the proxy server becomes unreachable.
 - **Test port** checks TCP reachability through check-host.net; the public IP is sent only
   when you start the test. UDP/uTP is not tested.
 - If the port is closed, enable UPnP/NAT-PMP or forward TCP/UDP to the local IP; check
@@ -117,6 +123,11 @@ needed at runtime.
 ### Settings
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
+- **SOCKS5 proxy**: toggle and configure an anonymous proxy (host, port, and optional RFC 1929
+  user/password). Traffic to peers and trackers is routed through the proxy, while local
+  router port-mapping (UPnP/NAT-PMP) is disabled. A dedicated status bar badge (`SOCKS5`)
+  monitors reachability in real time: mint green when active, coral red `[!]` when the proxy
+  is unreachable or down.
 - **Network interface**: binding the client to one local IPv4 address (for example the
   address of a WireGuard tunnel) sets both the listening socket (`listen_interfaces`) and the
   outgoing source (`outgoing_interfaces`), and libtorrent rejects traffic arriving on the

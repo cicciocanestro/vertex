@@ -55,7 +55,11 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **Associazione all'interfaccia**: il motore può essere vincolato a un solo indirizzo
   locale, così il traffico esce solo da lì. È la configurazione che rende utilizzabile il
   client dietro CGNAT insieme a un tunnel WireGuard e al port forwarding su un VPS.
-- **Diagnostica rete**: porta effettiva, IP locale, stato dei mapping e raggiungibilità TCP.
+- **Proxy SOCKS5 con protezione anti-leak (fail-closed)**: instrada tracker e peer attraverso
+  un proxy anonimo (come Tor su `127.0.0.1:9050` o proxy VPN SOCKS5) con supporto opzionale
+  all'autenticazione. Abilita automaticamente `anonymous_mode` rigoroso, disattiva UPnP/NAT-PMP
+  per prevenire leak dell'IP locale del router e blocca il traffico se il proxy cade.
+- **Diagnostica rete**: porta effettiva, IP locale, stato proxy, stato dei mapping e raggiungibilità TCP.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
 - **Nessuna telemetria**. Le uniche connessioni sono quelle BitTorrent e, solo quando avvii
   il test porta, api.ipify.org e check-host.net.
@@ -106,8 +110,10 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 
 - Si apre dalla porta nella barra di stato, da **Impostazioni → Rete → Diagnostica rete**
   oppure con `⌘⇧D`.
-- Mostra porta effettiva, IP locale, stato UPnP/NAT-PMP e nodi DHT. Gli errori di mapping
+- Mostra porta effettiva, IP locale, stato proxy SOCKS5, stato UPnP/NAT-PMP e nodi DHT. Gli errori di mapping
   sono separati per TCP e UDP, con il trasporto che li ha prodotti.
+- Quando il proxy SOCKS5 è abilitato, un riquadro dedicato mostra host e porta del proxy,
+  evidenziando chiaramente eventuali errori di mancata connessione.
 - **Testa porta** verifica la raggiungibilità TCP tramite check-host.net; l'IP pubblico
   viene inviato solo quando avvii il test. Il traffico UDP/uTP non è verificato.
 - Se la porta risulta chiusa, abilita UPnP/NAT-PMP o inoltra TCP/UDP verso l'IP locale;
@@ -120,6 +126,10 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 
 - Cartella di download, limiti globali di velocità, porta di ascolto, DHT, PEX, LSD,
   UPnP/NAT-PMP.
+- **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali RFC 1929).
+  Tutto il traffico verso tracker e peer passa dal proxy, mentre UPnP/NAT-PMP viene disattivato
+  sul router locale. Un badge dedicato nella barra di stato (`SOCKS5`) ne monitora la raggiungibilità
+  in tempo reale: verde menta quando è attivo, rosso corallo `[!]` quando il proxy non risponde.
 - **Interfaccia di rete**: vincolando il client a un indirizzo IPv4 locale (per esempio
   quello di un tunnel WireGuard) il motore usa quell'indirizzo sia per il socket in ascolto
   (`listen_interfaces`) sia come sorgente delle connessioni in uscita
