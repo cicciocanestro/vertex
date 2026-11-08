@@ -62,9 +62,6 @@ struct InspectorView: View {
         }
         .frame(maxHeight: .infinity)
         .background(palette.panel)
-        .overlay(alignment: .leading) {
-            Hairline(palette: palette, axis: .vertical)
-        }
     }
 
     private func overview(_ palette: Palette) -> some View {

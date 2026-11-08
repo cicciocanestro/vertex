@@ -51,6 +51,18 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .info: return "Informazioni"
         }
     }
+
+    var icon: String {
+        switch self {
+        case .folders: return "folder"
+        case .performance: return "speedometer"
+        case .network: return "network"
+        case .proxy: return "shield.lefthalf.filled"
+        case .behavior: return "slider.horizontal.3"
+        case .appearance: return "circle.lefthalf.filled"
+        case .info: return "info.circle"
+        }
+    }
 }
 
 struct SettingsSheet: View {
@@ -88,6 +100,7 @@ struct SettingsSheet: View {
     /// Interfaces are read once per presentation instead of on every render;
     /// the menu is reopened when the user changes the network.
     @StateObject private var interfaces = UIState(LocalNetwork.ipv4Interfaces())
+    @StateObject private var selectedSection = UIState<SettingsSection>(.folders)
 
     let onClose: () -> Void
     let onOpenDiagnostics: () -> Void
@@ -116,24 +129,21 @@ struct SettingsSheet: View {
                     onClose: onClose
                 )
 
-                ScrollViewReader { scrollProxy in
-                    VStack(spacing: 0) {
-                        sectionIndex(palette) { item in
-                            withAnimation(.snappy(duration: 0.22)) {
-                                scrollProxy.scrollTo(item.rawValue, anchor: .top)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 2)
-                        .padding(.bottom, 4)
+                HStack(spacing: 0) {
+                    settingsSidebar(palette)
+                        .frame(width: 168)
 
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 14) {
+                    Hairline(palette: palette, axis: .vertical)
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if selectedSection.value == .folders {
                                 section(.folders, palette) {
                                     destinationRow(palette)
                                 }
+                            }
 
+                            if selectedSection.value == .performance {
                                 section(.performance, palette) {
                                     numericRow(
                                         icon: "arrow.down",
@@ -162,7 +172,9 @@ struct SettingsSheet: View {
                                         palette: palette
                                     )
                                 }
+                            }
 
+                            if selectedSection.value == .network {
                                 section(.network, palette) {
                                     bindingRow(palette)
                                     Hairline(palette: palette).padding(.leading, 28)
@@ -209,7 +221,9 @@ struct SettingsSheet: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                         .padding(.horizontal, 4)
                                 }
+                            }
 
+                            if selectedSection.value == .proxy {
                                 section(.proxy, palette) {
                                     toggleRow(
                                         icon: "shield.lefthalf.filled",
@@ -233,7 +247,9 @@ struct SettingsSheet: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                         .padding(.horizontal, 4)
                                 }
+                            }
 
+                            if selectedSection.value == .behavior {
                                 section(.behavior, palette) {
                                     toggleRow(
                                         icon: "pause.circle",
@@ -251,22 +267,27 @@ struct SettingsSheet: View {
                                         palette: palette
                                     )
                                 }
+                            }
 
+                            if selectedSection.value == .appearance {
                                 section(.appearance, palette) {
                                     appearancePicker(palette)
                                         .padding(.vertical, 9)
                                 }
+                            }
 
+                            if selectedSection.value == .info {
                                 section(.info, palette) {
                                     versionRow(palette)
                                 }
                             }
-                            .padding(.horizontal, 22)
-                            .padding(.top, 4)
-                            .padding(.bottom, 16)
                         }
-                        .scrollIndicators(.automatic)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 12)
+                        .padding(.bottom, 16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .scrollIndicators(.automatic)
                 }
 
                 ModalFooterBar(palette: palette) {
@@ -284,7 +305,7 @@ struct SettingsSheet: View {
                 }
             }
         }
-        .frame(width: 560, height: 700)
+        .frame(width: 700, height: 700)
         .onAppear {
             interfaces.value = LocalNetwork.ipv4Interfaces()
             let resolved = Preferences.resolvedDownloadPath(downloadPath)
@@ -317,8 +338,10 @@ struct SettingsSheet: View {
         _ palette: Palette,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            SectionLabel(text: item.titleKey)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L(item.titleKey))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(palette.text)
             VStack(spacing: 0) {
                 content()
             }
@@ -326,49 +349,48 @@ struct SettingsSheet: View {
             .padding(.vertical, 1)
             .vertexCard(palette, radius: 12)
         }
-        .id(item.rawValue)
     }
 
-    /// Two compact rows listing every section, so the content below the fold
-    /// (Proxy, Comportamento, Aspetto, Informazioni) is visible on open.
-    private func sectionIndex(
-        _ palette: Palette,
-        onSelect: @escaping (SettingsSection) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionLabel(text: "Sezioni")
-            HStack(spacing: 6) {
-                ForEach(Array(SettingsSection.allCases.prefix(4))) { item in
-                    indexChip(item, palette: palette, onSelect: onSelect)
+    /// Vertical section rail. It replaces the horizontal index: every section
+    /// is always one click away and only the selected pane is rendered.
+    private func settingsSidebar(_ palette: Palette) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(SettingsSection.allCases) { item in
+                let selected = selectedSection.value == item
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) {
+                        selectedSection.value = item
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .frame(width: 16)
+                        Text(L(item.titleKey))
+                            .font(.system(size: 11.5, weight: selected ? .semibold : .regular))
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(selected ? palette.text : palette.secondary)
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(selected
+                                  ? Theme.mint.opacity(scheme == .dark ? 0.16 : 0.2)
+                                  : Color.clear)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(L(item.titleKey)))
             }
-            HStack(spacing: 6) {
-                ForEach(Array(SettingsSection.allCases.suffix(3))) { item in
-                    indexChip(item, palette: palette, onSelect: onSelect)
-                }
-            }
+            Spacer(minLength: 0)
         }
-        .padding(.bottom, 2)
-    }
-
-    private func indexChip(
-        _ item: SettingsSection,
-        palette: Palette,
-        onSelect: @escaping (SettingsSection) -> Void
-    ) -> some View {
-        Button {
-            onSelect(item)
-        } label: {
-            Text(L(item.titleKey))
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(palette.secondary)
-                .padding(.horizontal, 9)
-                .frame(height: 22)
-                .background(Capsule().fill(palette.input))
-                .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(palette.panel)
     }
 
     private func destinationRow(_ palette: Palette) -> some View {

@@ -68,6 +68,7 @@
 "Peer / Seed" = "Peers / Seeds";
 "Tempo rimasto" = "Time remaining";
 "Dettagli" = "Details";
+"Ridimensiona i dettagli" = "Resize details";
 
 /* Torrent actions */
 "Riprendi" = "Resume";

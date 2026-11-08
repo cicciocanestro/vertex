@@ -71,6 +71,7 @@ package struct RootView: View {
     @StateObject private var dropTargeted = UIState(false)
     @StateObject private var pendingDeletion = UIState<Torrent?>(nil)
     @StateObject private var showDeleteConfirmation = UIState(false)
+    @StateObject private var inspectorWidth = UIState<CGFloat>(350)
 
     @FocusState private var searchFocused: Bool
 
@@ -250,6 +251,7 @@ package struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let torrent = selectedTorrent {
+                    InspectorResizeHandle(width: $inspectorWidth.value)
                     inspector(for: torrent)
                 }
             }
@@ -288,7 +290,7 @@ package struct RootView: View {
             onClose: { select(nil) },
             onDeleteWithFiles: { requestDeletion($0) }
         )
-        .frame(width: 350)
+        .frame(width: inspectorWidth.value)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -481,6 +483,67 @@ package struct RootView: View {
     }
 }
 
+
+/// Draggable divider between the torrent list and the inspector. The drag is
+/// relative to the width at gesture start; clamping keeps both panes usable.
+private struct InspectorResizeHandle: View {
+    @Binding var width: CGFloat
+
+    @Environment(\.colorScheme) private var scheme
+    @StateObject private var hover = UIState(false)
+    @StateObject private var dragStart = UIState<CGFloat?>(nil)
+
+    private let minimum: CGFloat = 320
+    private let maximum: CGFloat = 520
+
+    var body: some View {
+        let palette = Palette(scheme: scheme)
+        ZStack {
+            Rectangle()
+                .fill(Color.clear)
+            Hairline(palette: palette, axis: .vertical)
+                .opacity(hover.value ? 1 : 0.55)
+                .overlay(
+                    Rectangle()
+                        .fill(Theme.mint.opacity(hover.value ? 0.5 : 0))
+                        .frame(width: hover.value ? 2 : 0)
+                )
+        }
+        .frame(width: 7)
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hover.value = inside
+            if inside {
+                NSCursor.resizeLeftRight.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
+        .onDisappear { NSCursor.arrow.set() }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    if dragStart.value == nil { dragStart.value = width }
+                    let start = dragStart.value ?? width
+                    width = min(max(start - value.translation.width, minimum), maximum)
+                }
+                .onEnded { _ in dragStart.value = nil }
+        )
+        .help(L("Ridimensiona i dettagli"))
+        .accessibilityLabel(Text(L("Ridimensiona i dettagli")))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                width = min(width + 20, maximum)
+            case .decrement:
+                width = max(width - 20, minimum)
+            @unknown default:
+                break
+            }
+        }
+    }
+}
 
 /// Dispatches the menu/shortcut notifications received by `RootView`.
 /// The closures do the actual work; this type only maps notifications to

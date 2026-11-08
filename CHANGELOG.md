@@ -16,9 +16,11 @@
   `FD_SETSIZE` e il rischio di scritture fuori bounds.
 - **Barra di stato responsive**: sotto 1120 pt nasconde limiti e contatori invece di comprimere
   le velocità fino a mandarle a capo; i valori di velocità restano su una sola riga.
-- **Impostazioni**: indice delle sezioni con `ScrollViewReader` (Proxy SOCKS5 e le sezioni
-  finali non restano più nascoste sotto la piega), sempre fisso sopra lo scroll, indicatori
-  di scorrimento visibili.
+- **Impostazioni**: sidebar verticale con rail delle sezioni (Proxy SOCKS5 e le sezioni
+  finali non restano più nascoste sotto la piega); ogni sezione ha il proprio pannello e il
+  proprio scroll.
+- **Inspector ridimensionabile**: maniglia di trascinamento tra lista e dettagli (320–520 pt),
+  con cursore di resize e supporto a VoiceOver tramite azione regolabile.
 - **Diagnostica**: UPnP/NAT-PMP disattivato (per scelta o per proxy) non è più mostrato come
   errore di mapping.
 - **UI**: contrasto di testi secondari e bordi nel tema chiaro, ETA “—” per i torrent in seed,
