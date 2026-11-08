@@ -270,3 +270,8 @@
 "Errore di connessione: %@. Il traffico è bloccato per prevenire leak." = "Connection error: %@. Traffic is blocked to prevent leaks.";
 "Proxy SOCKS5 attivo (%@:%ld)" = "SOCKS5 proxy active (%@:%ld)";
 "Proxy SOCKS5 non raggiungibile (%@:%ld): %@" = "SOCKS5 proxy unreachable (%@:%ld): %@";
+"File" = "Files";
+"Tracker" = "Trackers";
+"Magnet" = "Magnet";
+"Porta proxy non valida" = "Invalid proxy port";
+"Connessione rifiutata" = "Connection refused";

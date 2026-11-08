@@ -273,11 +273,9 @@ extension TorrentEngine {
 
         // proxy port
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
-        let proxyPort = Preferences.validPort(rawProxyPort)
-        if Int(proxyPort) != rawProxyPort && rawProxyPort != 0 {
+        let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
+        if Int(proxyPort) != rawProxyPort {
             defaults.set(Int(proxyPort), forKey: PrefKey.proxyPort)
-        } else if rawProxyPort == 0 {
-            defaults.set(PrefDefault.proxyPort, forKey: PrefKey.proxyPort)
         }
 
         // proxy host
@@ -304,7 +302,7 @@ extension TorrentEngine {
     nonisolated static func currentConfiguration() -> SessionConfiguration {
         let defaults = UserDefaults.standard
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
-        let proxyPort = rawProxyPort > 0 ? Preferences.validPort(rawProxyPort) : Int32(PrefDefault.proxyPort)
+        let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
         let rawHost = defaults.string(forKey: PrefKey.proxyHost)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let proxyHost = rawHost.isEmpty ? PrefDefault.proxyHost : rawHost
 

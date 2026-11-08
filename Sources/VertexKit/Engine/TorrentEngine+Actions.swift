@@ -260,6 +260,17 @@ extension TorrentEngine {
                 )
                 return
             }
+            if defaults.bool(forKey: PrefKey.proxyEnabled) {
+                let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
+                guard Preferences.isValidPort(rawProxyPort) else {
+                    showToast(
+                        L("Porta proxy non valida"),
+                        kind: .error,
+                        detail: L("Inserisci un valore tra 1 e 65535.")
+                    )
+                    return
+                }
+            }
             configuration = Self.currentConfiguration()
         }
 

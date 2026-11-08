@@ -3,10 +3,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum AddTorrentMode: String, CaseIterable, Identifiable {
-    case magnet = "Magnet"
-    case file = "File"
+    case magnet = "magnet"
+    case file = "file"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .magnet: return L("Magnet")
+        case .file: return L("File")
+        }
+    }
 
     var icon: String {
         switch self {
@@ -142,7 +149,7 @@ struct AddTorrentSheet: View {
             HStack(spacing: 5) {
                 Image(systemName: option.icon)
                     .font(Typography.microSemibold)
-                Text(option.rawValue)
+                Text(option.label)
             }
         }
     }

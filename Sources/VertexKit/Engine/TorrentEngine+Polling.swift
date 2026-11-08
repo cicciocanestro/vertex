@@ -64,22 +64,27 @@ extension TorrentEngine {
 
         // Perform an active TCP health-check probe on the configured proxy
         // every ~2.4 seconds (every 3 polls) or immediately if there is a detected error.
-        // If the proxy is not reachable (e.g. Tor or local proxy is down),
+        // If the proxy is not reachable at transport level (e.g. Tor or local proxy is down),
         // we override the proxy error so the UI badge turns coral immediately.
-        // When it recovers, we clear both the Swift override and the C++ bridge error.
+        // When it recovers, we clear the health error override and clear bridge errors.
         if snapshot.stats.proxy.enabled && !snapshot.stats.proxy.hostname.isEmpty && snapshot.stats.proxy.port > 0 {
             proxyCheckTick += 1
-            if proxyCheckTick % 3 == 0 || (proxyHealthError != nil && proxyCheckTick % 2 == 0) {
+            if !isProxyProbeInFlight && (proxyCheckTick % 3 == 0 || (proxyHealthError != nil && proxyCheckTick % 2 == 0)) {
+                isProxyProbeInFlight = true
                 let host = snapshot.stats.proxy.hostname
                 let port = snapshot.stats.proxy.port
                 DispatchQueue.global(qos: .utility).async { [weak self] in
                     let isReachable = Self.probeTCPConnection(host: host, port: port, timeoutSeconds: 0.5)
                     DispatchQueue.main.async {
-                        guard let self, self.sessionGeneration == generation, !self.isShuttingDown else { return }
-                        let newError: String? = isReachable ? nil : "Connection refused"
+                        guard let self else { return }
+                        self.isProxyProbeInFlight = false
+                        guard self.sessionGeneration == generation, !self.isShuttingDown else { return }
+                        let newError: String? = isReachable ? nil : L("Connessione rifiutata")
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError
-                            self.pollState.stats.proxy.error = newError ?? ""
+                            if let newError {
+                                self.pollState.stats.proxy.error = newError
+                            }
                             if isReachable, let s = self.session {
                                 self.sessionQueue.async {
                                     vt_clear_proxy_error(s)
@@ -92,6 +97,7 @@ extension TorrentEngine {
         } else {
             proxyHealthError = nil
             proxyCheckTick = 0
+            isProxyProbeInFlight = false
         }
 
         apply(snapshot)
@@ -124,21 +130,10 @@ extension TorrentEngine {
                     close(fd)
                     break
                 } else if errno == EINPROGRESS {
-                    var writeSet = fd_set()
-                    memset(&writeSet, 0, MemoryLayout<fd_set>.size)
-                    let fdVal = fd
-                    let mask = Int32(1) << (fdVal % 32)
-                    withUnsafeMutablePointer(to: &writeSet) { setPtr in
-                        let rawPtr = UnsafeMutableRawPointer(setPtr).assumingMemoryBound(to: Int32.self)
-                        rawPtr[Int(fdVal / 32)] |= mask
-                    }
-
-                    var tv = timeval()
-                    tv.tv_sec = Int(timeoutSeconds)
-                    tv.tv_usec = Int32((timeoutSeconds - Double(Int(timeoutSeconds))) * 1_000_000)
-
-                    let selRes = Darwin.select(fd + 1, nil, &writeSet, nil, &tv)
-                    if selRes > 0 {
+                    var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+                    let timeoutMs = Int32(max(1, Int(timeoutSeconds * 1000)))
+                    let pollRes = Darwin.poll(&pfd, 1, timeoutMs)
+                    if pollRes > 0 && (pfd.revents & Int16(POLLOUT)) != 0 {
                         var soError: Int32 = 0
                         var len = socklen_t(MemoryLayout<Int32>.size)
                         if getsockopt(fd, SOL_SOCKET, SO_ERROR, &soError, &len) == 0 && soError == 0 {
@@ -199,12 +194,10 @@ extension TorrentEngine {
         next.stats = snapshot.stats
         if let proxyHealthError {
             next.stats.proxy.error = proxyHealthError
+        } else if !snapshot.stats.proxy.error.isEmpty {
+            next.stats.proxy.error = snapshot.stats.proxy.error
         } else {
-            // If the active health probe found the proxy reachable, clear any
-            // stale error reported by the C++ snapshot from previous failed attempts.
-            if snapshot.stats.proxy.enabled {
-                next.stats.proxy.error = ""
-            }
+            next.stats.proxy.error = ""
         }
         next.torrentsByID = Dictionary(
             snapshot.torrents.map { ($0.id, $0) },

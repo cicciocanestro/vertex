@@ -106,7 +106,7 @@ struct TorrentRow: View {
                 }
 
                 IconButton(icon: "trash", help: "Rimuovi", tint: hover.value ? Theme.coral : nil, size: 27) {
-                    engine.remove(torrent, deleteFiles: false)
+                    onDeleteWithFiles()
                 }
             }
             .opacity(hover.value || selected ? 1 : 0)

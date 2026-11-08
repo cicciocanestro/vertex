@@ -253,7 +253,7 @@ enum CTorrentBridgeTests {
                 try TestRunner.assertFalse(initSnap.stats.isProxyActive)
                 try TestRunner.assertEqual(initSnap.proxy.type, "None")
 
-                // Apply SOCKS5 proxy
+                // Apply SOCKS5 proxy with authentication (RFC 1929)
                 let proxyHost = "127.0.0.1"
                 let applyResult = proxyHost.withCString { hostPtr in
                     vt_apply_proxy_settings(session, 1, hostPtr, 1080, "testuser", "testpass")
@@ -271,6 +271,31 @@ enum CTorrentBridgeTests {
                 try TestRunner.assertEqual(activeSnap.proxy.type, "SOCKS5")
                 try TestRunner.assertEqual(activeSnap.proxy.hostname, "127.0.0.1")
                 try TestRunner.assertEqual(activeSnap.proxy.port, 1080)
+                try TestRunner.assertFalse(activeSnap.portmap.tcp.mapped)
+                try TestRunner.assertFalse(activeSnap.portmap.udp.mapped)
+
+                // Verify runtime settings update preserves UPnP disabled when proxy is active
+                let settingsUpdate = vt_apply_settings_ex(
+                    session,
+                    6888,
+                    0,
+                    0,
+                    1, // enable_dht
+                    1, // enable_upnp requested
+                    1, // enable_lsd
+                    nil
+                )
+                try TestRunner.assertEqual(settingsUpdate, 0)
+                vt_session_poll(session)
+                guard let cStillProxy = vt_snapshot_json(session) else {
+                    try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
+                    return
+                }
+                let stillProxySnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cStillProxy).utf8))
+                vt_free_string(cStillProxy)
+                try TestRunner.assertTrue(stillProxySnap.stats.isProxyActive)
+                try TestRunner.assertFalse(stillProxySnap.portmap.tcp.mapped)
+                try TestRunner.assertFalse(stillProxySnap.portmap.udp.mapped)
 
                 // Disable proxy
                 let disableResult = vt_apply_proxy_settings(session, 0, nil, 0, nil, nil)

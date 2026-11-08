@@ -1576,8 +1576,9 @@ int vt_apply_settings_ex(vt_session* session,
             session->upnp_enabled = enable_upnp != 0;
             reset_portmap_state(session);
         }
+        bool const effective_upnp = (enable_upnp != 0) && (session->proxy_type == 0);
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
-                            enable_dht, enable_upnp, enable_lsd);
+                            enable_dht, effective_upnp ? 1 : 0, enable_lsd);
         session->session->apply_settings(settings);
         return 0;
     }
@@ -1604,7 +1605,9 @@ int vt_apply_proxy_settings(vt_session* session,
             session->proxy_port = port > 0 ? port : 1080;
             session->proxy_error.clear();
 
-            settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::socks5);
+            bool const has_auth = (username && *username) || (password && *password);
+            settings.set_int(lt::settings_pack::proxy_type,
+                             has_auth ? lt::settings_pack::socks5_pw : lt::settings_pack::socks5);
             settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
             settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
 

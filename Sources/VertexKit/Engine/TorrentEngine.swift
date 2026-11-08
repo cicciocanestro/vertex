@@ -74,6 +74,7 @@ package final class TorrentEngine: ObservableObject {
     var lastAppliedConfiguration: SessionConfiguration?
     var proxyCheckTick = 0
     var proxyHealthError: String?
+    var isProxyProbeInFlight = false
 
     private init() {
         Preferences.registerDefaults()

@@ -261,6 +261,11 @@ struct SettingsSheet: View {
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }
         .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
         .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
+        .onChange(of: proxyEnabled) { engine.applySettingsNow() }
+        .onChange(of: proxyHost) { engine.applySettingsSoon() }
+        .onChange(of: proxyPort) { engine.applySettingsSoon() }
+        .onChange(of: proxyUser) { engine.applySettingsSoon() }
+        .onChange(of: proxyPassword) { engine.applySettingsSoon() }
         .onChange(of: appearanceRaw) { AppAppearance.apply() }
         .onDisappear { engine.applySettingsNow() }
     }
@@ -519,7 +524,7 @@ struct SettingsSheet: View {
                 .font(Typography.captionMono)
                 .foregroundStyle(palette.tertiary)
 
-            TextField("1080", value: $proxyPort, formatter: NumberFormatter())
+            TextField("1080", value: $proxyPort, format: .number.grouping(.never))
                 .textFieldStyle(.plain)
                 .font(Typography.captionMono)
                 .foregroundStyle(palette.text)

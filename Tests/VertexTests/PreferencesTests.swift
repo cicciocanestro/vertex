@@ -165,7 +165,7 @@ enum PreferencesTests {
             )
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.bindAddress), "")
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.appearance), "dark")
-            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 6881)
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 1080)
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")
             try TestRunner.assertEqual(
                 defaults.string(forKey: PrefKey.downloadPath),

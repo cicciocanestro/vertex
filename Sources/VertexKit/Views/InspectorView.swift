@@ -1,10 +1,17 @@
 import SwiftUI
 
 private enum DetailTab: String, CaseIterable, Identifiable {
-    case files = "File"
-    case trackers = "Tracker"
+    case files = "files"
+    case trackers = "trackers"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .files: return L("File")
+        case .trackers: return L("Tracker")
+        }
+    }
 }
 
 struct InspectorView: View {
@@ -211,7 +218,7 @@ struct InspectorView: View {
             verticalPadding: 2,
             font: .system(size: 10.5, weight: .medium)
         ) { option, selected in
-            Text(option.rawValue)
+            Text(option.label)
             if option == .files, let count = engine.detail?.files.count, count > 0 {
                 Text(verbatim: "\(count)")
                     .font(.system(size: 8.5, weight: .semibold, design: .rounded))
