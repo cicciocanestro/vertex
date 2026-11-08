@@ -1657,6 +1657,12 @@ int vt_apply_proxy_settings(vt_session* session,
     VT_CATCH_ALL(session, -1)
 }
 
+void vt_clear_proxy_error(vt_session* session)
+{
+    if (session)
+        session->proxy_error.clear();
+}
+
 char* vt_normalize_save_path(const char* requested, const char* fallback)
 {
     try

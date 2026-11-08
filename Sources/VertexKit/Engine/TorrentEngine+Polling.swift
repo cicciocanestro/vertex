@@ -66,6 +66,7 @@ extension TorrentEngine {
         // every ~2.4 seconds (every 3 polls) or immediately if there is a detected error.
         // If the proxy is not reachable (e.g. Tor or local proxy is down),
         // we override the proxy error so the UI badge turns coral immediately.
+        // When it recovers, we clear both the Swift override and the C++ bridge error.
         if snapshot.stats.proxy.enabled && !snapshot.stats.proxy.hostname.isEmpty && snapshot.stats.proxy.port > 0 {
             proxyCheckTick += 1
             if proxyCheckTick % 3 == 0 || (proxyHealthError != nil && proxyCheckTick % 2 == 0) {
@@ -79,6 +80,11 @@ extension TorrentEngine {
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError
                             self.pollState.stats.proxy.error = newError ?? ""
+                            if isReachable, let s = self.session {
+                                self.sessionQueue.async {
+                                    vt_clear_proxy_error(s)
+                                }
+                            }
                         }
                     }
                 }
@@ -193,6 +199,12 @@ extension TorrentEngine {
         next.stats = snapshot.stats
         if let proxyHealthError {
             next.stats.proxy.error = proxyHealthError
+        } else {
+            // If the active health probe found the proxy reachable, clear any
+            // stale error reported by the C++ snapshot from previous failed attempts.
+            if snapshot.stats.proxy.enabled {
+                next.stats.proxy.error = ""
+            }
         }
         next.torrentsByID = Dictionary(
             snapshot.torrents.map { ($0.id, $0) },

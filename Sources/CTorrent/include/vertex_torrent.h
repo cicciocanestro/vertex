@@ -91,6 +91,9 @@ int vt_apply_proxy_settings(vt_session* session,
                             const char* username,
                             const char* password);
 
+/* Clears any active proxy error recorded in the session. */
+void vt_clear_proxy_error(vt_session* session);
+
 /* Updates the fallback folder used when a torrent is added without an explicit
    save path. The folder is created if needed. Returns 0 on success. */
 int vt_set_default_save_path(vt_session* session, const char* path);

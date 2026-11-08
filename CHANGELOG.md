@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.3] — 2026-11-08
+
+### Diagnostica e UX
+- **Ripristino automatico badge SOCKS5 verde al riavvio del proxy**: quando Tor o il
+  proxy SOCKS5 vengono riaccesi dopo un'interruzione, la sonda TCP attiva pulisce
+  immediatamente sia l'errore registrato in Swift sia lo stato d'errore nel bridge
+  C++ (`vt_clear_proxy_error`). Il badge torna verde menta all'istante senza
+  rimanere congelato sullo stato d'errore del poll precedente.
+
 ## [1.8.2] — 2026-11-07
 
 ### Diagnostica e UX
