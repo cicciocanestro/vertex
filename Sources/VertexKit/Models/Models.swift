@@ -484,6 +484,16 @@ package struct TorrentListResult {
     package let counts: [TorrentFilter: Int]
 }
 
+/// Arrow-key navigation over the visible torrent list. Kept next to the list
+/// pipeline so the bounds logic can be tested without a hosted view.
+package enum TorrentListNavigation {
+    package static func nextIndex(current: Int?, count: Int, delta: Int) -> Int? {
+        guard count > 0 else { return nil }
+        guard let current else { return 0 }
+        return min(max(current + delta, 0), count - 1)
+    }
+}
+
 /// Filtering and sorting applied by the torrent list. It lives in the model
 /// layer so the behaviour can be tested without rendering `RootView`.
 package enum TorrentListPipeline {

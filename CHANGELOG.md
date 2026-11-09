@@ -34,8 +34,9 @@
   primo snapshot.
 - **Inspector**: colore d'accento solo per download/upload attivi, percorso della cartella
   sotto il nome dei file annidati e priorità file a tre livelli (Skip / Normale / Alta).
-- **Accessibilità**: etichette VoiceOver per i pulsanti a icona e rispetto di “Riduci
-  movimento” per pulsazioni e rotazioni.
+- **Accessibilità**: etichette VoiceOver per i pulsanti a icona, “Riduci movimento”
+  rispettato da tutte le animazioni (selezione, hover, toast, modali, filtri, sidebar,
+  pulsanti) e navigazione della lista con **↑/↓** che scorre la riga selezionata in vista.
 - **Toast azionabili**: i toast di aggiunta e completamento offrono “Apri cartella” /
   “Mostra nel Finder”, restano visibili 7 s e vengono chiusi dopo l'azione.
 

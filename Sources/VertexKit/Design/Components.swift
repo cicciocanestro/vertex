@@ -100,6 +100,7 @@ struct ProgressRing: View {
 
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -119,13 +120,14 @@ struct PrimaryButtonStyle: ButtonStyle {
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .shadow(color: Theme.violet.opacity(configuration.isPressed ? 0.08 : 0.26), radius: 12, x: 0, y: 5)
-            .scaleEffect(configuration.isPressed ? 0.975 : 1)
-            .animation(.snappy(duration: 0.14), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.975 : 1)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.14), value: configuration.isPressed)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         let palette = Palette(scheme: scheme)
@@ -144,8 +146,8 @@ struct SecondaryButtonStyle: ButtonStyle {
                     .allowsHitTesting(false)
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.snappy(duration: 0.14), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.14), value: configuration.isPressed)
     }
 }
 

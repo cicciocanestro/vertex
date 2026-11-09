@@ -391,5 +391,14 @@ enum ModelsTests {
                 "La pipeline di 5000 torrent ha impiegato \(elapsed)s"
             )
         }
+
+        TestRunner.run("Navigazione da tastiera: limiti della lista") {
+            try TestRunner.assertNil(TorrentListNavigation.nextIndex(current: nil, count: 0, delta: 1))
+            try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: nil, count: 3, delta: 1), 0)
+            try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 0, count: 3, delta: -1), 0)
+            try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 2, count: 3, delta: 1), 2)
+            try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 1, count: 3, delta: -1), 0)
+            try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 1, count: 3, delta: 1), 2)
+        }
     }
 }

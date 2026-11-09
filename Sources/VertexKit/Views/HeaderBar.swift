@@ -8,6 +8,7 @@ struct HeaderBar: View {
     let onSettings: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -87,7 +88,7 @@ struct HeaderBar: View {
                 .stroke(searchFocused.wrappedValue ? Theme.mint.opacity(0.4) : palette.stroke, lineWidth: 1)
                 .allowsHitTesting(false)
         )
-        .animation(.easeOut(duration: 0.16), value: searchFocused.wrappedValue)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: searchFocused.wrappedValue)
     }
 }
 
@@ -98,6 +99,7 @@ struct FilterBar: View {
     let counts: [TorrentFilter: Int]
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -108,7 +110,7 @@ struct FilterBar: View {
                     count: counts[option, default: 0],
                     selected: filter == option
                 ) {
-                    withAnimation(.snappy(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                         filter = option
                     }
                 }
@@ -151,7 +153,7 @@ struct FilterBar: View {
             .fixedSize()
 
             Button {
-                withAnimation(.snappy(duration: 0.18)) {
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                     sortAscending.toggle()
                 }
             } label: {

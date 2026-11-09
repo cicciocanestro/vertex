@@ -32,6 +32,7 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
     /// Called when a different option is selected, so callers can clear
     /// derived state (e.g. an error message) exactly when the selection moves.
     let onSelect: ((T) -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init<L: View>(
         _ options: [T] = Array(T.allCases),
@@ -62,7 +63,7 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
             ForEach(options) { option in
                 let selected = option == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                         selection = option
                         onSelect?(option)
                     }

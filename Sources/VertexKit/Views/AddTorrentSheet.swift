@@ -27,6 +27,7 @@ struct AddTorrentSheet: View {
     let engine: TorrentEngine
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Per-torrent choices: initialised from the saved defaults, never written back to them.
     @StateObject private var downloadPath = UIState(Preferences.downloadPath)
     @StateObject private var startPaused = UIState(Preferences.startPaused)
@@ -104,7 +105,7 @@ struct AddTorrentSheet: View {
         .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
             handleDrop(providers)
         }
-        .animation(.easeOut(duration: 0.15), value: dropTargeted.value)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: dropTargeted.value)
         .onAppear {
             if mode.value == .magnet {
                 DispatchQueue.main.async {
@@ -392,7 +393,7 @@ struct AddTorrentSheet: View {
         }
 
         if let failure {
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                 errorMessage.value = failure
             }
         } else {

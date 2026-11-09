@@ -216,6 +216,7 @@ il completamento del download:
 | Mostra / nascondi dettagli | `⌘I` |
 | Diagnostica rete | `⌘⇧D` |
 | Filtri | `⌘1` … `⌘5` |
+| Naviga la lista (con focus sulla lista) | `↑` / `↓` |
 | Impostazioni | `⌘,` |
 
 Pausa/Riprendi e Rimuovi agiscono sul torrent selezionato; senza selezione mostrano un

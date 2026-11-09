@@ -213,6 +213,7 @@ valid bind address and verifies download completion:
 | Show / hide inspector | `⌘I` |
 | Network diagnostics | `⌘⇧D` |
 | Filters | `⌘1` … `⌘5` |
+| Navigate the list (when the list has focus) | `↑` / `↓` |
 | Settings | `⌘,` |
 
 Pause/Resume and Remove act on the selected torrent; without a selection they show a

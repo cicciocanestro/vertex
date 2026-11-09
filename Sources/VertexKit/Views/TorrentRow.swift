@@ -7,24 +7,59 @@ struct TorrentListView: View {
     let onSelect: (Torrent) -> Void
     let onDeleteWithFiles: (Torrent) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var listFocused: Bool
+
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 7) {
-                ForEach(torrents) { torrent in
-                    TorrentRow(
-                        engine: engine,
-                        torrent: torrent,
-                        selected: selectedID == torrent.id,
-                        onSelect: { onSelect(torrent) },
-                        onDeleteWithFiles: { onDeleteWithFiles(torrent) }
-                    )
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 7) {
+                    ForEach(torrents) { torrent in
+                        TorrentRow(
+                            engine: engine,
+                            torrent: torrent,
+                            selected: selectedID == torrent.id,
+                            onSelect: {
+                                onSelect(torrent)
+                                listFocused = true
+                            },
+                            onDeleteWithFiles: { onDeleteWithFiles(torrent) }
+                        )
+                        .id(torrent.id)
+                    }
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 2)
+                .padding(.bottom, 14)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 2)
-            .padding(.bottom, 14)
+            .scrollIndicators(.hidden)
+            .focusable()
+            .focused($listFocused)
+            .onMoveCommand { direction in
+                move(direction, proxy: proxy)
+            }
         }
-        .scrollIndicators(.hidden)
+    }
+
+    /// Up/Down moves the selection through the visible list. The selected row
+    /// is scrolled into view without animating when Reduce Motion is enabled.
+    private func move(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
+        guard direction == .up || direction == .down, !torrents.isEmpty else { return }
+        let current = torrents.firstIndex { $0.id == selectedID }
+        guard let next = TorrentListNavigation.nextIndex(
+            current: current,
+            count: torrents.count,
+            delta: direction == .up ? -1 : 1
+        ) else {
+            return
+        }
+        if let current, current == next { return }
+
+        onSelect(torrents[next])
+        listFocused = true
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+            proxy.scrollTo(torrents[next].id, anchor: .center)
+        }
     }
 }
 
@@ -36,6 +71,7 @@ struct TorrentRow: View {
     let onDeleteWithFiles: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var hover = UIState(false)
     /// The extra columns only make sense when the row is wide enough; the
     /// row measures itself so opening the inspector hides them automatically.
@@ -211,11 +247,11 @@ struct TorrentRow: View {
             onSelect()
         }
         .onHover { value in
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                 hover.value = value
             }
         }
-        .animation(.snappy(duration: 0.18), value: selected)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selected)
         .onGeometryChange(for: Bool.self) { proxy in
             proxy.size.width > 1180
         } action: { value in

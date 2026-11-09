@@ -69,6 +69,7 @@ struct SettingsSheet: View {
     @ObservedObject var engine: TorrentEngine
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage(PrefKey.downloadPath) private var downloadPath = PrefDefault.downloadPath
     @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
@@ -415,7 +416,7 @@ struct SettingsSheet: View {
             ForEach(SettingsSection.allCases) { item in
                 let selected = selectedSection.value == item
                 Button {
-                    withAnimation(.snappy(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                         selectedSection.value = item
                     }
                 } label: {

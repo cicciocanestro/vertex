@@ -62,6 +62,7 @@ package struct RootView: View {
     #endif
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @StateObject private var filter = UIState<TorrentFilter>(.all)
     @StateObject private var sort = UIState<TorrentSort>(.recent)
@@ -77,9 +78,9 @@ package struct RootView: View {
 
     package var body: some View {
         layout
-            .animation(.snappy(duration: 0.22), value: engine.selectedID)
-            .animation(.easeOut(duration: 0.18), value: engine.toast?.id)
-            .animation(.snappy(duration: 0.22), value: activeModal.value)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: engine.selectedID)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: activeModal.value)
             .alert(
                 L("Rimuovere il torrent?"),
                 isPresented: $showDeleteConfirmation.value,
@@ -154,7 +155,7 @@ package struct RootView: View {
                     },
                     onFilter: { raw in
                         guard let value = TorrentFilter(rawValue: raw) else { return }
-                        withAnimation(.snappy(duration: 0.18)) {
+                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                             filter.value = value
                         }
                     }
