@@ -42,6 +42,7 @@ struct HeaderBar: View {
             }
             .buttonStyle(PrimaryButtonStyle())
             .help("Aggiungi un torrent")
+            .disabled(!engine.isReady || engine.isRestartingSession)
 
             IconButton(icon: "gearshape", help: "Impostazioni", size: 30, action: onSettings)
         }

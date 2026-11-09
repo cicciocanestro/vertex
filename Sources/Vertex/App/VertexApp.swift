@@ -59,6 +59,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.makeKeyAndOrderFront(nil)
             }
 
+            // The session is created off the main actor. A file opened from
+            // Finder can arrive before it is ready, so wait briefly instead of
+            // dropping the add.
+            let deadline = Date().addingTimeInterval(5)
+            while !TorrentEngine.shared.isEngineReady,
+                  TorrentEngine.shared.engineStartupError == nil,
+                  Date() < deadline {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
             for url in urls {
                 if TorrentInput.isMagnet(url.absoluteString) {
                     _ = TorrentEngine.shared.addMagnet(

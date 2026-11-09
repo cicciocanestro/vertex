@@ -66,6 +66,43 @@ struct EmptyStateView: View {
     }
 }
 
+/// Persistent failure state for the embedded engine. The retry button asks the
+/// engine to create the session again off the main actor.
+struct EngineUnavailableView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let palette = Palette(scheme: scheme)
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(Theme.coral)
+
+            Text(L("Motore BitTorrent non disponibile"))
+                .font(Typography.hero)
+                .foregroundStyle(palette.text)
+                .multilineTextAlignment(.center)
+
+            Text(message)
+                .font(Typography.bodyLarge)
+                .foregroundStyle(palette.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 460)
+
+            Button(L("Riprova")) {
+                onRetry()
+            }
+            .buttonStyle(PrimaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 22)
+    }
+}
+
 /// Shown until the first snapshot arrives, so a launch with existing torrents
 /// does not flash the "no torrents" state.
 struct LoadingStateView: View {

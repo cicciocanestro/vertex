@@ -54,6 +54,26 @@ package enum ViewRenderingSupport {
             width: 760,
             height: 520
         )
+        results["EngineUnavailableView"] = render(
+            EngineUnavailableView(message: "Errore di avvio del motore", onRetry: {}),
+            width: 760,
+            height: 520
+        )
+        results["ToastViewAction"] = render(
+            ToastView(
+                toast: ToastMessage(
+                    kind: .success,
+                    text: "Download completato",
+                    detail: "file.mkv",
+                    actionTitle: "Mostra nel Finder",
+                    action: .reveal(path: "/tmp")
+                ),
+                onDismiss: {},
+                onAction: { _ in }
+            ),
+            width: 520,
+            height: 90
+        )
         results["NoResultsView"] = render(
             NoResultsView(query: "ubuntu", onReset: {}),
             width: 760,

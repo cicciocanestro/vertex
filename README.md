@@ -223,6 +223,7 @@ notice.
 - Default downloads: `~/Downloads/Vertex`
 - State and resume data: `~/Library/Application Support/Vertex/resume`
 - Preferences: `UserDefaults` (`app.vertex.torrent`)
+- SOCKS5 proxy password: macOS Keychain (item `app.vertex.torrent`), not in plain text
 
 There is no telemetry. The app is not sandboxed and accesses the chosen folders and the
 download folder.

@@ -160,7 +160,10 @@ extension TorrentEngine {
 
     func apply(_ snapshot: VertexSnapshot) {
         if !snapshot.alertError.isEmpty {
-            showToast(localizedError(snapshot.alertError), kind: .error)
+            let message = localizedError(snapshot.alertError)
+            if !hasRecentErrorToast(message) {
+                showToast(message, kind: .error)
+            }
         }
 
         // Notify only for torrents we have seen actively unfinished (not while verifying),

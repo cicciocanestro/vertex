@@ -39,6 +39,22 @@
 - **Toast azionabili**: i toast di aggiunta e completamento offrono “Apri cartella” /
   “Mostra nel Finder”, restano visibili 7 s e vengono chiusi dopo l'azione.
 
+### Robustezza
+- **Avvio non bloccante**: la creazione della sessione libtorrent e il caricamento del resume
+  girano su `sessionQueue`, non sul main actor. La UI mostra un placeholder di caricamento e,
+  in caso di errore, una vista persistente con “Riprova” invece di un toast temporaneo.
+- **Apertura file da Finder**: l'AppDelegate attende (max 5 s) che la sessione sia pronta
+  prima di consumare i `.torrent`/magnet, evitando di perderli durante l'avvio asincrono.
+- **Deduplica dei toast**: un errore di aggiunta non viene più mostrato due volte (ritorno
+  sincrono + `alert_error`).
+- **Modali**: `⌘O` e `⌘F` sono ignorati mentre una modale è aperta; la vista sottostante è
+  disabilitata, così il focus non esce dalla modale.
+
+### Sicurezza
+- **Password proxy nel Portachiavi**: la password SOCKS5 non è più salvata in chiaro in
+  `UserDefaults`; viene migrata al Keychain al primo avvio (rimossa solo dopo una scrittura
+  riuscita) e salvata con debounce dal pannello Impostazioni.
+
 ## [1.8.3] — 2026-11-08
 
 ### Diagnostica e UX

@@ -217,6 +217,8 @@
 
 /* Engine and errors */
 "Impossibile avviare il motore BitTorrent" = "Unable to start the BitTorrent engine";
+"Motore BitTorrent non disponibile" = "BitTorrent engine unavailable";
+"Impossibile salvare la password nel Portachiavi" = "Could not save the password in the Keychain";
 "Impossibile riavviare il motore BitTorrent" = "Unable to restart the BitTorrent engine";
 "La modifica a Peer Exchange non è stata applicata." = "The Peer Exchange change was not applied.";
 "La modifica a Peer Exchange non è stata applicata. Riavvia Vertex." = "The Peer Exchange change was not applied. Restart Vertex.";

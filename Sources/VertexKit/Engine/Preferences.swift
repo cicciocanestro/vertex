@@ -129,6 +129,55 @@ package enum Preferences {
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Vertex/resume", isDirectory: true)
     }
+
+    /// The SOCKS5 password lives in the Keychain. The old plaintext
+    /// UserDefaults value is migrated lazily and removed only after a
+    /// successful Keychain write, so a failed migration cannot lose it.
+    package static var proxyPassword: String {
+        let defaults = UserDefaults.standard
+        let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
+
+        if let stored = Keychain.proxyPassword() {
+            // A legacy plaintext value must not survive next to the keychain
+            // item; the keychain holds the canonical password.
+            if !legacy.isEmpty {
+                defaults.removeObject(forKey: PrefKey.proxyPassword)
+            }
+            return stored
+        }
+
+        guard !legacy.isEmpty else { return "" }
+        if Keychain.setProxyPassword(legacy) {
+            defaults.removeObject(forKey: PrefKey.proxyPassword)
+        }
+        return legacy
+    }
+
+    /// One-time migration of the old plaintext password. An existing keychain
+    /// item always wins: a stale UserDefaults value must not overwrite it.
+    package static func migrateLegacyProxyPassword() {
+        let defaults = UserDefaults.standard
+        let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
+        guard !legacy.isEmpty else { return }
+
+        if Keychain.proxyPassword() == nil {
+            _ = Keychain.setProxyPassword(legacy)
+        }
+        if Keychain.proxyPassword() != nil {
+            defaults.removeObject(forKey: PrefKey.proxyPassword)
+        }
+    }
+
+    @discardableResult
+    package static func setProxyPassword(_ value: String) -> Bool {
+        let saved = Keychain.setProxyPassword(value)
+        if saved {
+            // Clearing or replacing the password must not leave the legacy
+            // plaintext value behind: proxyPassword would fall back to it.
+            UserDefaults.standard.removeObject(forKey: PrefKey.proxyPassword)
+        }
+        return saved
+    }
 }
 
 /// Single source of truth for preference defaults. `registerDefaults()` feeds
@@ -286,6 +335,9 @@ extension TorrentEngine {
             }
         }
 
+        // proxy password: move the legacy plaintext value to the Keychain
+        Preferences.migrateLegacyProxyPassword()
+
         // download path
         let rawPath = defaults.string(forKey: PrefKey.downloadPath)
         let resolved = Preferences.resolvedDownloadPath(rawPath)
@@ -321,7 +373,9 @@ extension TorrentEngine {
             proxyHost: proxyHost,
             proxyPort: proxyPort,
             proxyUser: defaults.string(forKey: PrefKey.proxyUser) ?? "",
-            proxyPassword: defaults.string(forKey: PrefKey.proxyPassword) ?? ""
+            proxyPassword: defaults.bool(forKey: PrefKey.proxyEnabled)
+                ? Preferences.proxyPassword
+                : ""
         )
     }
 }

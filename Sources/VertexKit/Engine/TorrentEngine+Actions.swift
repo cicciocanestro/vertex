@@ -402,6 +402,7 @@ extension TorrentEngine {
             action: action
         )
         toast = message
+        if kind == .error { recordErrorToast(text) }
         toastTask?.cancel()
         // An actionable toast stays a little longer so it can be clicked.
         let delay: UInt64 = action == nil ? 4_000_000_000 : 7_000_000_000

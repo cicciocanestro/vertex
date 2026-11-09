@@ -226,6 +226,7 @@ avviso.
 - Download predefinito: `~/Downloads/Vertex`
 - Stato e resume data: `~/Library/Application Support/Vertex/resume`
 - Preferenze: `UserDefaults` (`app.vertex.torrent`)
+- Password del proxy SOCKS5: Portachiavi di macOS (voce `app.vertex.torrent`), non in chiaro
 
 Non è presente alcuna telemetria. L'app non è sandboxed e accede alle cartelle scelte e
 alla cartella di download.

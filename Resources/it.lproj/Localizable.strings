@@ -186,6 +186,8 @@
 "Nessun link magnet negli appunti" = "Nessun link magnet negli appunti";
 "Seleziona un torrent" = "Seleziona un torrent";
 "Impossibile avviare il motore BitTorrent" = "Impossibile avviare il motore BitTorrent";
+"Motore BitTorrent non disponibile" = "Motore BitTorrent non disponibile";
+"Impossibile salvare la password nel Portachiavi" = "Impossibile salvare la password nel Portachiavi";
 "Impossibile riavviare il motore BitTorrent" = "Impossibile riavviare il motore BitTorrent";
 "La modifica a Peer Exchange non è stata applicata." = "La modifica a Peer Exchange non è stata applicata.";
 "La modifica a Peer Exchange non è stata applicata. Riavvia Vertex." = "La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.";

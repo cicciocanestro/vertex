@@ -85,7 +85,14 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
     @AppStorage(PrefKey.proxyUser) private var proxyUser = PrefDefault.proxyUser
-    @AppStorage(PrefKey.proxyPassword) private var proxyPassword = PrefDefault.proxyPassword
+    /// The proxy password lives in the Keychain, not in UserDefaults. The field
+    /// is edited locally and written after a short debounce (or on close) so a
+    /// keystroke does not hit the keychain.
+    @StateObject private var proxyPasswordValue = UIState(
+        UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) ? Preferences.proxyPassword : ""
+    )
+    @StateObject private var proxyPasswordDirty = UIState(false)
+    @StateObject private var proxyPasswordSaveTask = UIState<Task<Void, Never>?>(nil)
     /// The raw appearance string is kept in UserDefaults; we bridge it to the
     /// enum for the picker and back so the `SegmentedPicker` works with the
     /// enum type directly.
@@ -324,13 +331,63 @@ struct SettingsSheet: View {
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }
         .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
         .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
-        .onChange(of: proxyEnabled) { engine.applySettingsNow() }
+        .onChange(of: proxyEnabled) { _, enabled in
+            if enabled, proxyPasswordValue.value.isEmpty {
+                proxyPasswordValue.value = Preferences.proxyPassword
+            }
+            engine.applySettingsNow()
+        }
         .onChange(of: proxyHost) { engine.applySettingsSoon() }
         .onChange(of: proxyPort) { engine.applySettingsSoon() }
         .onChange(of: proxyUser) { engine.applySettingsSoon() }
-        .onChange(of: proxyPassword) { engine.applySettingsSoon() }
+        .onChange(of: proxyPasswordValue.value) { scheduleProxyPasswordSave() }
         .onChange(of: appearanceRaw) { AppAppearance.apply() }
-        .onDisappear { engine.applySettingsNow() }
+        .onDisappear {
+            flushProxyPassword()
+            engine.applySettingsNow()
+        }
+    }
+
+    /// Coalesces keychain writes while the user types.
+    private func scheduleProxyPasswordSave() {
+        proxyPasswordDirty.value = true
+        proxyPasswordSaveTask.value?.cancel()
+
+        let password = proxyPasswordValue
+        let dirty = proxyPasswordDirty
+        let taskState = proxyPasswordSaveTask
+        let engine = engine
+        taskState.value = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            let saved = Preferences.setProxyPassword(password.value)
+            if saved { dirty.value = false }
+            taskState.value = nil
+            engine.applySettingsNow()
+            if !saved {
+                engine.showToast(
+                    L("Impossibile salvare la password nel Portachiavi"),
+                    kind: .error
+                )
+            }
+        }
+    }
+
+    /// Writes the pending password before the sheet closes. The dirty flag
+    /// avoids touching the keychain when the password was never edited (for
+    /// example in the off-screen rendering tests).
+    private func flushProxyPassword() {
+        proxyPasswordSaveTask.value?.cancel()
+        proxyPasswordSaveTask.value = nil
+        guard proxyPasswordDirty.value else { return }
+        if Preferences.setProxyPassword(proxyPasswordValue.value) {
+            proxyPasswordDirty.value = false
+        } else {
+            engine.showToast(
+                L("Impossibile salvare la password nel Portachiavi"),
+                kind: .error
+            )
+        }
     }
 
     private func section<Content: View>(
@@ -683,7 +740,7 @@ struct SettingsSheet: View {
                         .stroke(palette.stroke, lineWidth: 1)
                 )
 
-            SecureField(L("Password"), text: $proxyPassword)
+            SecureField(L("Password"), text: $proxyPasswordValue.value)
                 .textFieldStyle(.plain)
                 .font(Typography.captionSmall)
                 .foregroundStyle(palette.text)

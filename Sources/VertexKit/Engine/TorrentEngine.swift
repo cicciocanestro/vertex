@@ -41,6 +41,12 @@ package final class TorrentEngine: ObservableObject {
 
     @Published var toast: ToastMessage?
     @Published var isReady = false
+    /// Readiness exposed to the `Vertex` executable target (AppDelegate waits
+    /// for the session before consuming files opened from Finder).
+    package var isEngineReady: Bool { isReady }
+    package var engineStartupError: String? { startupError }
+    @Published var isStarting = false
+    @Published var startupError: String?
     @Published var isRestartingSession = false
     /// Torrent shown in the inspector. It is the single source of truth for
     /// the selection: `RootView` reads it instead of keeping a parallel copy.
@@ -77,6 +83,11 @@ package final class TorrentEngine: ObservableObject {
     var proxyCheckTick = 0
     var proxyHealthError: String?
     var isProxyProbeInFlight = false
+    /// Errors shown in the last few seconds. libtorrent reports an add failure
+    /// twice (synchronously and through add_torrent_alert); the alert path uses
+    /// this to avoid showing the same message again.
+    var recentErrorToasts: [String: Date] = [:]
+    private static let errorToastDedupWindow: TimeInterval = 8
 
     private init() {
         Preferences.registerDefaults()
@@ -92,29 +103,58 @@ package final class TorrentEngine: ObservableObject {
 
         Self.validateAllPreferences()
         let configuration = Self.currentConfiguration()
-        let creation = Self.makeSession(configuration)
-        sessionPexEnabled = configuration.pex
-        session = creation.pointer
-        isReady = session != nil
-        if isReady {
-            lastAppliedConfiguration = configuration
+        startSession(configuration)
+    }
+
+    /// Starts the libtorrent session on the serial session queue. Loading the
+    /// resume directory and creating a session can take seconds with a large
+    /// library, so it must not run on the main actor.
+    private func startSession(_ configuration: SessionConfiguration) {
+        isStarting = true
+        startupError = nil
+        sessionQueue.async { [self] in
+            let creation = Self.makeSession(configuration)
+            DispatchQueue.main.async {
+                self.finishStartup(creation, configuration: configuration)
+            }
+        }
+    }
+
+    private func finishStartup(
+        _ creation: SessionCreationResult,
+        configuration: SessionConfiguration
+    ) {
+        isStarting = false
+
+        if isShuttingDown {
+            let pointer = SessionPointerBox(creation.pointer)
+            sessionQueue.async { pointer.destroy() }
+            return
         }
 
-        if session == nil {
-            let detail = Self.sessionFailureDetail(
+        guard let newSession = creation.pointer else {
+            startupError = Self.sessionFailureDetail(
                 creation.error,
                 fallback: L("Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.")
             )
-            DispatchQueue.main.async { [weak self] in
-                self?.showToast(
-                    L("Impossibile avviare il motore BitTorrent"),
-                    kind: .error,
-                    detail: detail
-                )
-            }
-        } else {
-            startPolling()
+            isReady = false
+            return
         }
+
+        session = newSession
+        sessionPexEnabled = configuration.pex
+        isReady = true
+        startupError = nil
+        lastAppliedConfiguration = configuration
+        startPolling()
+    }
+
+    /// Retries the initial session creation after a failure. The persistent
+    /// error view calls this; it is a no-op while a session or a startup is in
+    /// flight.
+    package func retryStartup() {
+        guard !isStarting, !isShuttingDown, session == nil else { return }
+        startSession(configurationOverride ?? Self.currentConfiguration())
     }
 
     #if DEBUG
@@ -199,6 +239,19 @@ package final class TorrentEngine: ObservableObject {
         }
 
         return SessionCreationResult(pointer: pointer, error: error)
+    }
+
+    func recordErrorToast(_ text: String) {
+        let now = Date()
+        recentErrorToasts = recentErrorToasts.filter {
+            now.timeIntervalSince($0.value) < Self.errorToastDedupWindow
+        }
+        recentErrorToasts[text] = now
+    }
+
+    func hasRecentErrorToast(_ text: String) -> Bool {
+        guard let shown = recentErrorToasts[text] else { return false }
+        return Date().timeIntervalSince(shown) < Self.errorToastDedupWindow
     }
 
     private static func sessionFailureDetail(_ error: String?, fallback: String) -> String {

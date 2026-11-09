@@ -106,7 +106,10 @@ package struct RootView: View {
             }
             .modifier(
                 RootEventHandlers(actions: RootEventHandlerActions(
-                    onAddFile: chooseTorrentFile,
+                    onAddFile: {
+                        guard !hasModalOverlay else { return }
+                        chooseTorrentFile()
+                    },
                     onAddMagnet: {
                         activeModal.value = .add(.magnet)
                     },
@@ -135,7 +138,10 @@ package struct RootView: View {
                             engine.copyMagnet(for: torrent)
                         }
                     },
-                    onFind: { searchFocused = true },
+                    onFind: {
+                        guard !hasModalOverlay else { return }
+                        searchFocused = true
+                    },
                     onToggleInspector: {
                         guard !hasModalOverlay else { return }
                         toggleInspector()
@@ -195,7 +201,9 @@ package struct RootView: View {
     private var layout: some View {
         ZStack(alignment: .bottom) {
             AmbientBackground()
-            mainColumn
+            // A modal is app-modal: disabling the background keeps Tab focus
+            // and the list/status controls out of the modal's interaction scope.
+            mainColumn.disabled(hasModalOverlay)
             dropLayer
             modalLayer
             toastLayer
@@ -244,6 +252,7 @@ package struct RootView: View {
                 )
                 .shadow(color: Color.black.opacity(0.42), radius: 45, x: 0, y: 20)
                 .padding(24)
+                .accessibilityAddTraits(.isModal)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.985)))
         .zIndex(3)
@@ -329,7 +338,13 @@ package struct RootView: View {
 
     @ViewBuilder
     private func content(torrents: [Torrent]) -> some View {
-        if engine.isReady && !engine.hasLoadedSnapshot && engine.torrents.isEmpty {
+        if engine.isStarting {
+            LoadingStateView()
+        } else if let error = engine.startupError {
+            EngineUnavailableView(message: error) {
+                engine.retryStartup()
+            }
+        } else if engine.isReady && !engine.hasLoadedSnapshot && engine.torrents.isEmpty {
             LoadingStateView()
         } else if engine.torrents.isEmpty && search.value.isEmpty {
             EmptyStateView(
@@ -482,7 +497,7 @@ package struct RootView: View {
     }
 
     private func handleRootDrop(_ providers: [NSItemProvider]) -> Bool {
-        if activeModal.value != nil {
+        if activeModal.value != nil || !engine.isReady {
             return false
         }
 
