@@ -1,6 +1,6 @@
 # Changelog
 
-## [Non rilasciato]
+## [1.9.2] — 2026-11-09
 
 ### Corretto
 - **Filtro "Completati"**: libtorrent riporta un torrent finito come *seeder* (state 5) e
@@ -826,3 +826,7 @@ riproducibile a parità di ambiente CI.
 - `docs/queue-and-limits.md` contiene il design della coda/limiti per torrent (opzione
   consigliata: auto-manager di libtorrent, con il punto critico della pausa manuale su un
   torrent in coda) e le invarianti da verificare. Non è implementata.
+- La release 1.9.2 non cambia il formato dei dati: resume data e preferenze sono compatibili
+  con la 1.9.1. Le chiavi `uiFilter`/`uiSort`/`uiSortAscending`/`uiInspectorWidth` vengono
+  create al primo utilizzo; l'aspetto predefinito passa a "Sistema" solo per le installazioni
+  nuove (chi ha già scelto un tema lo mantiene).
