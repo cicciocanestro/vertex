@@ -49,15 +49,19 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - Motore **libtorrent 2.1**: DHT, PEX, LSD, UPnP/NAT-PMP, tracker HTTP/UDP, magnet link,
   torrent v1 e v2.
 - Aggiunta da magnet, file `.torrent`, trascinamento, appunti, Finder o browser.
-- Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file/priorità e tracker.
+- Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file (priorità Skip/Normale/Alta) e tracker.
 - Pausa/ripresa, download sequenziale, resume data ed errori visibili.
 - Limiti globali di velocità, porta, DHT, PEX, LSD e UPnP/NAT-PMP.
+- **Interfaccia rinnovata**: sidebar delle impostazioni, inspector ridimensionabile, pill di
+  stato per riga, colonne estese sulle finestre larghe, toast con azione e navigazione da
+  tastiera (`↑`/`↓`).
 - **Associazione all'interfaccia**: il motore può essere vincolato a un solo indirizzo
   locale, così il traffico esce solo da lì. È la configurazione che rende utilizzabile il
   client dietro CGNAT insieme a un tunnel WireGuard e al port forwarding su un VPS.
 - **Proxy SOCKS5 con protezione anti-leak (fail-closed)**: instrada tracker e peer attraverso
   un proxy anonimo (come Tor su `127.0.0.1:9050` o proxy VPN SOCKS5) con supporto opzionale
-  all'autenticazione. Abilita automaticamente `anonymous_mode` rigoroso, disattiva UPnP/NAT-PMP
+  all'autenticazione (password nel Portachiavi di macOS). Abilita automaticamente
+  `anonymous_mode` rigoroso, disattiva UPnP/NAT-PMP
   per prevenire leak dell'IP locale del router e blocca il traffico se il proxy cade.
 - **Diagnostica rete**: porta effettiva, IP locale, stato proxy, stato dei mapping e raggiungibilità TCP.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
@@ -273,13 +277,13 @@ richiede dipendenze per entrambe le architetture.
 - `Sources/CTorrent` — bridge C++/C verso libtorrent: sessione, aggiunta torrent, snapshot
   JSON, dettagli file/tracker, resume data, priorità, validazione percorsi e comandi.
 - `Sources/VertexKit` — libreria principale:
-  - `Engine/Preferences.swift` — chiavi, default, validazione preferenze e configurazione sessione;
+  - `Engine/Preferences.swift` — chiavi, default, validazione preferenze, configurazione sessione e migrazione della password proxy verso il Portachiavi;
   - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — ciclo di vita della sessione, polling serializzato e azioni utente;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno;
-  - `Views/` — lista, righe, inspector, sheet di aggiunta, impostazioni, diagnostica, status bar;
-  - `Utilities/` — validazione input, drag&drop, localizzazione, rete;
+  - `Views/` — lista (pill di stato, colonne estese, navigazione da tastiera), inspector ridimensionabile, impostazioni a sidebar, sheet di aggiunta, diagnostica, status bar;
+  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi;
   - `Design/` — palette, componenti condivisi, chrome delle modali;
-  - `Models/` — modelli snapshot, filtri, ordinamento, formattazione;
+  - `Models/` — modelli snapshot, filtri, ordinamento, navigazione da tastiera, priorità file;
   - `DebugSupport.swift` — dati demo e cattura schermo, solo DEBUG.
 - `Sources/Vertex` — entry point SwiftUI (`@main`, AppDelegate, gestione URL, finestra).
 - `Tests/VertexTests` — suite automatica, inclusi test d'integrazione libtorrent su loopback.
@@ -301,14 +305,15 @@ richiede dipendenze per entrambe le architetture.
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/` (testo e
 LCOV). La CI carica entrambi. La suite copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, ciclo vitale del bridge C++, engine (aggiunta, dettaglio, priorità,
-pausa/ripresa, riavvio PEX, shutdown), raggiungibilità rete con loader HTTP finto e routing
-dei comandi. I test d'integrazione su loopback coprono trasferimenti v1/v2, ricaricamento
-del resume, priorità file, rimozione e failure path senza tracker esterni. Le viste SwiftUI
+pausa/ripresa, riavvio PEX, shutdown), navigazione da tastiera, raggiungibilità rete con
+loader HTTP finto e routing dei comandi. I test d'integrazione su loopback coprono
+trasferimenti v1/v2, ricaricamento del resume, priorità file, rimozione e failure path
+senza tracker esterni. Le viste SwiftUI
 e le varianti modali vengono renderizzate off-screen con `ImageRenderer`; lo smoke test
 UPnP/NAT-PMP gira solo con `VERTEX_TEST_UPNP=1` in CI.
 
-Le build DEBUG offrono dati demo e cattura finestra (`VERTEX_DEMO=1`,
-`VERTEX_SNAPSHOT=/percorso/immagine.png`).
+Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
+(`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`, `VERTEX_DEMO_TOAST=1`).
 
 ## Limitazioni
 

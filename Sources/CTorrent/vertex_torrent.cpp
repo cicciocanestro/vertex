@@ -396,9 +396,11 @@ namespace {
 
 lt::torrent_handle find_handle(vt_session* session, std::string const& id)
 {
-    // Fast path: libtorrent indexes active torrents by info-hash, so a 40-char
-    // SHA-1 id resolves in O(1) without scanning every torrent and without
-    // allocating a hex string for each one. V2 hashes (64 chars) fall through.
+    // Fast path: ids are always 40 hex (get_best() truncates a v2 hash to
+    // SHA-1). libtorrent indexes v1 hashes, so a v1 id resolves in O(1)
+    // without scanning every torrent or allocating a hex string per torrent.
+    // A v2-only torrent's truncated hash may not be indexed; the linear
+    // fallback below compares get_best() and covers it.
     if (id.size() == 40)
     {
         lt::sha1_hash hash;
