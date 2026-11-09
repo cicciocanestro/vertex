@@ -96,6 +96,10 @@ jobs:
           if-no-files-found: warn
 
       - name: Build application bundle
+        env:
+          # Empty unless the repository defines the secret: build.sh then falls
+          # back to ad-hoc signing.
+          VERTEX_SIGN_IDENTITY: ${{ secrets.VERTEX_SIGN_IDENTITY }}
         run: ./build.sh release
 
       - name: Verify self-contained bundle
@@ -105,6 +109,15 @@ jobs:
 
       - name: Create DMG and checksum
         run: ./Scripts/make-dmg.sh --no-build
+
+      - name: Notarize DMG (optional)
+        # Requires a Developer ID identity in VERTEX_SIGN_IDENTITY and a notary
+        # profile created with `xcrun notarytool store-credentials`. Enable it by
+        # setting the repository variable VERTEX_ENABLE_NOTARIZATION=1.
+        if: ${{ vars.VERTEX_ENABLE_NOTARIZATION == '1' }}
+        env:
+          VERTEX_NOTARY_PROFILE: ${{ vars.VERTEX_NOTARY_PROFILE }}
+        run: ./Scripts/notarize.sh
 
       - name: Verify DMG checksum
         run: |

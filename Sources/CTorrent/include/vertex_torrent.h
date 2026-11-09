@@ -44,6 +44,9 @@ char* vt_detail_json(vt_session* session, const char* torrent_id);
 char* vt_last_error(vt_session* session);
 char* vt_magnet_uri(vt_session* session, const char* torrent_id);
 
+/* Both add functions resolve `save_path` (or the session default when it is
+   NULL/empty) and fail with -1 when that folder is not writable: the torrent is
+   never silently moved to another destination. */
 int vt_add_magnet(vt_session* session,
                   const char* uri,
                   const char* save_path,
@@ -65,6 +68,13 @@ int vt_add_peer(vt_session* session,
                 int port);
 
 int vt_control(vt_session* session, const char* torrent_id, const char* action);
+
+/* Replaces the tracker list of a torrent. `urls` is a newline-separated list;
+   blank lines are ignored, every entry must be an absolute URL (it contains
+   "://") and the list is limited to 128 entries of at most 2 KiB each. Returns
+   0 on success, -1 with `last_error` set otherwise. The new list is written to
+   the resume data, so it survives a restart. */
+int vt_set_trackers(vt_session* session, const char* torrent_id, const char* urls);
 int vt_set_file_priority(vt_session* session, const char* torrent_id, int file_index, int priority);
 int vt_set_all_file_priorities(vt_session* session, const char* torrent_id, int priority);
 /* Runtime settings update. Returns 0 on success. bind_address follows the same

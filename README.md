@@ -29,7 +29,10 @@ may block the first launch:
 - go to **System Settings → Privacy & Security** and choose **Open Anyway**.
 
 Developer ID signing, hardened runtime and Apple notarization are the next distribution
-step. Until then, expect this one-time confirmation.
+step. The build already supports them: `VERTEX_SIGN_IDENTITY` selects the signing identity
+(hardened runtime and timestamp instead of ad-hoc) and `Scripts/notarize.sh` submits the DMG
+to `notarytool` and staples the ticket. Without a certificate the release stays ad-hoc, so
+expect this one-time confirmation.
 
 ### Requirements
 

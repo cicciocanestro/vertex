@@ -62,6 +62,59 @@ enum EngineTests {
             try TestRunner.assertNotNil(onMain { engine.toast })
         }
 
+        TestRunner.run("Engine: aggiunta asincrona e callback di esito") {
+            let workspace = try IntegrationWorkspace()
+            let engine = try makeEngine(in: workspace, name: "async-add")
+            defer { shutdown(engine) }
+
+            let destination = engineDownloadPath(workspace, "async-add")
+            let magnet = "magnet:?xt=urn:btih:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+            // The bridge call runs off the main thread, so a valid request is
+            // accepted synchronously and reports its outcome through the
+            // callback. The sheet closes only on that outcome.
+            var firstOutcome: String?
+            var firstCompleted = false
+            let accepted = onMain {
+                engine.addMagnet(
+                    magnet,
+                    destination: destination,
+                    startPaused: true,
+                    sequential: false,
+                    completion: { failure in
+                        firstOutcome = failure
+                        firstCompleted = true
+                    }
+                )
+            }
+            try TestRunner.assertNil(accepted, "Un magnet valido deve essere accettato senza errori sincroni")
+            try waitUntil("callback della prima aggiunta") { firstCompleted }
+            try TestRunner.assertNil(firstOutcome, "La prima aggiunta non deve riportare errori")
+
+            try waitForTorrent(engine)
+            try TestRunner.assertEqual(onMain { engine.torrents.count }, 1)
+
+            // A duplicate must surface through the callback: it is the only
+            // signal the add sheet has to keep itself open.
+            var duplicateOutcome: String?
+            var duplicateCompleted = false
+            onMain {
+                engine.addMagnet(
+                    magnet,
+                    destination: destination,
+                    startPaused: true,
+                    sequential: false,
+                    completion: { failure in
+                        duplicateOutcome = failure
+                        duplicateCompleted = true
+                    }
+                )
+            }
+            try waitUntil("errore dell'aggiunta duplicata") { duplicateCompleted }
+            try TestRunner.assertNotNil(duplicateOutcome, "Un torrent duplicato deve riportare un errore")
+            try TestRunner.assertEqual(onMain { engine.torrents.count }, 1)
+        }
+
         TestRunner.run("Engine: file, priorità, controlli e rimozione") {
             let workspace = try IntegrationWorkspace()
             let engine = try makeEngine(in: workspace, name: "file")

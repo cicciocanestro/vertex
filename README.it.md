@@ -29,7 +29,10 @@ bloccare il primo avvio:
 - vai in **Impostazioni di Sistema → Privacy e Sicurezza** e scegli **Apri comunque**.
 
 La firma Developer ID, l'hardened runtime e la notarizzazione Apple sono il prossimo passo
-per la distribuzione. Fino ad allora, aspettati questa conferma una tantum.
+per la distribuzione; la build li supporta già: `VERTEX_SIGN_IDENTITY` seleziona l'identità
+di firma (hardened runtime e timestamp al posto della firma ad-hoc) e `Scripts/notarize.sh`
+invia la DMG a `notarytool` e applica il ticket. Senza certificato la release resta ad-hoc,
+quindi aspettati questa conferma una tantum.
 
 ### Requisiti
 
@@ -319,7 +322,8 @@ Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
 
 - macOS 15.0+ su Apple Silicon (arm64); per Intel serve una build universale con dipendenze
   per entrambe le architetture.
-- Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper.
+- Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper. Il
+  supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
 - Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
 - Non c'è un limite di rapporto: il seed continua finché non metti in pausa o rimuovi il

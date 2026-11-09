@@ -257,3 +257,8 @@
 "Magnet" = "Magnet";
 "Porta proxy non valida" = "Porta proxy non valida";
 "Connessione rifiutata" = "Connessione rifiutata";
+
+/* Inspector trackers and drag and drop feedback */
+"File ignorato: serve un file .torrent o un link magnet" = "File ignorato: serve un file .torrent o un link magnet";
+"Aggiungi tracker (URL)" = "Aggiungi tracker (URL)";
+"Rimuovi tracker" = "Rimuovi tracker";

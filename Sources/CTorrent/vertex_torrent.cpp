@@ -481,9 +481,18 @@ int add_torrent_common(vt_session* session,
                        int paused,
                        int sequential)
 {
-    params.save_path = prepared_save_path(
-        save_path && *save_path ? save_path : session->default_save_path,
-        session->default_save_path);
+    // An unusable destination is reported, not silently replaced with the
+    // session default: the user would find the torrent in a folder they did not
+    // choose. (Loading resume data still uses prepared_save_path: there the
+    // original folder may legitimately be gone.)
+    std::string const requested = save_path && *save_path ? save_path : session->default_save_path;
+    std::string const destination = normalized_save_path(requested, session->default_save_path);
+    if (!is_usable_directory(destination))
+    {
+        session->last_error = "La cartella di destinazione non è scrivibile.";
+        return -1;
+    }
+    params.save_path = destination;
     params.flags |= lt::torrent_flags::duplicate_is_error;
     params.flags &= ~lt::torrent_flags::auto_managed;
     // add_torrent_params::default_flags includes `paused`: clear it unless requested.
@@ -508,6 +517,11 @@ int add_torrent_common(vt_session* session,
 
 bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params const& params)
 {
+    // An empty resume directory has no meaning: joining it with "<hash>.resume"
+    // would write into the process working directory instead of failing.
+    if (resume_dir.empty())
+        return false;
+
     try
     {
         auto buffer = lt::write_resume_data_buf(params);
@@ -993,12 +1007,10 @@ void vt_session_poll(vt_session* session)
                 if (socks->error)
                     session->proxy_error = socks->error.message();
             }
-            else if (auto* peer_conn = lt::alert_cast<lt::peer_connect_alert>(alert))
-            {
-                // If a peer connection succeeded over proxy, clear previous proxy error
-                if (session->proxy_type != 0 && !session->proxy_error.empty())
-                    session->proxy_error.clear();
-            }
+            // No peer_connect_alert handler here on purpose: its alert category
+            // (`connect`) is not part of the session alert mask, so the alert
+            // never arrives. The proxy error is cleared by the TCP health probe
+            // in TorrentEngine+Polling through vt_clear_proxy_error().
         }
     }
     catch (...)
@@ -1035,6 +1047,15 @@ char* vt_snapshot_json(vt_session* session)
                 auto status = handle.status(lt::torrent_handle::query_name
                                             | lt::torrent_handle::query_save_path
                                             | lt::torrent_handle::query_accurate_download_counters);
+
+                // Build the whole object in its own stream: `append_torrent_json`
+                // writes dozens of fields, and an exception in the middle of it
+                // would leave the shared document truncated, invalidating the
+                // snapshot (and the poll) for every other torrent as well.
+                std::ostringstream entry;
+                entry.imbue(std::locale::classic());
+                append_torrent_json(entry, status);
+
                 download_rate += status.download_payload_rate;
                 upload_rate += status.upload_payload_rate;
                 bool is_paused = has_flag(status.flags, lt::torrent_flags::paused);
@@ -1046,7 +1067,7 @@ char* vt_snapshot_json(vt_session* session)
                 if (!first)
                     out << ",";
                 first = false;
-                append_torrent_json(out, status);
+                out << entry.str();
             }
             catch (...)
             {
@@ -1482,6 +1503,62 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             return -1;
         }
 
+        return 0;
+    }
+    VT_CATCH_ALL(session, -1)
+}
+
+int vt_set_trackers(vt_session* session, const char* torrent_id_value, const char* urls)
+{
+    if (!session || !torrent_id_value || !urls)
+        return -1;
+
+    // Bounds for a list that comes from a text field: a torrent with hundreds of
+    // trackers is a configuration mistake, and a huge URL is not a URL.
+    constexpr std::size_t max_trackers = 128;
+    constexpr std::size_t max_url_length = 2048;
+
+    try
+    {
+        auto handle = find_handle(session, torrent_id_value);
+        if (!handle.is_valid())
+        {
+            session->last_error = "Torrent non trovato";
+            return -1;
+        }
+
+        std::vector<lt::announce_entry> entries;
+        std::istringstream stream(urls);
+        std::string line;
+        while (std::getline(stream, line))
+        {
+            auto const first = line.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos)
+                continue;
+            auto const last = line.find_last_not_of(" \t\r\n");
+            line = line.substr(first, last - first + 1);
+
+            if (line.size() > max_url_length)
+            {
+                session->last_error = "URL del tracker troppo lungo";
+                return -1;
+            }
+            // Only absolute URLs: libtorrent would ignore anything else, and the
+            // user would see the tracker disappear after a restart.
+            if (line.find("://") == std::string::npos)
+            {
+                session->last_error = "URL del tracker non valido";
+                return -1;
+            }
+            if (entries.size() >= max_trackers)
+            {
+                session->last_error = "Troppi tracker";
+                return -1;
+            }
+            entries.emplace_back(line);
+        }
+
+        handle.replace_trackers(entries);
         return 0;
     }
     VT_CATCH_ALL(session, -1)

@@ -167,7 +167,7 @@ struct NetworkDiagnosticsView: View {
                 HStack(spacing: 9) {
                     Image(systemName: hasError ? "exclamationmark.shield.fill" : "shield.lefthalf.filled")
                         .font(Typography.bodyLargeMedium)
-                        .foregroundStyle(hasError ? Theme.coral : Theme.mint)
+                        .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                         .frame(width: 20)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -177,11 +177,11 @@ struct NetworkDiagnosticsView: View {
                                 .foregroundStyle(palette.text)
                             Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
                                 .font(Typography.captionMono)
-                                .foregroundStyle(hasError ? Theme.coral : Theme.mint)
+                                .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                             if engine.stats.proxy.auth {
                                 Text(verbatim: "RFC 1929")
                                     .font(Typography.captionMicroSemibold)
-                                    .foregroundStyle(hasError ? Theme.coral : Theme.mint)
+                                    .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1.5)
                                     .background(
@@ -192,7 +192,7 @@ struct NetworkDiagnosticsView: View {
                         if hasError {
                             Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.error))
                                 .font(Typography.micro)
-                                .foregroundStyle(Theme.coral)
+                                .foregroundStyle(palette.coralText)
                         } else {
                             Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
                                 .font(Typography.micro)
@@ -221,7 +221,7 @@ struct NetworkDiagnosticsView: View {
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.caption)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(palette.coralText)
                         Text(engine.stats.listenError)
                             .font(Typography.captionMono)
                             .foregroundStyle(palette.secondary)
@@ -283,7 +283,7 @@ struct NetworkDiagnosticsView: View {
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.captionTiny)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(palette.coralText)
                     Text(engine.stats.portmap.error)
                         .font(Typography.captionSmall)
                         .foregroundStyle(palette.secondary)
@@ -340,7 +340,7 @@ struct NetworkDiagnosticsView: View {
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.captionTiny)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(palette.coralText)
                     Text(info.error)
                         .font(Typography.captionSmall)
                         .foregroundStyle(palette.secondary)
@@ -453,23 +453,24 @@ struct NetworkDiagnosticsView: View {
     }
 
     private var testStateIcon: some View {
-        Group {
+        let palette = Palette(scheme: scheme)
+        return Group {
             switch tester.state {
             case .idle:
                 Image(systemName: "questionmark.circle")
-                    .foregroundStyle(Theme.amber)
+                    .foregroundStyle(palette.amberText)
             case .running:
                 Image(systemName: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(Theme.blue)
+                    .foregroundStyle(palette.blueText)
             case .open:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Theme.green)
+                    .foregroundStyle(palette.greenText)
             case .closed:
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(palette.coralText)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.coral)
+                    .foregroundStyle(palette.coralText)
             }
         }
     }

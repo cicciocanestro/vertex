@@ -179,6 +179,9 @@ extension TorrentEngine {
         if hasLoadedSnapshot {
             let newlyFinished = finished.intersection(unfinishedIDs)
             if !newlyFinished.isEmpty {
+                // A download that completes while the window is in the
+                // background is exactly the event the user wants to know about.
+                completionAttention()
                 let completed = snapshot.torrents.filter { newlyFinished.contains($0.id) }
                 if completed.count == 1, let torrent = completed.first {
                     let path = URL(fileURLWithPath: torrent.savePath)

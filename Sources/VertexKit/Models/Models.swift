@@ -26,6 +26,14 @@ enum TorrentPhase: Equatable {
 enum LibtorrentStateCode: Int {
     case checkingFiles = 1
     case downloadingMetadata = 2
+    /// Everything the torrent wants has been downloaded, but it is not a pure
+    /// seeder: libtorrent uses this state when some pieces are filtered (files
+    /// set to Skip), so the full data set is not available.
+    case finished = 4
+    /// The torrent is a pure seeder. libtorrent reports this state for every
+    /// fully downloaded torrent, paused ones included: being paused is a
+    /// separate flag, not a different state.
+    case seeding = 5
     case checkingResumeData = 7
 }
 
@@ -153,8 +161,17 @@ package struct Torrent: Decodable, Identifiable, Equatable {
             || stateCode == LibtorrentStateCode.checkingResumeData.rawValue {
             return .checking
         }
-        if seeding { return .seeding }
-        if finished { return .completed }
+        // `seeding` alone is not enough: libtorrent keeps `is_seeding` true for
+        // every torrent that has all the pieces, so a finished torrent that
+        // skipped some files would be presented as a seeder. The state code is
+        // what separates a pure seeder (5) from a finished download with
+        // filtered pieces (4).
+        if seeding && stateCode == LibtorrentStateCode.seeding.rawValue {
+            return .seeding
+        }
+        if finished || stateCode == LibtorrentStateCode.finished.rawValue {
+            return .completed
+        }
         return .downloading
     }
 
@@ -429,9 +446,11 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The single exclusive category for a torrent. `Torrent.phase` is the
-    /// source of truth: pause prevails, and "Download" includes metadata and
-    /// verification.
+    /// The category that owns a torrent for the purpose of the counts.
+    /// `Torrent.phase` is the source of truth: pause prevails, and "Download"
+    /// includes metadata and verification. `.completed` here means "download
+    /// finito ma non seeder puro" (files set to Skip), which is the only
+    /// torrent libtorrent reports with state 4.
     package static func category(for torrent: Torrent) -> TorrentFilter {
         switch torrent.phase {
         case .downloading, .metadata, .checking: return .downloading
@@ -441,11 +460,27 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Filters are mutually exclusive: every torrent belongs to exactly one
-    /// category. A seeding torrent is counted in "Seed", not in "Completati";
-    /// a paused finished torrent is only "In pausa".
+    /// "Download", "Seed" and "In pausa" are exclusive (pause prevails), and
+    /// the torrents owned by `.completed` form a fourth group, so every torrent
+    /// is counted exactly once by the three primary buckets plus `.completed`.
+    ///
+    /// `.completed` is nevertheless the one *overlapping* filter: it matches
+    /// every finished torrent, including the ones listed under "Seed". Without
+    /// the overlap the chip would be empty for a normal library, because
+    /// libtorrent reports a fully downloaded torrent as a pure seeder (state 5)
+    /// and never as "completed" — a finished download only reaches state 4 when
+    /// some files are skipped.
     package func matches(_ torrent: Torrent) -> Bool {
-        self == .all || Self.category(for: torrent) == self
+        switch self {
+        case .all:
+            return true
+        case .completed:
+            // Mirrors the counting rule below, so the chip and the list always
+            // agree even for a torrent that reports state 4 without `finished`.
+            return torrent.finished || Self.category(for: torrent) == .completed
+        default:
+            return Self.category(for: torrent) == self
+        }
     }
 }
 
@@ -476,6 +511,13 @@ package enum TorrentSort: String, CaseIterable, Identifiable {
         case .progress: return "chart.bar"
         case .speed: return "speedometer"
         }
+    }
+
+    /// Direction used when the user picks this criterion. Names read A→Z; the
+    /// other criteria start from the most useful end (newest, largest, fastest),
+    /// which is what the arrow in the filter bar then shows.
+    package var defaultAscending: Bool {
+        self == .name
     }
 }
 
@@ -531,9 +573,17 @@ package enum TorrentListPipeline {
         for torrent in torrents {
             let category = TorrentFilter.category(for: torrent)
             counts[.all, default: 0] += 1
-            counts[category, default: 0] += 1
+            // "Completati" is the overlapping bucket: it counts every finished
+            // torrent, so the three primary buckets stay exclusive and still
+            // cover the whole list between them.
+            if category == .completed || torrent.finished {
+                counts[.completed, default: 0] += 1
+            }
+            if category != .completed {
+                counts[category, default: 0] += 1
+            }
 
-            guard filter == .all || filter == category else { continue }
+            guard filter.matches(torrent) else { continue }
             if !search.isEmpty,
                !torrent.name.localizedCaseInsensitiveContains(search),
                !torrent.id.localizedCaseInsensitiveContains(search) {
@@ -546,7 +596,9 @@ package enum TorrentListPipeline {
         case .recent:
             list.sort { ascending ? ($0.added < $1.added) : ($0.added > $1.added) }
         case .name:
-            let target: ComparisonResult = ascending ? .orderedDescending : .orderedAscending
+            // `ascending` means the same thing for every criterion: the value
+            // grows down the list (A→Z here, smallest first elsewhere).
+            let target: ComparisonResult = ascending ? .orderedAscending : .orderedDescending
             list.sort { $0.name.localizedStandardCompare($1.name) == target }
         case .size:
             list.sort { ascending ? ($0.size < $1.size) : ($0.size > $1.size) }

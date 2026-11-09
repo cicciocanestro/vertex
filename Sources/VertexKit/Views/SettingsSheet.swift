@@ -108,6 +108,11 @@ struct SettingsSheet: View {
     /// Interfaces are read once per presentation instead of on every render;
     /// the menu is reopened when the user changes the network.
     @StateObject private var interfaces = UIState(LocalNetwork.ipv4Interfaces())
+
+    /// Placeholders for the proxy fields: technical literals, not localized. A
+    /// `String` (not a literal) selects the non-localizing TextField overload.
+    private static let proxyHostPlaceholder = "127.0.0.1"
+    private static let proxyPortPlaceholder = "1080"
     @StateObject private var selectedSection = UIState<SettingsSection>(.folders)
 
     let onClose: () -> Void
@@ -316,6 +321,9 @@ struct SettingsSheet: View {
         .frame(width: 700, height: 700)
         .onAppear {
             interfaces.value = LocalNetwork.ipv4Interfaces()
+            // Normalizing calls into the bridge, which stats the path. It runs
+            // once per presentation, so a single filesystem hit here is
+            // acceptable (the add flow validates the destination on every drop).
             let resolved = Preferences.resolvedDownloadPath(downloadPath)
             if resolved != downloadPath {
                 downloadPath = resolved
@@ -669,7 +677,7 @@ struct SettingsSheet: View {
 
             Spacer(minLength: 8)
 
-            TextField("127.0.0.1", text: $proxyHost)
+            TextField(Self.proxyHostPlaceholder, text: $proxyHost)
                 .textFieldStyle(.plain)
                 .font(Typography.captionMono)
                 .foregroundStyle(palette.text)
@@ -685,11 +693,11 @@ struct SettingsSheet: View {
                         .stroke(palette.stroke, lineWidth: 1)
                 )
 
-            Text(":")
+            Text(verbatim: ":")
                 .font(Typography.captionMono)
                 .foregroundStyle(palette.tertiary)
 
-            TextField("1080", value: $proxyPort, format: .number.grouping(.never))
+            TextField(Self.proxyPortPlaceholder, value: $proxyPort, format: .number.grouping(.never))
                 .textFieldStyle(.plain)
                 .font(Typography.captionMono)
                 .foregroundStyle(palette.text)
@@ -818,7 +826,7 @@ struct SettingsSheet: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("Vertex")
+                Text(verbatim: "Vertex")
                     .font(Typography.bodyLargeMedium)
                     .foregroundStyle(palette.text)
                 Text(LF("Versione %@ (build %@)", AppInfo.version, AppInfo.build))

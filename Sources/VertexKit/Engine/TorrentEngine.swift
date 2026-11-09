@@ -1,3 +1,4 @@
+import AppKit
 import CTorrent
 import Foundation
 
@@ -86,6 +87,18 @@ package final class TorrentEngine: ObservableObject {
     /// Errors shown in the last few seconds. libtorrent reports an add failure
     /// twice (synchronously and through add_torrent_alert); the alert path uses
     /// this to avoid showing the same message again.
+    /// Called when a download completes while Vertex is not the active app.
+    /// Injected so the engine stays testable: the default bounces the Dock icon,
+    /// which needs no notification authorization (unlike UNUserNotificationCenter,
+    /// which also requires a Developer ID signed bundle).
+    var completionAttention: () -> Void = {
+        // `NSApp` is nil until the application object exists (never the case in
+        // the headless test runner), and `isRunning` keeps the request out of
+        // processes without a run loop.
+        guard let app = NSApp, app.isRunning, !app.isActive else { return }
+        app.requestUserAttention(.informationalRequest)
+    }
+
     var recentErrorToasts: [String: Date] = [:]
     private static let errorToastDedupWindow: TimeInterval = 8
 
@@ -101,18 +114,23 @@ package final class TorrentEngine: ObservableObject {
         }
         #endif
 
-        Self.validateAllPreferences()
-        let configuration = Self.currentConfiguration()
-        startSession(configuration)
+        startSession()
     }
 
     /// Starts the libtorrent session on the serial session queue. Loading the
     /// resume directory and creating a session can take seconds with a large
     /// library, so it must not run on the main actor.
-    private func startSession(_ configuration: SessionConfiguration) {
+    ///
+    /// The preference validation and the configuration snapshot are part of the
+    /// same block: `validateAllPreferences` reads the Keychain (proxy password)
+    /// and `currentConfiguration` must see the warmed cache, so both belong off
+    /// the main thread.
+    private func startSession(configuration: SessionConfiguration? = nil) {
         isStarting = true
         startupError = nil
         sessionQueue.async { [self] in
+            Self.validateAllPreferences()
+            let configuration = configuration ?? Self.currentConfiguration()
             let creation = Self.makeSession(configuration)
             DispatchQueue.main.async {
                 self.finishStartup(creation, configuration: configuration)
@@ -154,7 +172,7 @@ package final class TorrentEngine: ObservableObject {
     /// flight.
     package func retryStartup() {
         guard !isStarting, !isShuttingDown, session == nil else { return }
-        startSession(configurationOverride ?? Self.currentConfiguration())
+        startSession(configuration: configurationOverride)
     }
 
     #if DEBUG
@@ -441,12 +459,18 @@ package final class TorrentEngine: ObservableObject {
         return String(cString: pointer)
     }
 
+    /// Runs `operation` on the session queue and reports the outcome on the
+    /// main actor. Returns false when the command cannot be queued at all (no
+    /// session, or the engine is shutting down), so callers that need to answer
+    /// the user immediately can do it without waiting for a callback.
+    @discardableResult
     func enqueueSessionOperation(
         errorTitle: String? = nil,
         operation: @escaping @Sendable (OpaquePointer) -> Int32,
-        onSuccess: (@MainActor () -> Void)? = nil
-    ) {
-        guard !isShuttingDown, let session else { return }
+        onSuccess: (@MainActor () -> Void)? = nil,
+        onFailure: (@MainActor (String) -> Void)? = nil
+    ) -> Bool {
+        guard !isShuttingDown, let session else { return false }
         let generation = sessionGeneration
         let pointer = SessionPointerBox(session)
         sessionQueue.async { [weak self] in
@@ -454,7 +478,14 @@ package final class TorrentEngine: ObservableObject {
             let code = operation(s)
             let rawError = code != 0 ? Self.readLastError(s) : ""
             DispatchQueue.main.async {
-                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                guard let self else { return }
+                guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                    // The engine was shut down or restarted while the command
+                    // was in flight: the caller must not wait forever for an
+                    // outcome that no longer exists.
+                    if !self.isShuttingDown {
+                        onFailure?(L("Motore non disponibile."))
+                    }
                     return
                 }
                 if code != 0 {
@@ -463,7 +494,9 @@ package final class TorrentEngine: ObservableObject {
                             ? L("Errore sconosciuto.")
                             : rawError
                     )
-                    if let errorTitle {
+                    if let onFailure {
+                        onFailure(message)
+                    } else if let errorTitle {
                         self.showToast(errorTitle, kind: .error, detail: message)
                     } else {
                         self.showToast(message, kind: .error)
@@ -473,5 +506,6 @@ package final class TorrentEngine: ObservableObject {
                 onSuccess?()
             }
         }
+        return true
     }
 }

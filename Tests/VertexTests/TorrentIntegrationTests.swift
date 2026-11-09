@@ -38,6 +38,10 @@ enum TorrentIntegrationTests {
             try multipleTorrents()
         }
 
+        TestRunner.run("Tracker: sostituzione della lista tramite vt_set_trackers") {
+            try trackerEditing()
+        }
+
         TestRunner.run("Fallimenti: torrent, peer e percorso non scrivibile") {
             try failurePaths()
         }
@@ -66,6 +70,14 @@ enum TorrentIntegrationTests {
         defer { leech.session.close() }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+
+        // `finished` only means the blocks were received: the disk thread may
+        // still be flushing the last piece, so poll until the files match.
+        try TestsSupport.waitFor("file scritti su disco", timeout: 15) {
+            fixture.files.allSatisfy {
+                fixture.isFullyWritten(in: leech.session.downloadDirectory, path: $0.path)
+            }
+        }
 
         for file in fixture.files {
             try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: file.path)
@@ -387,6 +399,63 @@ enum TorrentIntegrationTests {
         }
     }
 
+    private static func trackerEditing() throws {
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let downloadRoot = try workspace.directory("trackers")
+        let session = try BridgeSession(
+            downloadDirectory: downloadRoot,
+            resumeDirectory: try workspace.directory("trackers-resume"),
+            port: try TestsSupport.freeTCPPort()
+        )
+        defer { session.close() }
+
+        try session.addTorrentFile(
+            IntegrationFixture.v1.torrentURL.path,
+            savePath: downloadRoot.path,
+            paused: true
+        )
+        let torrent = try session.waitForTorrent(IntegrationFixture.v1.rootName)
+
+        // Blank lines and surrounding spaces are ignored; the order is kept.
+        let replacement = "  http://tracker.one.example/announce  \n\n"
+            + "udp://tracker.two.example:6969/announce\n"
+        let result = torrent.id.withCString { id in
+            replacement.withCString { list in
+                vt_set_trackers(session.pointer, id, list)
+            }
+        }
+        try TestRunner.assertEqual(result, 0, "vt_set_trackers deve riuscire")
+
+        let detail = try session.detail(torrentID: torrent.id)
+        try TestRunner.assertEqual(detail.trackers.count, 2)
+        try TestRunner.assertEqual(detail.trackers[0].url, "http://tracker.one.example/announce")
+        try TestRunner.assertEqual(detail.trackers[1].url, "udp://tracker.two.example:6969/announce")
+
+        // A relative entry would be dropped by libtorrent, so it is rejected here.
+        let invalid = torrent.id.withCString { id in
+            "tracker.example/announce".withCString { list in
+                vt_set_trackers(session.pointer, id, list)
+            }
+        }
+        try TestRunner.assertTrue(invalid != 0, "Un tracker senza schema deve essere rifiutato")
+        try TestRunner.assertEqual(
+            try session.detail(torrentID: torrent.id).trackers.count,
+            2,
+            "Un elenco rifiutato non deve modificare i tracker esistenti"
+        )
+
+        // An empty list clears the trackers (DHT/PEX keep working).
+        let cleared = torrent.id.withCString { id in
+            "   \n\n ".withCString { list in
+                vt_set_trackers(session.pointer, id, list)
+            }
+        }
+        try TestRunner.assertEqual(cleared, 0, "Una lista vuota deve essere accettata")
+        try TestRunner.assertEqual(try session.detail(torrentID: torrent.id).trackers.count, 0)
+    }
+
     private static func failurePaths() throws {
         let workspace = try IntegrationWorkspace()
         defer { workspace.cleanup() }
@@ -444,18 +513,35 @@ enum TorrentIntegrationTests {
             )
         }
 
-        // The C bridge must repair an unusable destination to the session default.
-        try session.addTorrentFile(
-            IntegrationFixture.v1.torrentURL.path,
-            savePath: readonly.path,
-            paused: true
+        // An unusable destination must fail loudly instead of moving the torrent
+        // to the session default: the user would find it in a folder they did
+        // not choose.
+        let readonlyResult = IntegrationFixture.v1.torrentURL.path.withCString { path in
+            readonly.path.withCString { destination in
+                vt_add_torrent_file(session.pointer, path, destination, 1, 0)
+            }
+        }
+        try TestRunner.assertTrue(
+            readonlyResult != 0,
+            "Una destinazione non scrivibile deve far fallire l'aggiunta"
         )
-        let added = try session.waitForTorrent(IntegrationFixture.v1.rootName)
+        try TestRunner.assertTrue(
+            session.lastError().contains("non è scrivibile"),
+            "Una destinazione non scrivibile deve produrre un errore esplicito"
+        )
         try TestRunner.assertEqual(
-            added.savePath,
-            defaultRoot.path,
-            "La destinazione non scrivibile non è stata riparata"
+            try session.snapshot().torrents.count,
+            0,
+            "Il torrent non deve essere aggiunto quando la destinazione non è scrivibile"
         )
+
+        // Without an explicit destination the session default is used.
+        let defaultResult = IntegrationFixture.v1.torrentURL.path.withCString { path in
+            vt_add_torrent_file(session.pointer, path, nil, 1, 0)
+        }
+        try TestRunner.assertEqual(defaultResult, 0, "Senza destinazione si usa la cartella predefinita")
+        let added = try session.waitForTorrent(IntegrationFixture.v1.rootName)
+        try TestRunner.assertEqual(added.savePath, defaultRoot.path)
     }
 
     private static func networkSwitchDuringDownload() throws {

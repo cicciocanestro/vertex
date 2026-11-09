@@ -185,12 +185,24 @@ done
 rewrite_dependencies "$APP_BIN" "@executable_path/../Frameworks"
 remove_rpaths "$APP_BIN"
 
-echo "→ Firma ad-hoc…"
+# Ad-hoc signing is the default: no Developer ID certificate is assumed on the
+# build machine. Export VERTEX_SIGN_IDENTITY ("Developer ID Application: ...")
+# to sign with the hardened runtime and a trusted timestamp, which is what
+# notarization requires. Scripts/notarize.sh handles the submission.
+SIGN_IDENTITY="${VERTEX_SIGN_IDENTITY:--}"
+SIGN_ARGS=(--force --sign "$SIGN_IDENTITY")
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "→ Firma ad-hoc…"
+else
+    echo "→ Firma con identità: $SIGN_IDENTITY (hardened runtime)"
+    SIGN_ARGS+=(--options runtime --timestamp)
+fi
+
 for dylib in "${FRAMEWORKS}"/*.dylib; do
     [ -e "$dylib" ] || continue
-    codesign --force --sign - "$dylib" >/dev/null
+    codesign "${SIGN_ARGS[@]}" "$dylib" >/dev/null
 done
-codesign --force --sign - "$APP_PATH" >/dev/null
+codesign "${SIGN_ARGS[@]}" "$APP_PATH" >/dev/null
 codesign --verify --deep --strict "$APP_PATH"
 
 echo "→ Verifica bundle autosufficiente…"

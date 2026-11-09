@@ -17,14 +17,14 @@ struct HeaderBar: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Vertex")
+                    Text(verbatim: "Vertex")
                         .font(Typography.modalTitle)
                         .foregroundStyle(palette.text)
                     Text(verbatim: "v\(AppInfo.version)")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(palette.tertiary)
                 }
-                Text("TORRENT CLIENT")
+                Text(verbatim: "TORRENT CLIENT")
                     .font(Typography.badge)
                     .tracking(1.6)
                     .foregroundStyle(palette.tertiary)
@@ -125,7 +125,8 @@ struct FilterBar: View {
                             sortAscending.toggle()
                         } else {
                             sort = option
-                            sortAscending = false
+                            // A→Z for names, "most important first" for the rest.
+                            sortAscending = option.defaultAscending
                         }
                     } label: {
                         Label(option.label, systemImage: sort == option ? "checkmark" : option.icon)

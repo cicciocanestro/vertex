@@ -69,10 +69,29 @@ enum IntegrationFixture {
         }
     }
 
-    func assertDownloaded(in root: URL, path: String) throws {
-        let url = root
+    /// Location of a file inside the downloaded torrent folder.
+    func downloadedURL(in root: URL, path: String) -> URL {
+        root
             .appendingPathComponent(rootName, isDirectory: true)
             .appendingPathComponent(path)
+    }
+
+    /// Whether the file exists on disk with the expected content.
+    ///
+    /// libtorrent reports a torrent as `finished` when the last block has been
+    /// received, not when the disk cache has been flushed: waiting only on the
+    /// snapshot makes the loopback tests flaky, so they poll this instead.
+    func isFullyWritten(in root: URL, path: String) -> Bool {
+        let url = downloadedURL(in: root, path: path)
+        guard let actual = try? Data(contentsOf: url),
+              let expected = try? bytes(for: path) else {
+            return false
+        }
+        return actual == expected
+    }
+
+    func assertDownloaded(in root: URL, path: String) throws {
+        let url = downloadedURL(in: root, path: path)
         guard let actual = try? Data(contentsOf: url) else {
             throw IntegrationTestError.fixture("File scaricato assente: \(url.path)")
         }

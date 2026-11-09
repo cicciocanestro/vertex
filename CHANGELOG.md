@@ -1,5 +1,89 @@
 # Changelog
 
+## [Non rilasciato]
+
+### Corretto
+- **Filtro "Completati"**: libtorrent riporta un torrent finito come *seeder* (state 5) e
+  riserva lo stato 4 ai download completi con pezzi filtrati, quindi il chip restava a 0 e
+  `TorrentPhase.completed` era codice morto. `Torrent.phase` ora distingue il seeder puro
+  (5) dal download completo con file esclusi (4), e "Completati" è l'unico filtro
+  sovrapposto: conta tutti i torrent finiti, seed compresi, come fanno qBittorrent e
+  Transmission. "Download", "Seed" e "In pausa" restano mutuamente esclusivi e le pill di
+  riga non cambiano.
+- **Ordinamento per nome**: la freccia invertiva il criterio rispetto agli altri
+  ordinamenti (Z→A con la freccia in su). Ora `ascending` significa la stessa cosa per tutti
+  i criteri e selezionare "Nome" parte da A→Z (`TorrentSort.defaultAscending`).
+- **Aggiunta non bloccante**: `vt_add_magnet`/`vt_add_torrent_file` girano su `sessionQueue`;
+  l'esito — duplicato compreso — arriva a `AddTorrentSheet` via callback, che chiude solo a
+  torrent accettato. Prima il parsing del `.torrent` e la chiamata al bridge bloccavano il
+  main thread, e la sheet si chiudeva anche quando l'aggiunta falliva.
+- **Bridge**: `write_resume_impl` rifiuta una `resume_dir` vuota (scriveva `<hash>.resume`
+  nella working directory del processo); rimosso il ramo `peer_connect_alert`, irraggiungibile
+  perché la categoria `connect` non è nella maschera degli alert (il reset dell'errore proxy
+  resta affidato alla sonda TCP).
+- **Accessibilità**: le azioni di riga nascoste escono dal tree di accessibilità; il menu
+  contestuale "Rimuovi…" passa dalla stessa conferma del cestino invece di eliminare subito.
+
+### Aspetto
+- **Contrasto nel tema chiaro**: i colori accentati erano tarati sul fondo scuro e come testo
+  stavano tra 1,4:1 e 3,2:1 sul fondo chiaro (mint 1,44, verde 1,50, ambra 1,71, corallo 2,43,
+  blu 2,65, viola 3,18). `Palette` espone ora le varianti `mintText`/`violetText`/`coralText`/
+  `amberText`/`greenText`/`blueText` (≥5,2:1) usate da velocità, pill di stato, errori, badge
+  proxy e statistiche; i colori saturi restano per ring, gradienti e riempimenti.
+- **Tema di default**: "Sistema" invece di "Scuro", così un Mac in tema chiaro non apre
+  l'app in scuro.
+- **Tipografia**: i 25 token a 0,2–0,5 pt di distanza sono consolidati in sei gradini
+  (8/9/10/10,5/11/12); nuovi token `rowTitle`/`rowMeta` per la riga del torrent.
+- **Barra di progresso nella riga**: traccia sottile (2,5 pt) ancorata al fondo della card,
+  disegnata solo mentre c'è progresso da mostrare; il ring resta l'indicatore principale.
+- **Modale "Aggiungi torrent"**: stesso chrome delle altre (header e footer bar condivisi)
+  invece di un terzo layout.
+- **Dimensione minima della finestra**: un'unica fonte (`WindowMetrics`) per lo scene SwiftUI
+  e per la finestra AppKit.
+
+### Novità
+- **Editor dei tracker**: nell'inspector si possono aggiungere e rimuovere tracker
+  (nuova funzione `vt_set_trackers`: elenco separato da righe, massimo 128 voci, URL
+  assoluti, limite 2 KiB per voce). La lista viene salvata nel resume data, quindi
+  sopravvive al riavvio.
+- **Avviso al completamento**: se un download termina mentre Vertex è in secondo piano,
+  l'icona nel Dock richiede attenzione. Il rimbalzo del Dock non richiede autorizzazioni
+  (le notifiche di sistema esigono un bundle firmato con Developer ID).
+- **Stato dell'interfaccia persistente**: filtro, ordinamento, direzione e larghezza
+  dell'inspector vengono ripristinati al riavvio (`uiFilter`, `uiSort`,
+  `uiSortAscending`, `uiInspectorWidth`). La ricerca non viene salvata: una query vecchia
+  nasconderebbe la libreria.
+- **Firma e notarizzazione opzionali**: `VERTEX_SIGN_IDENTITY` abilita la firma con
+  hardened runtime e timestamp, `Scripts/notarize.sh` invia la DMG a `notarytool` e
+  applica il ticket (rigenerando il checksum). La CI ha uno step dedicato dietro la
+  repository variable `VERTEX_ENABLE_NOTARIZATION`; senza certificato resta tutto ad-hoc
+  come prima.
+
+### Robustezza
+- **Destinazione non scrivibile**: l'aggiunta fallisce con un errore esplicito invece di
+  spostare il torrent nella cartella predefinita senza dirlo (il fallback resta solo per il
+  caricamento del resume data, dove la cartella originale può legittimamente mancare).
+- **Drop non validi**: trascinare un file che non è un `.torrent` (o un testo che non è un
+  magnet) produce un avviso invece di essere ignorato in silenzio; i callback del drop
+  handler sono `@MainActor`, quindi l'hop verso la UI è esplicito.
+- **Suite di test stabile**: i test di trasferimento loopback attendono che i file siano
+  effettivamente scritti su disco (`isFullyWritten`), non solo che libtorrent riporti
+  `finished`: l'ultimo pezzo può essere ancora nella cache del disk thread e il test falliva
+  a intermittenza.
+- **Portachiavi fuori dal main thread**: la password proxy è in una cache protetta da lock,
+  riempita una volta su `sessionQueue` (`warmProxyPasswordCache`); validazione delle
+  preferenze, snapshot della configurazione e creazione della sessione girano nello stesso
+  blocco, quindi il primo avvio non legge più il Portachiavi (né su main né con la sessione
+  già avviata).
+- **Snapshot JSON atomico per torrent**: ogni voce è costruita in un buffer locale e appesa
+  solo a fine scrittura, così un'eccezione di libtorrent non può troncare il documento.
+- **`check-localization.sh`**: oltre alla parità en/it ora verifica che ogni chiave usata nei
+  sorgenti (`L`/`LF`, `Text`, `Button`, `Label`, parametri `title`/`subtitle`/`help`) esista
+  nelle tabelle; i literal tecnici e di brand sono `verbatim` e non vengono più scambiati per
+  chiavi.
+- **Apertura della sheet**: la cartella mostrata usa il valore salvato senza normalizzarlo,
+  evitando stat sul filesystem durante l'init della vista.
+
 ## [1.9.1] — 2026-11-09
 
 ### Corretto
@@ -734,3 +818,11 @@ riproducibile a parità di ambiente CI.
 - Prima release pubblica di Vertex: client BitTorrent nativo per macOS con libtorrent 2.1,
   gestione magnet/file `.torrent`, ricerca, filtri, resume data, priorità dei file, tracker,
   limiti di velocità e tema chiaro/scuro/sistema.
+
+### Note per gli sviluppatori
+- `docs/swift6-and-typography.md` registra la misura della migrazione a Swift 6
+  (`-strict-concurrency=complete`: 45 warning in 7 file, con l'ordine di lavoro) e il piano
+  per passare dai font a dimensione fissa ai text style di sistema.
+- `docs/queue-and-limits.md` contiene il design della coda/limiti per torrent (opzione
+  consigliata: auto-manager di libtorrent, con il punto critico della pausa manuale su un
+  torrent in coda) e le invarianti da verificare. Non è implementata.

@@ -29,7 +29,7 @@ struct AddTorrentSheet: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Per-torrent choices: initialised from the saved defaults, never written back to them.
-    @StateObject private var downloadPath = UIState(Preferences.downloadPath)
+    @StateObject private var downloadPath = UIState(Preferences.rawDownloadPath)
     @StateObject private var startPaused = UIState(Preferences.startPaused)
     @StateObject private var sequential = UIState(Preferences.sequentialDefault)
 
@@ -51,31 +51,56 @@ struct AddTorrentSheet: View {
 
     var body: some View {
         let palette = Palette(scheme: scheme)
-        VStack(spacing: 15) {
-            header(palette)
-            modePicker(palette)
-            inputContent(palette)
-            destinationRow(palette)
-            toggles(palette)
+        VStack(spacing: 0) {
+            // Same chrome as the settings and diagnostics overlays: one header,
+            // one footer bar, no third layout for the add flow.
+            ModalHeader(
+                icon: "plus",
+                title: "Aggiungi torrent",
+                subtitle: "Un link magnet o un file .torrent",
+                iconSize: 38,
+                onClose: onClose
+            )
 
-            if let message = errorMessage.value {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(Typography.caption)
-                    Text(message)
-                        .font(Typography.small)
-                        .lineLimit(2)
+            VStack(spacing: 15) {
+                modePicker(palette)
+                inputContent(palette)
+                destinationRow(palette)
+                toggles(palette)
+
+                if let message = errorMessage.value {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(Typography.caption)
+                        Text(message)
+                            .font(Typography.small)
+                            .lineLimit(2)
+                    }
+                    .foregroundStyle(palette.coralText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
                 }
-                .foregroundStyle(Theme.coral)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .transition(.opacity)
             }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 16)
 
-            footer(palette)
+            ModalFooterBar(palette: palette) {
+                EmptyView()
+            } trailing: {
+                Button("Annulla") {
+                    onClose()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .keyboardShortcut(.cancelAction)
+
+                Button("Aggiungi") {
+                    add()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(!canAdd)
+                .keyboardShortcut(.defaultAction)
+            }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 12)
-        .padding(.bottom, 18)
         .frame(width: 540)
         .background(AmbientBackground(ignoresSafeArea: false))
         .overlay {
@@ -111,27 +136,6 @@ struct AddTorrentSheet: View {
                 DispatchQueue.main.async {
                     magnetFocused = true
                 }
-            }
-        }
-    }
-
-    private func header(_ palette: Palette) -> some View {
-        HStack(spacing: 12) {
-            LogoMark(size: 38)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Aggiungi torrent")
-                    .font(Typography.modalTitle)
-                    .foregroundStyle(palette.text)
-                Text("Un link magnet o un file .torrent")
-                    .font(Typography.small)
-                    .foregroundStyle(palette.secondary)
-            }
-
-            Spacer()
-
-            IconButton(icon: "xmark", help: "Chiudi", size: 26) {
-                onClose()
             }
         }
     }
@@ -184,7 +188,7 @@ struct AddTorrentSheet: View {
                         )
 
                     if magnet.value.isEmpty {
-                        Text("magnet:?xt=urn:btih:…")
+                        Text(verbatim: "magnet:?xt=urn:btih:…")
                             .font(Typography.smallMono)
                             .foregroundStyle(palette.tertiary)
                             .padding(.horizontal, 13)
@@ -341,26 +345,6 @@ struct AddTorrentSheet: View {
         .tint(Theme.teal)
     }
 
-    private func footer(_ palette: Palette) -> some View {
-        HStack(spacing: 9) {
-            Spacer()
-
-            Button("Annulla") {
-                onClose()
-            }
-            .buttonStyle(SecondaryButtonStyle())
-            .keyboardShortcut(.cancelAction)
-
-            Button("Aggiungi") {
-                add()
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(!canAdd)
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(.top, 2)
-    }
-
     private var canAdd: Bool {
         switch mode.value {
         case .magnet:
@@ -373,25 +357,31 @@ struct AddTorrentSheet: View {
 
     private func add() {
         errorMessage.value = nil
-        let failure: String?
         switch mode.value {
         case .magnet:
-            failure = engine.addMagnet(
+            engine.addMagnet(
                 magnet.value,
                 destination: downloadPath.value,
                 startPaused: startPaused.value,
-                sequential: sequential.value
+                sequential: sequential.value,
+                completion: finishAdd
             )
         case .file:
             guard let url = fileURL.value else { return }
-            failure = engine.addTorrentFile(
+            engine.addTorrentFile(
                 url,
                 destination: downloadPath.value,
                 startPaused: startPaused.value,
-                sequential: sequential.value
+                sequential: sequential.value,
+                completion: finishAdd
             )
         }
+    }
 
+    /// Closes the sheet only when the engine actually accepted the torrent.
+    /// The bridge call is asynchronous (it must not block the UI), so closing on
+    /// the return value of `add()` would hide a failure such as a duplicate.
+    private func finishAdd(_ failure: String?) {
         if let failure {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                 errorMessage.value = failure
@@ -413,6 +403,8 @@ struct AddTorrentSheet: View {
                 mode.value = .magnet
                 errorMessage.value = nil
             }
+        } onRejected: { _ in
+            errorMessage.value = L("Link o file non valido.")
         }
     }
 

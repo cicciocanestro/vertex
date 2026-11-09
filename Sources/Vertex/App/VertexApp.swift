@@ -13,7 +13,10 @@ struct VertexApp: App {
     var body: some Scene {
         Window("Vertex", id: "main") {
             RootView()
-                .frame(minWidth: 980, minHeight: 760)
+                .frame(
+                    minWidth: WindowMetrics.minimumWidth,
+                    minHeight: WindowMetrics.minimumHeight
+                )
                 .background(WindowConfigurator())
         }
         .windowStyle(.hiddenTitleBar)

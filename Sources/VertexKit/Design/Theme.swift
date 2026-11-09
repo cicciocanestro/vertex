@@ -81,6 +81,47 @@ struct Palette {
     var shadow: Color {
         isDark ? Color.black.opacity(0.35) : Color.black.opacity(0.09)
     }
+
+    // MARK: - Accent colours for text and icons
+    //
+    // The saturated accents above are tuned for the dark background: on the
+    // light card they fall below 3:1 (mint 1.44:1, green 1.50:1, amber 1.71:1,
+    // coral 2.43:1, blue 2.65:1, violet 3.18:1), which is unreadable at the
+    // 9–11 pt sizes the views use. These twins keep the hue and reach at least
+    // 5.2:1 on the light card. Use them for `foregroundStyle` and keep
+    // `Theme.*` for fills, rings, gradients and glows.
+
+    var mintText: Color { isDark ? Theme.mint : Color(hex: 0x0E7490) }
+    var violetText: Color { isDark ? Theme.violet : Color(hex: 0x5B4BD6) }
+    var coralText: Color { isDark ? Theme.coral : Color(hex: 0xC02A45) }
+    var amberText: Color { isDark ? Theme.amber : Color(hex: 0x9A5B00) }
+    var greenText: Color { isDark ? Theme.green : Color(hex: 0x0F7A4A) }
+    var blueText: Color { isDark ? Theme.blue : Color(hex: 0x1C62C8) }
+
+    /// Text colour for a torrent state pill.
+    func phaseText(_ phase: TorrentPhase) -> Color {
+        switch phase {
+        case .downloading: return mintText
+        case .metadata: return amberText
+        case .checking: return blueText
+        case .seeding: return violetText
+        case .completed: return greenText
+        case .paused: return Color.primary.opacity(0.5)
+        }
+    }
+
+    /// Saturated accent for fills (progress track, dots, glows). Text must use
+    /// `phaseText(_:)`: these values are too bright on the light card.
+    func phaseAccent(_ phase: TorrentPhase) -> Color {
+        switch phase {
+        case .downloading: return Theme.mint
+        case .metadata: return Theme.amber
+        case .checking: return Theme.blue
+        case .seeding: return Theme.violet
+        case .completed: return Theme.green
+        case .paused: return Color.primary.opacity(0.28)
+        }
+    }
 }
 
 struct AmbientBackground: View {
@@ -186,6 +227,13 @@ struct LogoMark: View {
     }
 }
 
+/// Minimum size of the main window: the SwiftUI scene and the AppKit window
+/// both read it, so the two cannot drift apart.
+package enum WindowMetrics {
+    package static let minimumWidth: CGFloat = 980
+    package static let minimumHeight: CGFloat = 760
+}
+
 private final class WindowConfiguratorView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -196,7 +244,10 @@ private final class WindowConfiguratorView: NSView {
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.isOpaque = false
-        window.minSize = NSSize(width: 980, height: 760)
+        window.minSize = NSSize(
+            width: WindowMetrics.minimumWidth,
+            height: WindowMetrics.minimumHeight
+        )
     }
 }
 

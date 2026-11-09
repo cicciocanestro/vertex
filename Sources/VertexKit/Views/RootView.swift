@@ -50,9 +50,13 @@ package struct RootView: View {
         } else {
             modal = nil
         }
-        _filter = StateObject(wrappedValue: UIState(filter))
-        _sort = StateObject(wrappedValue: UIState(sort))
-        _sortAscending = StateObject(wrappedValue: UIState(sortAscending))
+        // `@AppStorage` cannot be assigned from an initializer, and it reads the
+        // process' UserDefaults when the view is installed: writing here is what
+        // makes the DEBUG initializer drive the persisted state. The test runner
+        // has its own suite, so the app preferences are never touched.
+        UserDefaults.standard.set(filter.rawValue, forKey: PrefKey.uiFilter)
+        UserDefaults.standard.set(sort.rawValue, forKey: PrefKey.uiSort)
+        UserDefaults.standard.set(sortAscending, forKey: PrefKey.uiSortAscending)
         _search = StateObject(wrappedValue: UIState(search))
         _activeModal = StateObject(wrappedValue: UIState(modal))
         _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
@@ -64,17 +68,51 @@ package struct RootView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @StateObject private var filter = UIState<TorrentFilter>(.all)
-    @StateObject private var sort = UIState<TorrentSort>(.recent)
-    @StateObject private var sortAscending = UIState(false)
+    // Filter, sort and inspector width survive a relaunch. They live in
+    // UserDefaults and not in UIState, so the list opens the way the user left
+    // it. The search field is deliberately not persisted: a stale query would
+    // hide the whole library on the next launch.
+    @AppStorage(PrefKey.uiFilter) private var filterRaw = TorrentFilter.all.rawValue
+    @AppStorage(PrefKey.uiSort) private var sortRaw = TorrentSort.recent.rawValue
+    @AppStorage(PrefKey.uiSortAscending) private var sortAscending = TorrentSort.recent.defaultAscending
+    @AppStorage(PrefKey.uiInspectorWidth) private var inspectorWidth = Double(Self.defaultInspectorWidth)
     @StateObject private var search = UIState("")
     @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
     @StateObject private var pendingDeletion = UIState<Torrent?>(nil)
     @StateObject private var showDeleteConfirmation = UIState(false)
-    @StateObject private var inspectorWidth = UIState<CGFloat>(350)
 
     @FocusState private var searchFocused: Bool
+
+    private static let defaultInspectorWidth: CGFloat = 350
+    private static let inspectorWidthRange: ClosedRange<CGFloat> = 320...520
+
+    /// A corrupted or outdated value falls back to the default instead of
+    /// leaving the list with an impossible filter.
+    private var filter: TorrentFilter { TorrentFilter(rawValue: filterRaw) ?? .all }
+    private var sort: TorrentSort { TorrentSort(rawValue: sortRaw) ?? .recent }
+
+    private var filterBinding: Binding<TorrentFilter> {
+        Binding(get: { filter }, set: { filterRaw = $0.rawValue })
+    }
+
+    private var sortBinding: Binding<TorrentSort> {
+        Binding(get: { sort }, set: { sortRaw = $0.rawValue })
+    }
+
+    /// Clamped on read as well as on write: a window that was shrunk on another
+    /// display must not produce a negative or oversized inspector.
+    private var inspectorWidthValue: CGFloat {
+        min(max(CGFloat(inspectorWidth), Self.inspectorWidthRange.lowerBound),
+            Self.inspectorWidthRange.upperBound)
+    }
+
+    private var inspectorWidthBinding: Binding<CGFloat> {
+        Binding(
+            get: { inspectorWidthValue },
+            set: { inspectorWidth = Double($0) }
+        )
+    }
 
     package var body: some View {
         layout
@@ -156,7 +194,7 @@ package struct RootView: View {
                     onFilter: { raw in
                         guard let value = TorrentFilter(rawValue: raw) else { return }
                         withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                            filter.value = value
+                            filterRaw = value.rawValue
                         }
                     }
                 ))
@@ -271,7 +309,7 @@ package struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let torrent = selectedTorrent {
-                    InspectorResizeHandle(width: $inspectorWidth.value)
+                    InspectorResizeHandle(width: inspectorWidthBinding)
                     inspector(for: torrent)
                 }
             }
@@ -296,9 +334,9 @@ package struct RootView: View {
 
     private func filterBar(counts: [TorrentFilter: Int]) -> some View {
         FilterBar(
-            filter: $filter.value,
-            sort: $sort.value,
-            sortAscending: $sortAscending.value,
+            filter: filterBinding,
+            sort: sortBinding,
+            sortAscending: $sortAscending,
             counts: counts
         )
     }
@@ -310,7 +348,7 @@ package struct RootView: View {
             onClose: { select(nil) },
             onDeleteWithFiles: { requestDeletion($0) }
         )
-        .frame(width: inspectorWidth.value)
+        .frame(width: inspectorWidthValue)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -355,7 +393,7 @@ package struct RootView: View {
         } else if torrents.isEmpty {
             NoResultsView(query: search.value) {
                 search.value = ""
-                filter.value = .all
+                filterRaw = TorrentFilter.all.rawValue
             }
         } else {
             TorrentListView(
@@ -382,10 +420,10 @@ package struct RootView: View {
     private var listResult: TorrentListResult {
         TorrentListPipeline.applyWithCounts(
             to: engine.torrents,
-            filter: filter.value,
+            filter: filter,
             search: search.value,
-            sort: sort.value,
-            ascending: sortAscending.value
+            sort: sort,
+            ascending: sortAscending
         )
     }
 
@@ -506,24 +544,28 @@ package struct RootView: View {
         let sequential = Preferences.sequentialDefault
 
         return TorrentDropHandler.handle(providers) { item in
-            Task { @MainActor in
-                switch item {
-                case .torrent(let url):
-                    _ = engine.addTorrentFile(
-                        url,
-                        destination: nil,
-                        startPaused: paused,
-                        sequential: sequential
-                    )
-                case .magnet(let text):
-                    _ = engine.addMagnet(
-                        text,
-                        destination: nil,
-                        startPaused: paused,
-                        sequential: sequential
-                    )
-                }
+            switch item {
+            case .torrent(let url):
+                engine.addTorrentFile(
+                    url,
+                    destination: nil,
+                    startPaused: paused,
+                    sequential: sequential
+                )
+            case .magnet(let text):
+                engine.addMagnet(
+                    text,
+                    destination: nil,
+                    startPaused: paused,
+                    sequential: sequential
+                )
             }
+        } onRejected: { name in
+            engine.showToast(
+                L("File ignorato: serve un file .torrent o un link magnet"),
+                kind: .info,
+                detail: name
+            )
         }
     }
 }

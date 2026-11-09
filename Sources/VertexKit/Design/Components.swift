@@ -240,6 +240,30 @@ struct FilterChip: View {
     }
 }
 
+/// Thin progress track drawn under a torrent row. The ring already carries the
+/// percentage, but on a list of downloads a horizontal bar is what makes the
+/// progress comparable at a glance. Decorative: the accessible value stays on
+/// the row, so it is hidden from VoiceOver.
+struct ProgressTrack: View {
+    let progress: Double
+    let color: Color
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.primary.opacity(0.07))
+                Capsule()
+                    .fill(color.opacity(0.75))
+                    .frame(width: geometry.size.width * min(max(progress, 0), 1))
+            }
+        }
+        .frame(height: 2.5)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 struct Sparkline: View {
     let values: [Double]
     let color: Color
@@ -411,7 +435,7 @@ struct SpeedText: View {
 
     var body: some View {
         let palette = Palette(scheme: scheme)
-        let color = value > 0 ? (upload ? Theme.violet : Theme.mint) : palette.tertiary
+        let color = value > 0 ? (upload ? palette.violetText : palette.mintText) : palette.tertiary
         HStack(spacing: 3) {
             Image(systemName: upload ? "arrow.up" : "arrow.down")
                 .font(.system(size: compact ? 7.5 : 8.5, weight: .bold))

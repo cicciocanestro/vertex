@@ -22,6 +22,7 @@ struct InspectorView: View {
 
     @Environment(\.colorScheme) private var scheme
     @StateObject private var tab = UIState<DetailTab>(.files)
+    @StateObject private var newTracker = UIState("")
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -140,7 +141,7 @@ struct InspectorView: View {
                 Text("Errore del torrent")
                     .font(.system(size: 10.5, weight: .semibold))
             }
-            .foregroundStyle(Theme.coral)
+            .foregroundStyle(palette.coralText)
 
             Text(torrent.error)
                 .font(Typography.caption)
@@ -178,9 +179,9 @@ struct InspectorView: View {
             statCell("Caricati", Fmt.bytes(torrent.uploaded), palette)
             statCell("Rapporto", Fmt.ratio(torrent.ratio), palette)
             statCell("Download", Fmt.rate(torrent.downloadRate), palette,
-                     accent: torrent.downloadRate > 0 ? Theme.mint : nil)
+                     accent: torrent.downloadRate > 0 ? palette.mintText : nil)
             statCell("Upload", Fmt.rate(torrent.uploadRate), palette,
-                     accent: torrent.uploadRate > 0 ? Theme.violet : nil)
+                     accent: torrent.uploadRate > 0 ? palette.violetText : nil)
             statCell("Peer / Seed", "\(torrent.peers) / \(torrent.seeds)", palette)
             statCell("Tempo rimasto", etaText, palette)
         }
@@ -368,18 +369,75 @@ struct InspectorView: View {
 
     @ViewBuilder
     private func trackersContent(_ palette: Palette) -> some View {
-        if let trackers = engine.detail?.trackers, !trackers.isEmpty {
-            LazyVStack(spacing: 0) {
-                ForEach(trackers) { tracker in
-                    trackerRow(tracker, palette)
-                    if tracker.id != trackers.last?.id {
-                        Hairline(palette: palette)
+        VStack(alignment: .leading, spacing: 8) {
+            trackerEditor(palette)
+
+            if let trackers = engine.detail?.trackers, !trackers.isEmpty {
+                LazyVStack(spacing: 0) {
+                    ForEach(trackers) { tracker in
+                        trackerRow(tracker, palette)
+                        if tracker.id != trackers.last?.id {
+                            Hairline(palette: palette)
+                        }
                     }
                 }
+            } else {
+                waiting(palette, text: "Nessun tracker disponibile")
             }
-        } else {
-            waiting(palette, text: "Nessun tracker disponibile")
         }
+    }
+
+    /// Tracker editor. The list is replaced as a whole (see
+    /// `TorrentEngine.setTrackers`), so both actions below send the full list.
+    private func trackerEditor(_ palette: Palette) -> some View {
+        HStack(spacing: 6) {
+            TextField(L("Aggiungi tracker (URL)"), text: $newTracker.value)
+                .textFieldStyle(.plain)
+                .font(.system(size: 9.8, design: .monospaced))
+                .foregroundStyle(palette.text)
+                .frame(height: 24)
+                .padding(.horizontal, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(palette.input)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(palette.stroke, lineWidth: 1)
+                        .allowsHitTesting(false)
+                )
+                .onSubmit { commitTracker() }
+
+            Button(L("Aggiungi")) {
+                commitTracker()
+            }
+            .buttonStyle(SmallButtonStyle())
+            .disabled(!canAddTracker)
+        }
+    }
+
+    private var trimmedNewTracker: String {
+        newTracker.value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canAddTracker: Bool {
+        let candidate = trimmedNewTracker
+        guard candidate.contains("://") else { return false }
+        return !(engine.detail?.trackers.contains {
+            $0.url.caseInsensitiveCompare(candidate) == .orderedSame
+        } ?? false)
+    }
+
+    private func commitTracker() {
+        guard canAddTracker else { return }
+        let urls = (engine.detail?.trackers.map(\.url) ?? []) + [trimmedNewTracker]
+        engine.setTrackers(urls, torrentID: torrent.id)
+        newTracker.value = ""
+    }
+
+    private func removeTracker(_ url: String) {
+        let urls = engine.detail?.trackers.map(\.url).filter { $0 != url } ?? []
+        engine.setTrackers(urls, torrentID: torrent.id)
     }
 
     private func trackerRow(_ tracker: TorrentTracker, _ palette: Palette) -> some View {
@@ -404,7 +462,7 @@ struct InspectorView: View {
                 if !tracker.message.isEmpty {
                     Text(tracker.message)
                         .font(Typography.captionTiny)
-                        .foregroundStyle(Theme.coral.opacity(0.9))
+                        .foregroundStyle(palette.coralText)
                         .lineLimit(2)
                 }
             }
@@ -416,6 +474,10 @@ struct InspectorView: View {
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(palette.tertiary)
+            }
+
+            IconButton(icon: "xmark", help: "Rimuovi tracker", size: 20) {
+                removeTracker(tracker.url)
             }
         }
         .padding(.vertical, 7)

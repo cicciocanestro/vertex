@@ -68,7 +68,7 @@ struct StatusBarView: View {
                     .font(Typography.smallMedium)
                     .foregroundStyle(palette.secondary)
 
-                Text("·")
+                Text(verbatim: "·")
                     .foregroundStyle(palette.tertiary)
 
                 Text(LF("%ld torrent", engine.torrents.count))
@@ -83,15 +83,15 @@ struct StatusBarView: View {
                 HStack(spacing: 3) {
                     Image(systemName: hasProxyError ? "exclamationmark.shield.fill" : "shield.lefthalf.filled")
                         .font(Typography.captionMicroSemibold)
-                    Text("SOCKS5")
+                    Text(verbatim: "SOCKS5")
                         .font(Typography.badge)
                 }
-                .foregroundStyle(hasProxyError ? Theme.coral : Theme.mint)
+                .foregroundStyle(hasProxyError ? palette.coralText : palette.mintText)
                 .help(hasProxyError
                     ? LF("Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname, engine.stats.proxy.port, engine.stats.proxy.error)
                     : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port))
 
-                Text("·")
+                Text(verbatim: "·")
                     .foregroundStyle(palette.tertiary)
             }
 
@@ -105,7 +105,7 @@ struct StatusBarView: View {
                         .font(.system(size: 10, weight: .regular, design: .rounded))
                         .monospacedDigit()
                 }
-                .foregroundStyle(engine.stats.isListening ? palette.tertiary : Theme.coral)
+                .foregroundStyle(engine.stats.isListening ? palette.tertiary : palette.coralText)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 3)
                 .contentShape(Rectangle())

@@ -94,7 +94,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(defaults[PrefKey.pexEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.upnpEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.startPaused] as? Bool, false)
-            try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "dark")
+            try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "system")
             try TestRunner.assertEqual(defaults[PrefKey.proxyEnabled] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.proxyHost] as? String, "127.0.0.1")
             try TestRunner.assertEqual(defaults[PrefKey.proxyPort] as? Int, 1080)
@@ -164,7 +164,10 @@ enum PreferencesTests {
                 Preferences.maximumLimitKB
             )
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.bindAddress), "")
-            try TestRunner.assertEqual(defaults.string(forKey: PrefKey.appearance), "dark")
+            try TestRunner.assertEqual(
+                defaults.string(forKey: PrefKey.appearance),
+                PrefDefault.appearance
+            )
             try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 1080)
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")
             try TestRunner.assertEqual(

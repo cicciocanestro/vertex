@@ -3,17 +3,34 @@ import CTorrent
 import Foundation
 
 extension TorrentEngine {
+    /// Adds a magnet link.
+    ///
+    /// The validation errors (not a magnet, unusable destination, engine not
+    /// available) are returned synchronously so the add sheet can show them
+    /// inline; `nil` means the request was accepted and queued. The outcome of
+    /// the bridge call itself — for example a duplicate torrent — arrives on the
+    /// main actor through `completion`.
+    ///
+    /// The bridge call runs on `sessionQueue`: parsing the URI and touching the
+    /// filesystem must never block the UI.
+    @discardableResult
     package func addMagnet(
         _ uri: String,
         destination: String?,
         startPaused: Bool,
-        sequential: Bool
+        sequential: Bool,
+        completion: (@MainActor (String?) -> Void)? = nil
     ) -> String? {
-        guard session != nil else { return L("Motore non disponibile.") }
+        guard session != nil, !isShuttingDown else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
+            return message
+        }
         let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
         guard TorrentInput.isMagnet(trimmed) else {
             let message = L("Il link magnet non è valido.")
             showToast(message, kind: .error)
+            completion?(message)
             return message
         }
 
@@ -21,11 +38,12 @@ extension TorrentEngine {
         guard let path = prepared.path else {
             let message = prepared.error ?? L("Cartella di destinazione non valida.")
             showToast(message, kind: .error)
+            completion?(message)
             return message
         }
 
-        let outcome = withSession { session -> (Int32, String) in
-            let code = trimmed.withCString { uriPointer in
+        let operation: @Sendable (OpaquePointer) -> Int32 = { session in
+            trimmed.withCString { uriPointer in
                 path.withCString { pathPointer in
                     vt_add_magnet(
                         session,
@@ -36,46 +54,61 @@ extension TorrentEngine {
                     )
                 }
             }
-            return (code, code != 0 ? Self.readLastError(session) : "")
         }
-        guard let (result, rawError) = outcome else { return L("Motore non disponibile.") }
 
-        if result != 0 {
-            let message = localizedError(
-                rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? L("Errore sconosciuto.")
-                    : rawError
-            )
-            showToast(message, kind: .error)
+        let accepted = enqueueSessionOperation(
+            operation: operation,
+            onSuccess: { [weak self] in
+                self?.showToast(
+                    L("Torrent aggiunto"),
+                    kind: .success,
+                    actionTitle: L("Apri cartella"),
+                    action: .openFolder(path: path)
+                )
+                self?.poll()
+                completion?(nil)
+            },
+            onFailure: { [weak self] message in
+                self?.showToast(message, kind: .error)
+                completion?(message)
+            }
+        )
+
+        guard accepted else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
             return message
         }
-
-        showToast(
-            L("Torrent aggiunto"),
-            kind: .success,
-            actionTitle: L("Apri cartella"),
-            action: .openFolder(path: path)
-        )
-        poll()
         return nil
     }
 
+    /// Adds a `.torrent` file. Same contract as `addMagnet`: validation errors
+    /// are returned synchronously, the bridge outcome arrives through
+    /// `completion`, and the file is parsed off the main thread.
+    @discardableResult
     package func addTorrentFile(
         _ url: URL,
         destination: String?,
         startPaused: Bool,
-        sequential: Bool
+        sequential: Bool,
+        completion: (@MainActor (String?) -> Void)? = nil
     ) -> String? {
-        guard session != nil else { return L("Motore non disponibile.") }
+        guard session != nil, !isShuttingDown else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
+            return message
+        }
         let prepared = preparedDestination(destination)
         guard let path = prepared.path else {
             let message = prepared.error ?? L("Cartella di destinazione non valida.")
             showToast(message, kind: .error)
+            completion?(message)
             return message
         }
 
-        let outcome = withSession { session -> (Int32, String) in
-            let code = url.path.withCString { filePointer in
+        let filePath = url.path
+        let operation: @Sendable (OpaquePointer) -> Int32 = { session in
+            filePath.withCString { filePointer in
                 path.withCString { pathPointer in
                     vt_add_torrent_file(
                         session,
@@ -86,28 +119,33 @@ extension TorrentEngine {
                     )
                 }
             }
-            return (code, code != 0 ? Self.readLastError(session) : "")
         }
-        guard let (result, rawError) = outcome else { return L("Motore non disponibile.") }
 
-        if result != 0 {
-            let message = localizedError(
-                rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? L("Errore sconosciuto.")
-                    : rawError
-            )
-            showToast(message, kind: .error)
+        let detail = url.deletingPathExtension().lastPathComponent
+        let accepted = enqueueSessionOperation(
+            operation: operation,
+            onSuccess: { [weak self] in
+                self?.showToast(
+                    L("Torrent aggiunto"),
+                    kind: .success,
+                    detail: detail,
+                    actionTitle: L("Apri cartella"),
+                    action: .openFolder(path: path)
+                )
+                self?.poll()
+                completion?(nil)
+            },
+            onFailure: { [weak self] message in
+                self?.showToast(message, kind: .error)
+                completion?(message)
+            }
+        )
+
+        guard accepted else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
             return message
         }
-
-        showToast(
-            L("Torrent aggiunto"),
-            kind: .success,
-            detail: url.deletingPathExtension().lastPathComponent,
-            actionTitle: L("Apri cartella"),
-            action: .openFolder(path: path)
-        )
-        poll()
         return nil
     }
 
@@ -186,6 +224,26 @@ extension TorrentEngine {
             self?.forceDetailRefresh = true
             self?.poll()
         }
+    }
+
+    /// Replaces the tracker list of a torrent. The inspector always sends the
+    /// whole list, so adding and removing a tracker are the same operation and
+    /// the bridge never has to merge anything.
+    func setTrackers(_ urls: [String], torrentID: String) {
+        let list = urls.joined(separator: "\n")
+        enqueueSessionOperation(
+            operation: { session in
+                torrentID.withCString { idPointer in
+                    list.withCString { listPointer in
+                        vt_set_trackers(session, idPointer, listPointer)
+                    }
+                }
+            },
+            onSuccess: { [weak self] in
+                self?.forceDetailRefresh = true
+                self?.poll()
+            }
+        )
     }
 
     func magnetURI(for torrent: Torrent) -> String {

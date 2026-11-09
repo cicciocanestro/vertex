@@ -89,7 +89,7 @@ struct TorrentRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(torrent.name)
-                        .font(.system(size: 12.8, weight: .semibold))
+                        .font(Typography.rowTitle)
                         .foregroundStyle(palette.text)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -102,10 +102,10 @@ struct TorrentRow: View {
                     }
 
                     if torrent.sequential {
-                        Text("SEQ")
-                            .font(.system(size: 7.5, weight: .bold))
+                        Text(verbatim: "SEQ")
+                            .font(Typography.badge)
                             .tracking(0.6)
-                            .foregroundStyle(Theme.violet)
+                            .foregroundStyle(palette.violetText)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
                             .background(Capsule().fill(Theme.violet.opacity(0.13)))
@@ -118,7 +118,7 @@ struct TorrentRow: View {
                     let details = metaDetails
                     if !details.isEmpty {
                         Text(details)
-                            .font(.system(size: 10.3, weight: .regular, design: .rounded))
+                            .font(Typography.rowMeta)
                             .foregroundStyle(palette.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -128,7 +128,7 @@ struct TorrentRow: View {
                 if torrent.hasError {
                     Text(torrent.error)
                         .font(Typography.microMedium)
-                        .foregroundStyle(Theme.coral)
+                        .foregroundStyle(palette.coralText)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -197,7 +197,7 @@ struct TorrentRow: View {
                     Text(verbatim: "×\(Fmt.ratio(torrent.ratio))")
                         .font(.system(size: 9.8, weight: .medium, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(Theme.violet.opacity(0.9))
+                        .foregroundStyle(palette.violetText)
                         .help(L("Rapporto"))
                         .accessibilityLabel(
                             Text(verbatim: "\(L("Rapporto")) \(Fmt.ratio(torrent.ratio))")
@@ -225,13 +225,32 @@ struct TorrentRow: View {
             }
             .opacity(hover.value || selected ? 1 : 0)
             .allowsHitTesting(hover.value || selected)
+            // Hidden actions must leave the accessibility tree too: `.opacity(0)`
+            // and `allowsHitTesting(false)` still let VoiceOver focus and press
+            // buttons the user cannot see.
+            .accessibilityHidden(!(hover.value || selected))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
-        .background(
+        .background {
+            // The progress track lives inside the card background so it is
+            // clipped by the rounded corners. A finished torrent has nothing to
+            // measure, and a full-width coloured line would just read as a
+            // border, so the bar is drawn only while there is progress to show.
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(backgroundFill(palette))
-        )
+                .overlay(alignment: .bottom) {
+                    if torrent.displayProgress < 0.999 {
+                        ProgressTrack(
+                            progress: torrent.displayProgress,
+                            color: palette.phaseAccent(torrent.phase)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(borderColor(palette), lineWidth: 1)
@@ -286,26 +305,17 @@ struct TorrentRow: View {
 
             Divider()
 
-            Button("Rimuovi") {
-                engine.remove(torrent, deleteFiles: false)
-            }
-
-            Button("Rimuovi e cancella i file…", role: .destructive) {
+            // Same confirmation flow as the row's trash button: removing a
+            // torrent from the context menu used to happen immediately, with no
+            // way to choose between keeping and deleting the files.
+            Button(L("Rimuovi…")) {
                 onDeleteWithFiles()
             }
         }
     }
 
     private func phasePill(_ palette: Palette) -> some View {
-        let color: Color
-        switch torrent.phase {
-        case .downloading: color = Theme.mint
-        case .metadata: color = Theme.amber
-        case .checking: color = Theme.blue
-        case .seeding: color = Theme.violet
-        case .completed: color = Theme.green
-        case .paused: color = Color.primary.opacity(0.5)
-        }
+        let color = palette.phaseText(torrent.phase)
 
         return Text(torrent.phase.label)
             .font(.system(size: 8.5, weight: .semibold, design: .rounded))

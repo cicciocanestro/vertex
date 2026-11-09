@@ -20,6 +20,13 @@ package enum PrefKey {
     package static let proxyPort = "proxyPort"
     package static let proxyUser = "proxyUser"
     package static let proxyPassword = "proxyPassword"
+    /// Interface state (filter, sort, inspector width). Persisted separately
+    /// from the engine preferences and not registered as defaults: a missing
+    /// value falls back to the view's own default.
+    package static let uiFilter = "uiFilter"
+    package static let uiSort = "uiSort"
+    package static let uiSortAscending = "uiSortAscending"
+    package static let uiInspectorWidth = "uiInspectorWidth"
 }
 
 package enum Preferences {
@@ -116,6 +123,13 @@ package enum Preferences {
         resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
     }
 
+    /// The download path exactly as stored, without normalizing it. Reading a
+    /// view's initial value must not touch the filesystem: `resolvedDownloadPath`
+    /// calls into the bridge, which stats the path.
+    package static var rawDownloadPath: String {
+        UserDefaults.standard.string(forKey: PrefKey.downloadPath) ?? PrefDefault.downloadPath
+    }
+
     package static var startPaused: Bool {
         UserDefaults.standard.bool(forKey: PrefKey.startPaused)
     }
@@ -130,42 +144,63 @@ package enum Preferences {
         return base.appendingPathComponent("Vertex/resume", isDirectory: true)
     }
 
-    /// The SOCKS5 password lives in the Keychain. The old plaintext
-    /// UserDefaults value is migrated lazily and removed only after a
-    /// successful Keychain write, so a failed migration cannot lose it.
+    /// Cached SOCKS5 password. Reading the Keychain can block, and with an
+    /// ad-hoc signature macOS may even show an access prompt, so the read never
+    /// happens on the main thread: `warmProxyPasswordCache()` fills this once on
+    /// the session queue and every later access is lock-protected memory.
+    private static let proxyPasswordLock = NSLock()
+    /// Guarded by `proxyPasswordLock`: every access below takes the lock.
+    nonisolated(unsafe) private static var cachedProxyPassword: String?
+
+    /// The SOCKS5 password for the current configuration. Never touches the
+    /// Keychain: it returns the cached value, or the not-yet-migrated plaintext
+    /// while the cache is still cold.
     package static var proxyPassword: String {
-        let defaults = UserDefaults.standard
-        let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
-
-        if let stored = Keychain.proxyPassword() {
-            // A legacy plaintext value must not survive next to the keychain
-            // item; the keychain holds the canonical password.
-            if !legacy.isEmpty {
-                defaults.removeObject(forKey: PrefKey.proxyPassword)
-            }
-            return stored
+        proxyPasswordLock.lock()
+        let cached = cachedProxyPassword
+        proxyPasswordLock.unlock()
+        if let cached {
+            return cached
         }
-
-        guard !legacy.isEmpty else { return "" }
-        if Keychain.setProxyPassword(legacy) {
-            defaults.removeObject(forKey: PrefKey.proxyPassword)
-        }
-        return legacy
+        return UserDefaults.standard.string(forKey: PrefKey.proxyPassword) ?? ""
     }
 
-    /// One-time migration of the old plaintext password. An existing keychain
-    /// item always wins: a stale UserDefaults value must not overwrite it.
-    package static func migrateLegacyProxyPassword() {
+    /// Reads the Keychain item once, migrating the legacy plaintext password.
+    /// Must be called off the main thread: `TorrentEngine` does it on the session
+    /// queue before creating the session, so the first configuration snapshot
+    /// already contains the password.
+    package static func warmProxyPasswordCache() {
+        proxyPasswordLock.lock()
+        let alreadyLoaded = cachedProxyPassword != nil
+        proxyPasswordLock.unlock()
+        if alreadyLoaded { return }
+
         let defaults = UserDefaults.standard
         let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
-        guard !legacy.isEmpty else { return }
 
-        if Keychain.proxyPassword() == nil {
-            _ = Keychain.setProxyPassword(legacy)
+        var resolved = Keychain.proxyPassword()
+        if resolved == nil, !legacy.isEmpty {
+            // One-time migration. A failed write must not lose the value, so the
+            // plaintext is dropped only after the Keychain accepted it; when the
+            // Keychain is unavailable (tests) the cache stays cold and
+            // `proxyPassword` keeps reading the plaintext.
+            guard Keychain.setProxyPassword(legacy) else { return }
+            resolved = legacy
         }
-        if Keychain.proxyPassword() != nil {
+        if resolved != nil, !legacy.isEmpty {
             defaults.removeObject(forKey: PrefKey.proxyPassword)
         }
+
+        proxyPasswordLock.lock()
+        cachedProxyPassword = resolved ?? ""
+        proxyPasswordLock.unlock()
+    }
+
+    /// One-time migration of the old plaintext password, kept for callers that
+    /// only need the side effect. An existing keychain item always wins: a stale
+    /// UserDefaults value must not overwrite it.
+    package static func migrateLegacyProxyPassword() {
+        warmProxyPasswordCache()
     }
 
     @discardableResult
@@ -175,6 +210,9 @@ package enum Preferences {
             // Clearing or replacing the password must not leave the legacy
             // plaintext value behind: proxyPassword would fall back to it.
             UserDefaults.standard.removeObject(forKey: PrefKey.proxyPassword)
+            proxyPasswordLock.lock()
+            cachedProxyPassword = value
+            proxyPasswordLock.unlock()
         }
         return saved
     }
@@ -197,7 +235,9 @@ package enum PrefDefault {
     package static let upnpEnabled = true
     package static let startPaused = false
     package static let sequentialDefault = false
-    package static let appearance = "dark"
+    /// Follow the system appearance unless the user chose otherwise: opening a
+    /// light-mode Mac into a dark window is a surprising default.
+    package static let appearance = "system"
     package static let proxyEnabled = false
     package static let proxyHost = "127.0.0.1"
     package static let proxyPort = 1080
