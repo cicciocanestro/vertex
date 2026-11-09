@@ -1,65 +1,69 @@
-# Coda e limiti per torrent — design
+# Coda e limiti per torrent
 
-Stato: **non implementato**. Questo documento esiste perché la decisione non venga
-improvvisata: è la feature con più interazioni delicate rimasta aperta, e va fatta
-con una policy esplicita.
+Stato: **implementato** (opzione A, senza `queue_position` nell'interfaccia).
 
-## Perché non è un `settings_pack` in più
+## Cosa fa
 
-libtorrent ha già una coda (`active_limit`, `active_downloads`, `active_seeds`,
-`dont_count_slow_torrents`) ma funziona solo sui torrent **auto-managed**. Vertex li
-disabilita di proposito:
+Impostazione **Prestazioni → Torrent attivi**: `0` = tutti insieme (default, comportamento
+identico a prima), `1…1000` = al massimo N torrent attivi contemporaneamente. Gli altri
+restano in attesa e la riga mostra la pill **In coda**; quando uno slot si libera partono da
+soli, in ordine di aggiunta.
 
-```cpp
-params.flags &= ~lt::torrent_flags::auto_managed;   // vt_add_torrent_common e resume
-```
+## Come è fatto
 
-Il motivo è che la pausa decisa dall'auto-manager non è distinguibile dalla pausa
-dell'utente: `torrent_flags::paused` è un flag solo, e la UI mostrerebbe "In pausa" un
-torrent che l'utente non ha mai messo in pausa (e il pulsante ▶ lo riprenderebbe
-scavalcando la coda).
+libtorrent ha già la coda, ma funziona solo sui torrent **auto-managed**. Vertex li
+disabilitava (`params.flags &= ~auto_managed`) proprio per non avere una pausa
+indistinguibile da quella dell'utente. L'implementazione cambia il modello:
 
-## Opzione A (consigliata): riabilitare l'auto-manager
+| Stato | `paused` | `auto_managed` | Significato |
+|---|---|---|---|
+| attivo | no | sì | sta scaricando o seminando |
+| in coda | sì | sì | l'auto-manager lo ha fermato: aspetta uno slot |
+| pausa manuale | sì | no | fermato dall'utente, fuori dalla coda |
 
-1. Bridge: esporre `is_auto_managed` e `queue_position` nello snapshot (due campi).
-2. `Torrent`: `autoManaged: Bool`, `queuePosition: Int`.
-3. `TorrentPhase`: aggiungere `.queued` — `autoManaged && !paused && stato di attesa`
-   (libtorrent riporta `queued_for_checking`/`paused` con `auto_managed` attivo).
-4. Pulsante pausa: se il torrent è `.queued`, la pressione deve **disabilitare
-   l'auto-manager** per quel torrent (`handle.unset_flags(auto_managed)`) e non
-   commutare `paused`. Questo è il punto che evita il "riprendo ma non parte".
-5. Impostazioni → Prestazioni: tre campi (`Limite attivi`, `Download attivi`, `Seed
-   attivi`), 0 = illimitato, applicati con `apply_settings` (sono a caldo).
-6. Rimozione: se un torrent viene rimosso, la coda si ricalcola da sola (libtorrent).
+`Torrent.phase` diventa quindi `.queued` quando `paused && autoManaged`, e
+`TorrentPhase.paused` resta "fermato da te". I filtri non aggiungono una categoria: un torrent
+in coda appartiene al bucket in cui girerà (`Download` o `Seed`), così "In pausa" non mente.
 
-Costo stimato: ~60 righe di bridge, ~80 di engine/modelli, ~120 di UI, 4–5 test
-(snapshot con `active_limit`, transizione queued→downloading, pausa manuale su un
-torrent in coda, interazione con il kill-switch dell'interfaccia).
+### Punti del codice
 
-## Opzione B (sconsigliata): coda gestita da Vertex
+- `vt_set_active_limit(session, max_active)`: `max_active > 0` → `active_limit`,
+  `active_downloads`, `active_seeds` = N (il target di libtorrent è
+  `min(downloads + seeds, limit)`, quindi N è un tetto totale); `<= 0` → `-1` su tutti e tre.
+  **Attenzione**: `active_limit = 0` in libtorrent mette *tutti* i torrent in pausa, per questo
+  "illimitato" è `-1` (mappato a `INT_MAX` da `get_int_setting`). `dont_count_slow_torrents`
+  è disattivato: altrimenti i torrent lenti non conterebbero e il numero di righe attive non
+  corrisponderebbe all'impostazione.
+- `add_torrent_common`: `paused` → `paused` + **`auto_managed` off**; altrimenti `paused` off
+  + `auto_managed` on. Senza questo, l'auto-manager riavvierebbe i torrent aggiunti "in pausa".
+- `vt_control`: `pause` toglie `auto_managed` (pausa manuale reale), `resume` lo rimette
+  (rientro in coda), `dequeue` toglie `auto_managed` lasciando `paused` (esci dalla coda).
+- `nudge_auto_manage`: `torrent::pause()`/`resume()` non chiedono il ricalcolo, quindi dopo
+  pausa/ripresa/esclusione/rimozione viene riapplicato il limite corrente per triggerarlo
+  (libtorrent ha un rate limit di 1 s).
+- Snapshot: nuovo campo `auto_managed`; il decode Swift lo tratta come opzionale, così uno
+  snapshot precedente resta valido.
 
-Vertex tiene un `Set<String> queuedIDs`, mette in pausa i torrent in eccesso e li
-riprende quando si libera spazio.
+## Limiti noti (accettati)
 
-Perché è peggio:
-- richiede di distinguere pausa "di coda" e pausa manuale in ogni percorso (poll,
-  restart PEX, ripresa dopo errore, riapertura da Finder);
-- se l'app termina con torrent in coda, i resume data li fissano in pausa e al
-  riavvio non si sa più quali riprendere;
-- duplica una logica che libtorrent ha già, con più superficie di bug.
+- **Un solo numero**, non limiti separati per download e seed: è il caso d'uso reale (banda),
+  e mantiene l'interfaccia a una riga.
+- **Ordine FIFO** per `sequence_number` (aggiunta), non riordinabile: `queue_position` non è
+  esposto. Se servirà, il bridge deve aggiungere il campo e la UI un drag.
+- I contatori dello snapshot contano i torrent in coda come `paused` (`active`/`paused_count`
+  restano complementari); non c'è un contatore dedicato.
+- Sul track il pulsante di pausa, per un torrent in coda, significa **Escludi dalla coda**.
+  Non esiste ancora un "riprendi subito ignorando il limite": per farlo, alzare il limite.
+- Il ricalcolo periodico di libtorrent resta a 30 s; il nudge copre i casi interattivi, ma un
+  torrent che *finisce* di scaricare libera il suo slot solo al passaggio successivo (il
+  torrent resta comunque attivo come seed).
 
-Se serve comunque, la policy minima è: limite per numero di torrent **non completati**
-attivi, sospensione dei più recenti (per `added`), ripresa in ordine di aggiunta, e una
-voce "Riprendi sempre questo torrent" nella riga per escluderlo dalla coda.
+## Test
 
-## Interazioni da verificare in ogni caso
-
-- **Kill-switch interfaccia** (`bindAddress`): un torrent in coda non deve risultare
-  "in errore" quando l'indirizzo sparisce.
-- **Proxy SOCKS5**: la sonda di raggiungibilità non deve riprendere torrent in coda.
-- **Limiti di velocità**: sono globali ed entrano in `apply_link_settings`; la coda non
-  deve riscriverli.
-- **`remove` con `delete_files`**: rimuovere un torrent in coda non deve creare resume
-  data tardivi (già coperto da `removed_ids`).
-- **Snapshot**: `active` e `paused_count` devono continuare a sommare a `torrents.count`;
-  un terzo stato richiede un contatore dedicato (`queued_count`) e un test di invariante.
+- `Coda: limite dei torrent attivi, dequeue e ripresa` (integrazione, sessione reale):
+  limite 2 → entrambi attivi; limite 1 → uno in coda; `dequeue` → resta fermo e fuori dalla
+  coda; `resume` → torna in coda; pausa dell'attivo → il queued parte da solo; limite 0 →
+  nessuno in coda.
+- `Coda: fase queued, categoria e decodifica` (modello): fase, `isQueued`, categoria nei
+  filtri, decodifica con e senza il campo `auto_managed`.
+- `Limite torrent attivi: validazione` + startup validation in `PreferencesTests`.

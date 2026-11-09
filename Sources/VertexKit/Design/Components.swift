@@ -44,6 +44,8 @@ struct ProgressRing: View {
             return LinearGradient(colors: [Theme.green, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .paused:
             return LinearGradient(colors: [Color.primary.opacity(0.28), Color.primary.opacity(0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case .queued:
+            return LinearGradient(colors: [Color.primary.opacity(0.22), Color.primary.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -55,14 +57,16 @@ struct ProgressRing: View {
         case .seeding: return Theme.violet
         case .completed: return Theme.green
         case .downloading: return Color.primary.opacity(0.82)
+        case .queued: return Color.primary.opacity(0.55)
         }
     }
 
     @ViewBuilder
     private var icon: some View {
         switch phase {
-        case .paused:
-            Image(systemName: "pause.fill")
+        case .paused, .queued:
+            // The queue is a kind of pause, but the row pill says which one.
+            Image(systemName: phase == .queued ? "clock" : "pause.fill")
                 .font(.system(size: size * 0.25, weight: .bold))
                 .foregroundStyle(iconColor)
         case .seeding:

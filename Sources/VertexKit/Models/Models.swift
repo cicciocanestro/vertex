@@ -1,14 +1,17 @@
 import Foundation
 
-enum TorrentPhase: Equatable {
+/// Phase of a torrent as shown by the row pill and by the filters.
+package enum TorrentPhase: Equatable {
     case downloading
     case metadata
     case checking
     case seeding
     case completed
     case paused
+    /// Paused by the queue manager: the torrent is waiting for an active slot.
+    case queued
 
-    var label: String {
+    package var label: String {
         switch self {
         case .downloading: return L("Download")
         case .metadata: return L("Metadati")
@@ -16,6 +19,7 @@ enum TorrentPhase: Equatable {
         case .seeding: return L("In seed")
         case .completed: return L("Completato")
         case .paused: return L("In pausa")
+        case .queued: return L("In coda")
         }
     }
 }
@@ -53,6 +57,9 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     package let finished: Bool
     package let seeding: Bool
     package let paused: Bool
+    /// True while the queue manager owns the torrent. `paused && autoManaged` is
+    /// the queued state.
+    package let autoManaged: Bool
     package let sequential: Bool
     package let hasMetadata: Bool
     package let savePath: String
@@ -76,6 +83,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         finished: Bool,
         seeding: Bool,
         paused: Bool,
+        autoManaged: Bool = false,
         sequential: Bool,
         hasMetadata: Bool,
         savePath: String,
@@ -98,6 +106,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.finished = finished
         self.seeding = seeding
         self.paused = paused
+        self.autoManaged = autoManaged
         self.sequential = sequential
         self.hasMetadata = hasMetadata
         self.savePath = savePath
@@ -129,6 +138,8 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         finished = try c.decode(Bool.self, forKey: .finished)
         seeding = try c.decode(Bool.self, forKey: .seeding)
         paused = try c.decode(Bool.self, forKey: .paused)
+        // Optional so an older snapshot (or a hand written fixture) still decodes.
+        autoManaged = try c.decodeIfPresent(Bool.self, forKey: .autoManaged) ?? false
         sequential = try c.decode(Bool.self, forKey: .sequential)
         hasMetadata = try c.decode(Bool.self, forKey: .hasMetadata)
         savePath = try c.decode(String.self, forKey: .savePath)
@@ -143,6 +154,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         case downloadRate = "download_rate"
         case uploadRate = "upload_rate"
         case finished, seeding, paused, sequential
+        case autoManaged = "auto_managed"
         case hasMetadata = "has_metadata"
         case savePath = "save_path"
         case ratio, added, error
@@ -152,8 +164,11 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         min(max(finished ? 1 : progress, 0), 1)
     }
 
-    var phase: TorrentPhase {
-        if paused { return .paused }
+    package var phase: TorrentPhase {
+        // `paused` alone does not say who paused the torrent: the auto-manager
+        // pauses the torrents that do not fit in the active limit, so a paused
+        // auto-managed torrent is waiting in the queue, not stopped by the user.
+        if paused { return autoManaged ? .queued : .paused }
         if !hasMetadata || stateCode == LibtorrentStateCode.downloadingMetadata.rawValue {
             return .metadata
         }
@@ -176,6 +191,9 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     }
 
     package var hasError: Bool { !error.isEmpty }
+
+    /// Waiting for an active slot inside the queue.
+    package var isQueued: Bool { phase == .queued }
 }
 
 package struct PortMapInfo: Decodable, Equatable {
@@ -457,6 +475,9 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         case .seeding: return .seeding
         case .completed: return .completed
         case .paused: return .paused
+        // A queued torrent is not stopped by the user: it waits for a slot in the
+        // bucket it belongs to, so "In pausa" keeps meaning "paused by you".
+        case .queued: return torrent.finished ? .seeding : .downloading
         }
     }
 

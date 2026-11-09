@@ -93,7 +93,7 @@ struct InspectorView: View {
 
     private func actions(_ palette: Palette) -> some View {
         HStack(spacing: 7) {
-            if torrent.paused {
+            if torrent.paused && !torrent.isQueued {
                 Button {
                     engine.resume(torrent)
                 } label: {
@@ -104,7 +104,7 @@ struct InspectorView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 Button {
-                    engine.pause(torrent)
+                    torrent.isQueued ? engine.togglePause(torrent) : engine.pause(torrent)
                 } label: {
                     Label("Pausa", systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)

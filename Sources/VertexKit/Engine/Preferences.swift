@@ -7,6 +7,7 @@ package enum PrefKey {
     package static let downloadLimitKB = "downloadLimitKB"
     package static let uploadLimitKB = "uploadLimitKB"
     package static let listenPort = "listenPort"
+    package static let maxActiveTorrents = "maxActiveTorrents"
     package static let bindAddress = "bindAddress"
     package static let dhtEnabled = "dhtEnabled"
     package static let pexEnabled = "pexEnabled"
@@ -70,6 +71,15 @@ package enum Preferences {
     package static func limitBytes(fromKB kb: Int) -> Int32 {
         let clampedKB = min(max(kb, 0), maximumLimitKB)
         return Int32(clampedKB * 1024)
+    }
+
+    /// Upper bound for the active-torrent limit. Beyond this the setting stops
+    /// being a limit and becomes a way to break the queue.
+    package static let maximumActiveTorrents = 1000
+
+    /// Whether an active-torrent limit is valid (0 = unlimited).
+    package static func isValidActiveLimit(_ value: Int) -> Bool {
+        (0...maximumActiveTorrents).contains(value)
     }
 
     /// Whether a port can be used for TCP/UDP listening.
@@ -226,6 +236,9 @@ package enum PrefDefault {
     package static let downloadLimitKB = 0
     package static let uploadLimitKB = 0
     package static let listenPort = 6881
+    /// 0 = every torrent at once. A positive value caps the torrents that are
+    /// actively downloading or seeding; the others wait in the queue.
+    package static let maxActiveTorrents = 0
     /// Empty means every interface. Otherwise a literal IPv4 address, usually
     /// the tunnel address, so the client only exchanges traffic through it.
     package static let bindAddress = ""
@@ -250,6 +263,7 @@ package enum PrefDefault {
             PrefKey.downloadLimitKB: downloadLimitKB,
             PrefKey.uploadLimitKB: uploadLimitKB,
             PrefKey.listenPort: listenPort,
+            PrefKey.maxActiveTorrents: maxActiveTorrents,
             PrefKey.bindAddress: bindAddress,
             PrefKey.dhtEnabled: dhtEnabled,
             PrefKey.pexEnabled: pexEnabled,
@@ -271,6 +285,8 @@ package struct SessionConfiguration: Sendable, Equatable {
     package var downloadPath: String
     package var resumePath: String
     package var port: Int32
+    /// Active-torrent limit enforced by libtorrent's auto-manager (0 = none).
+    package var maxActive: Int32
     package var downloadLimit: Int32
     package var uploadLimit: Int32
     package var dht: Bool
@@ -289,6 +305,7 @@ package struct SessionConfiguration: Sendable, Equatable {
         downloadPath: String,
         resumePath: String,
         port: Int32,
+        maxActive: Int32 = 0,
         downloadLimit: Int32 = 0,
         uploadLimit: Int32 = 0,
         dht: Bool = false,
@@ -305,6 +322,7 @@ package struct SessionConfiguration: Sendable, Equatable {
         self.downloadPath = downloadPath
         self.resumePath = resumePath
         self.port = port
+        self.maxActive = maxActive
         self.downloadLimit = downloadLimit
         self.uploadLimit = uploadLimit
         self.dht = dht
@@ -344,6 +362,12 @@ extension TorrentEngine {
         }
         if !Preferences.isValidLimitKB(rawUploadLimit) {
             defaults.set(Int(uploadLimit) / 1024, forKey: PrefKey.uploadLimitKB)
+        }
+
+        // active-torrent limit
+        let rawMaxActive = defaults.integer(forKey: PrefKey.maxActiveTorrents)
+        if !Preferences.isValidActiveLimit(rawMaxActive) {
+            defaults.set(PrefDefault.maxActiveTorrents, forKey: PrefKey.maxActiveTorrents)
         }
 
         // bind address
@@ -402,6 +426,8 @@ extension TorrentEngine {
             downloadPath: Preferences.downloadPath,
             resumePath: Preferences.resumeDirectory.path,
             port: Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort)),
+            maxActive: Int32(min(max(defaults.integer(forKey: PrefKey.maxActiveTorrents), 0),
+                                 Preferences.maximumActiveTorrents)),
             downloadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB)),
             uploadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB)),
             dht: defaults.bool(forKey: PrefKey.dhtEnabled),

@@ -377,6 +377,12 @@ final class BridgeSession {
         }
     }
 
+    func setActiveLimit(_ value: Int) throws {
+        if vt_set_active_limit(pointer, Int32(value)) != 0 {
+            throw IntegrationTestError.bridge(lastError())
+        }
+    }
+
     func control(torrentID: String, action: String) throws {
         let result = torrentID.withCString { id in
             action.withCString { actionPointer in

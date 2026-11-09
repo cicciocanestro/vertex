@@ -375,6 +375,8 @@ struct vt_session
     // Error whose TCP/UDP protocol could not be determined from the alert.
     std::string portmap_error;
     // Proxy configuration state
+    // Configured active-torrent limit (0 = unlimited), mirrored in the snapshot.
+    int max_active = 0;
     int proxy_type = 0; // 0 = none, 1 = socks5
     // True when a username is configured: libtorrent only performs RFC 1929
     // authentication with the socks5_pw proxy type and a non-empty username.
@@ -453,6 +455,24 @@ void unmark_removed(vt_session* session, std::string const& id)
         session->removed_ids.end());
 }
 
+// `torrent::pause()` and `torrent::resume()` do not ask the queue manager to
+// recompute the active set, so a freed slot would only be reused at the next
+// periodic pass (30 s by default). Re-applying the current limit triggers the
+// recalculation (subject to libtorrent's 1 s rate limit).
+void nudge_auto_manage(vt_session* session)
+{
+    try
+    {
+        lt::settings_pack pack;
+        int const value = session->max_active > 0 ? session->max_active : -1;
+        pack.set_int(lt::settings_pack::active_limit, value);
+        session->session->apply_settings(pack);
+    }
+    catch (...)
+    {
+    }
+}
+
 void reset_portmap_state(vt_session* session)
 {
     session->tcp.reset();
@@ -494,12 +514,20 @@ int add_torrent_common(vt_session* session,
     }
     params.save_path = destination;
     params.flags |= lt::torrent_flags::duplicate_is_error;
-    params.flags &= ~lt::torrent_flags::auto_managed;
-    // add_torrent_params::default_flags includes `paused`: clear it unless requested.
+    // The active-torrent limit is enforced by libtorrent's auto-manager, which
+    // only acts on auto-managed torrents. A torrent the user wants paused must
+    // leave auto-management, otherwise the manager would start it again on the
+    // next recalculation.
     if (paused)
+    {
         params.flags |= lt::torrent_flags::paused;
+        params.flags &= ~lt::torrent_flags::auto_managed;
+    }
     else
+    {
         params.flags &= ~lt::torrent_flags::paused;
+        params.flags |= lt::torrent_flags::auto_managed;
+    }
     if (sequential)
         params.flags |= lt::torrent_flags::sequential_download;
 
@@ -602,6 +630,9 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
     out << "\"finished\":" << ((status.is_finished || status.is_seeding) ? "true" : "false") << ",";
     out << "\"seeding\":" << (status.is_seeding ? "true" : "false") << ",";
     out << "\"paused\":" << (has_flag(status.flags, lt::torrent_flags::paused) ? "true" : "false") << ",";
+    // paused + auto_managed is the queued state: libtorrent's auto-manager pauses
+    // the torrents that do not fit in `active_limit`.
+    out << "\"auto_managed\":" << (has_flag(status.flags, lt::torrent_flags::auto_managed) ? "true" : "false") << ",";
     out << "\"sequential\":" << (has_flag(status.flags, lt::torrent_flags::sequential_download) ? "true" : "false") << ",";
     out << "\"has_metadata\":" << (status.has_metadata ? "true" : "false") << ",";
     out << "\"save_path\":\"" << json_escape(status.save_path) << "\",";
@@ -725,7 +756,9 @@ vt_session* vt_session_create_full(const char* download_dir,
                         continue;
 
                     params.save_path = prepared_save_path(params.save_path, session->default_save_path);
-                    params.flags &= ~lt::torrent_flags::auto_managed;
+                    // The resume data carries the flags of the last session: a
+                    // torrent that was queued must stay queued, and one paused by
+                    // the user must stay paused (no auto_managed).
                     lt::error_code add_ec;
                     session->session->add_torrent(std::move(params), add_ec);
                 }
@@ -1114,7 +1147,8 @@ char* vt_snapshot_json(vt_session* session)
             << ",\"transport\":\"" << json_escape(session->udp.transport)
             << "\",\"error\":\"" << json_escape(session->udp.error) << "\"},";
         out << "\"error\":\"" << json_escape(session->portmap_error) << "\"},";
-        out << "\"port\":" << session->listen_port;
+        out << "\"port\":" << session->listen_port << ",";
+        out << "\"max_active\":" << session->max_active;
         out << "}";
 
         auto text = out.str();
@@ -1423,6 +1457,7 @@ enum class ControlAction {
     reannounce,
     sequentialOn,
     sequentialOff,
+    dequeue,
     remove,
     removeFiles,
     unknown,
@@ -1435,6 +1470,7 @@ ControlAction parse_control_action(std::string const& action)
     if (action == "reannounce")    return ControlAction::reannounce;
     if (action == "sequential_on") return ControlAction::sequentialOn;
     if (action == "sequential_off")return ControlAction::sequentialOff;
+    if (action == "dequeue")      return ControlAction::dequeue;
     if (action == "remove")        return ControlAction::remove;
     if (action == "remove_files")  return ControlAction::removeFiles;
     return ControlAction::unknown;
@@ -1461,6 +1497,9 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
         switch (command)
         {
         case ControlAction::pause:
+            // A manual pause must leave auto-management: otherwise the queue
+            // manager would restart the torrent on the next recalculation.
+            handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.pause();
             break;
 
@@ -1468,7 +1507,16 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // A torrent stopped by an error stays stopped until the error is cleared.
             if (handle.status(lt::status_flags_t{}).errc)
                 handle.clear_error();
+            // Resuming puts the torrent back in the queue: the auto-manager owns
+            // the decision of when it actually starts.
+            handle.set_flags(lt::torrent_flags::auto_managed);
             handle.resume();
+            break;
+
+        case ControlAction::dequeue:
+            // Leave the queue without starting: the torrent stays paused but
+            // stops competing for an active slot.
+            handle.unset_flags(lt::torrent_flags::auto_managed);
             break;
 
         case ControlAction::reannounce:
@@ -1502,6 +1550,10 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             session->last_error = "Comando non supportato";
             return -1;
         }
+
+        // Pause, resume, dequeue and remove all change how many torrents are
+        // active: let the queue manager reuse the slot immediately.
+        nudge_auto_manage(session);
 
         return 0;
     }
@@ -1663,6 +1715,34 @@ int vt_apply_settings_ex(vt_session* session,
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             enable_dht, effective_upnp ? 1 : 0, enable_lsd);
         session->session->apply_settings(settings);
+        return 0;
+    }
+    VT_CATCH_ALL(session, -1)
+}
+
+int vt_set_active_limit(vt_session* session, int max_active)
+{
+    if (!session || !session->session)
+        return -1;
+
+    try
+    {
+        // libtorrent maps any negative value to "unlimited" (session_impl's
+        // get_int_setting), while `active_limit <= 0` would pause *everything*.
+        // One positive value caps downloads, seeds and the total at the same
+        // number: min(active_downloads + active_seeds, active_limit) == N.
+        int const value = max_active > 0 ? max_active : -1;
+
+        lt::settings_pack settings;
+        settings.set_int(lt::settings_pack::active_limit, value);
+        settings.set_int(lt::settings_pack::active_downloads, value);
+        settings.set_int(lt::settings_pack::active_seeds, value);
+        // Deterministic queue: slow torrents count against the limit like any
+        // other, so the number of active rows in the UI matches the setting.
+        settings.set_bool(lt::settings_pack::dont_count_slow_torrents, false);
+        session->session->apply_settings(settings);
+
+        session->max_active = max_active;
         return 0;
     }
     VT_CATCH_ALL(session, -1)

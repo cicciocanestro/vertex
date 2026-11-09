@@ -38,6 +38,10 @@ enum TorrentIntegrationTests {
             try multipleTorrents()
         }
 
+        TestRunner.run("Coda: limite dei torrent attivi, dequeue e ripresa") {
+            try activeLimitQueue()
+        }
+
         TestRunner.run("Tracker: sostituzione della lista tramite vt_set_trackers") {
             try trackerEditing()
         }
@@ -396,6 +400,85 @@ enum TorrentIntegrationTests {
             for file in fixture.files {
                 try fixture.assertDownloaded(in: downloadRoot, path: file.path)
             }
+        }
+    }
+
+    private static func activeLimitQueue() throws {
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let session = try BridgeSession(
+            downloadDirectory: try workspace.directory("queue"),
+            resumeDirectory: try workspace.directory("queue-resume"),
+            port: try TestsSupport.freeTCPPort()
+        )
+        defer { session.close() }
+
+        // Two torrents, two slots: nobody waits.
+        try session.setActiveLimit(2)
+        for fixture in [IntegrationFixture.v1, IntegrationFixture.v2] {
+            try session.addTorrentFile(fixture.torrentURL.path, savePath: workspace.directory("queue").path)
+        }
+        try TestsSupport.waitFor("due torrent presenti") {
+            try session.snapshot().torrents.count == 2
+        }
+        try TestsSupport.waitFor("entrambi attivi con limite 2") {
+            try session.snapshot().torrents.allSatisfy { !$0.paused }
+        }
+
+        // One slot: exactly one torrent must wait in the queue.
+        try session.setActiveLimit(1)
+        var queuedID = ""
+        try TestsSupport.waitFor("un torrent in coda") {
+            let torrents = try session.snapshot().torrents
+            let queued = torrents.filter { $0.paused && $0.autoManaged }
+            let active = torrents.filter { !$0.paused }
+            guard queued.count == 1, active.count == 1 else { return false }
+            queuedID = queued[0].id
+            return true
+        }
+
+        // Leaving the queue keeps the torrent stopped but out of the manager.
+        try session.control(torrentID: queuedID, action: "dequeue")
+        try TestsSupport.waitFor("torrent fuori dalla coda") {
+            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
+                return false
+            }
+            return torrent.paused && !torrent.autoManaged
+        }
+        Thread.sleep(forTimeInterval: 2)
+        try TestRunner.assertEqual(
+            try session.snapshot().torrents.filter { !$0.paused }.count,
+            1,
+            "Un torrent escluso dalla coda non deve avviarsi da solo"
+        )
+
+        // Resuming puts it back in the queue; the single slot is still taken.
+        try session.control(torrentID: queuedID, action: "resume")
+        try TestsSupport.waitFor("di nuovo in coda") {
+            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
+                return false
+            }
+            return torrent.paused && torrent.autoManaged
+        }
+
+        // Freeing the slot starts the queued torrent without another command.
+        guard let activeID = try session.snapshot().torrents.first(where: { !$0.paused })?.id else {
+            try TestRunner.assertTrue(false, "Serve un torrent attivo da mettere in pausa")
+            return
+        }
+        try session.control(torrentID: activeID, action: "pause")
+        try TestsSupport.waitFor("il torrent in coda parte quando si libera lo slot") {
+            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
+                return false
+            }
+            return !torrent.paused
+        }
+
+        // Removing the limit wakes everything up.
+        try session.setActiveLimit(0)
+        try TestsSupport.waitFor("nessun torrent in coda senza limite") {
+            try session.snapshot().torrents.allSatisfy { !$0.paused || !$0.autoManaged }
         }
     }
 

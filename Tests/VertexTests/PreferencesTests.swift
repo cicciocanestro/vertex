@@ -16,6 +16,16 @@ enum PreferencesTests {
             try TestRunner.assertTrue(maxLimit <= Int32.max, "Il limite deve rientrare in Int32")
         }
 
+        TestRunner.run("Limite torrent attivi: validazione") {
+            try TestRunner.assertTrue(Preferences.isValidActiveLimit(0))
+            try TestRunner.assertTrue(Preferences.isValidActiveLimit(1))
+            try TestRunner.assertTrue(Preferences.isValidActiveLimit(Preferences.maximumActiveTorrents))
+            try TestRunner.assertFalse(Preferences.isValidActiveLimit(-1))
+            try TestRunner.assertFalse(
+                Preferences.isValidActiveLimit(Preferences.maximumActiveTorrents + 1)
+            )
+        }
+
         TestRunner.run("Limiti KB/s: validazione dei valori ammessi") {
             try TestRunner.assertTrue(Preferences.isValidLimitKB(0))
             try TestRunner.assertTrue(Preferences.isValidLimitKB(1024))
@@ -70,6 +80,7 @@ enum PreferencesTests {
                 PrefKey.downloadLimitKB,
                 PrefKey.uploadLimitKB,
                 PrefKey.listenPort,
+                PrefKey.maxActiveTorrents,
                 PrefKey.bindAddress,
                 PrefKey.dhtEnabled,
                 PrefKey.pexEnabled,
@@ -87,6 +98,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
             try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
             try TestRunner.assertEqual(defaults[PrefKey.listenPort] as? Int, 6881)
+            try TestRunner.assertEqual(defaults[PrefKey.maxActiveTorrents] as? Int, 0)
             try TestRunner.assertEqual(defaults[PrefKey.bindAddress] as? String, "")
             try TestRunner.assertEqual(defaults[PrefKey.downloadLimitKB] as? Int, 0)
             try TestRunner.assertEqual(defaults[PrefKey.uploadLimitKB] as? Int, 0)
@@ -167,6 +179,10 @@ enum PreferencesTests {
             try TestRunner.assertEqual(
                 defaults.string(forKey: PrefKey.appearance),
                 PrefDefault.appearance
+            )
+            try TestRunner.assertEqual(
+                defaults.integer(forKey: PrefKey.maxActiveTorrents),
+                PrefDefault.maxActiveTorrents
             )
             try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 1080)
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")

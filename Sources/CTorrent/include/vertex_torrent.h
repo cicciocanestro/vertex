@@ -69,6 +69,12 @@ int vt_add_peer(vt_session* session,
 
 int vt_control(vt_session* session, const char* torrent_id, const char* action);
 
+/* Caps how many torrents may be active at the same time. Torrents that do not
+   fit stay paused and auto-managed until a slot frees up (they show up as
+   "queued"); a manual pause or `dequeue` takes a torrent out of the queue.
+   max_active <= 0 means unlimited. Returns 0 on success. */
+int vt_set_active_limit(vt_session* session, int max_active);
+
 /* Replaces the tracker list of a torrent. `urls` is a newline-separated list;
    blank lines are ignored, every entry must be an absolute URL (it contains
    "://") and the list is limited to 128 entries of at most 2 KiB each. Returns

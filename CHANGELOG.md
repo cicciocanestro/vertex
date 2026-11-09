@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.10.0] — 2026-11-09
+
+### Novità
+- **Coda dei torrent attivi**: nuova impostazione **Prestazioni → Torrent attivi** (0 = tutti
+  insieme). Sopra il limite i torrent restano in attesa e la riga mostra la pill **In coda**;
+  quando uno slot si libera partono da soli, in ordine di aggiunta.
+  - Il limite è applicato da libtorrent con `active_limit`/`active_downloads`/`active_seeds`
+    (nuova `vt_set_active_limit`), con `dont_count_slow_torrents` disattivato perché il numero
+    di righe attive corrisponda sempre all'impostazione.
+  - I torrent ora sono **auto-managed**: una pausa manuale esce dalla coda
+    (`unset auto_managed`), quindi il gestore non li riavvia più; ▶ li rimette in coda.
+  - Sulla riga di un torrent in coda il pulsante di pausa significa **Escludi dalla coda**
+    (nuovo comando `dequeue`), non "ferma un trasferimento" (non ce n'è uno in corso).
+  - I torrent in coda non finiscono più in "In pausa": restano nel filtro della lista in cui
+    gireranno (Download o Seed), così "In pausa" continua a significare "fermato da te".
+  - Dopo pausa, ripresa, esclusione e rimozione lo slot viene riassegnato subito
+    (`nudge_auto_manage`); il ricalcolo periodico di libtorrent resta a 30 s.
+
+### Note per gli sviluppatori
+- `docs/queue-and-limits.md` descrive l'implementazione, i limiti noti (limite unico, ordine
+  FIFO non riordinabile, contatori che contano la coda come pausa) e le invarianti coperte dai
+  test.
+- **Compatibilità**: nessuna migrazione. Le installazioni esistenti hanno
+  `maxActiveTorrents = 0` (tutti i torrent attivi), quindi il comportamento resta quello della
+  1.9.2 finché non si imposta un limite. I torrent ripresi dalla resume data mantengono i flag
+  della sessione precedente; un torrent che nella 1.9.2 era in pausa manuale resta in pausa
+  (non entra in coda).
+
 ## [1.9.2] — 2026-11-09
 
 ### Corretto

@@ -207,9 +207,13 @@ struct TorrentRow: View {
             .frame(width: 88, alignment: .trailing)
 
             HStack(spacing: 1) {
+                // A queued torrent is already stopped: the pause icon means
+                // "leave the queue", the play icon "resume" (which re-queues it).
                 IconButton(
-                    icon: torrent.paused ? "play.fill" : "pause.fill",
-                    help: torrent.paused ? "Riprendi" : "Pausa",
+                    icon: torrent.paused && !torrent.isQueued ? "play.fill" : "pause.fill",
+                    help: torrent.isQueued
+                        ? "Escludi dalla coda"
+                        : (torrent.paused ? "Riprendi" : "Pausa"),
                     size: 27
                 ) {
                     engine.togglePause(torrent)

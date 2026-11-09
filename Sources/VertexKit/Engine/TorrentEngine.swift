@@ -239,6 +239,13 @@ package final class TorrentEngine: ObservableObject {
             vt_free_string(errorPointer)
         }
 
+        if let pointer {
+            // Always apply the limit, including "unlimited": libtorrent's default
+            // is 3 downloads + 5 seeds, which would silently queue the torrents of
+            // a user who never asked for a queue.
+            _ = vt_set_active_limit(pointer, configuration.maxActive)
+        }
+
         if let pointer, configuration.proxyEnabled {
             configuration.proxyHost.withCString { hostPointer in
                 configuration.proxyUser.withCString { userPointer in

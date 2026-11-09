@@ -150,6 +150,12 @@ extension TorrentEngine {
     }
 
     func togglePause(_ torrent: Torrent) {
+        guard !torrent.isQueued else {
+            // A queued torrent is paused by the queue manager: "pause" here means
+            // leaving the queue, not stopping a running transfer.
+            control("dequeue", id: torrent.id)
+            return
+        }
         control(torrent.paused ? "resume" : "pause", id: torrent.id)
     }
 
@@ -334,6 +340,14 @@ extension TorrentEngine {
                 )
                 return
             }
+            guard Preferences.isValidActiveLimit(defaults.integer(forKey: PrefKey.maxActiveTorrents)) else {
+                showToast(
+                    L("Numero di torrent attivi non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 (illimitato) o un valore tra 1 e 1000.")
+                )
+                return
+            }
             if defaults.bool(forKey: PrefKey.proxyEnabled) {
                 let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
                 guard Preferences.isValidPort(rawProxyPort) else {
@@ -361,9 +375,11 @@ extension TorrentEngine {
 
         let downloadPathChanged: Bool
         let networkChanged: Bool
+        let queueChanged: Bool
         let proxyChanged: Bool
         if let previous {
             downloadPathChanged = previous.downloadPath != configuration.downloadPath
+            queueChanged = previous.maxActive != configuration.maxActive
             networkChanged = previous.port != configuration.port
                 || previous.downloadLimit != configuration.downloadLimit
                 || previous.uploadLimit != configuration.uploadLimit
@@ -379,10 +395,11 @@ extension TorrentEngine {
         } else {
             downloadPathChanged = true
             networkChanged = true
+            queueChanged = true
             proxyChanged = true
         }
 
-        guard downloadPathChanged || networkChanged || proxyChanged else {
+        guard downloadPathChanged || networkChanged || queueChanged || proxyChanged else {
             lastAppliedConfiguration = configuration
             return
         }
@@ -396,6 +413,12 @@ extension TorrentEngine {
                     }
                     if pathResult != 0 {
                         return pathResult
+                    }
+                }
+                if queueChanged {
+                    let limitResult = vt_set_active_limit(session, configuration.maxActive)
+                    if limitResult != 0 {
+                        return limitResult
                     }
                 }
                 if networkChanged {

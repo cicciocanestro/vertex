@@ -262,3 +262,11 @@
 "File ignorato: serve un file .torrent o un link magnet" = "File ignorato: serve un file .torrent o un link magnet";
 "Aggiungi tracker (URL)" = "Aggiungi tracker (URL)";
 "Rimuovi tracker" = "Rimuovi tracker";
+
+/* Queue and active-torrent limit */
+"In coda" = "In coda";
+"Torrent attivi" = "Torrent attivi";
+"Gli altri restano in coda" = "Gli altri restano in coda";
+"Escludi dalla coda" = "Escludi dalla coda";
+"Numero di torrent attivi non valido" = "Numero di torrent attivi non valido";
+"Inserisci 0 (illimitato) o un valore tra 1 e 1000." = "Inserisci 0 (illimitato) o un valore tra 1 e 1000.";

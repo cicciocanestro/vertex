@@ -445,6 +445,52 @@ enum ModelsTests {
             )
         }
 
+        TestRunner.run("Coda: fase queued, categoria e decodifica") {
+            // libtorrent pauses the torrents that do not fit in the active limit
+            // and keeps them auto-managed: that is the queued state.
+            let queued = Torrent.test(
+                id: "Q", name: "Queued", paused: true, autoManaged: true
+            )
+            let queuedSeed = Torrent.test(
+                id: "QS", name: "QueuedSeed", stateCode: 5, finished: true,
+                seeding: true, paused: true, autoManaged: true
+            )
+            let manualPause = Torrent.test(
+                id: "P", name: "Paused", paused: true, autoManaged: false
+            )
+
+            try TestRunner.assertEqual(queued.phase, .queued)
+            try TestRunner.assertTrue(queued.isQueued)
+            try TestRunner.assertEqual(manualPause.phase, .paused)
+            try TestRunner.assertFalse(manualPause.isQueued)
+
+            // The queue does not invent a new bucket: a waiting torrent belongs to
+            // the list it will run in, and "Paused" keeps meaning "paused by you".
+            try TestRunner.assertEqual(TorrentFilter.category(for: queued), .downloading)
+            try TestRunner.assertEqual(TorrentFilter.category(for: queuedSeed), .seeding)
+            try TestRunner.assertEqual(TorrentFilter.category(for: manualPause), .paused)
+            try TestRunner.assertTrue(TorrentFilter.downloading.matches(queued))
+            try TestRunner.assertFalse(TorrentFilter.paused.matches(queued))
+
+            try TestRunner.assertEqual(TorrentPhase.queued.label, L("In coda"))
+
+            let withFlag = """
+            {"id":"a","name":"A","state_code":3,"progress":0.1,"size":10,"downloaded":1,
+             "uploaded":0,"download_rate":0,"upload_rate":0,"peers":0,"seeds":0,"eta":-1,
+             "finished":false,"seeding":false,"paused":true,"auto_managed":true,
+             "sequential":false,"has_metadata":true,"save_path":"/tmp","ratio":0,"added":0,
+             "error":""}
+            """
+            let decoded = try JSONDecoder().decode(Torrent.self, from: Data(withFlag.utf8))
+            try TestRunner.assertTrue(decoded.autoManaged)
+            try TestRunner.assertEqual(decoded.phase, .queued)
+
+            let withoutFlag = withFlag.replacingOccurrences(of: "\"auto_managed\":true,", with: "")
+            let legacy = try JSONDecoder().decode(Torrent.self, from: Data(withoutFlag.utf8))
+            try TestRunner.assertFalse(legacy.autoManaged)
+            try TestRunner.assertEqual(legacy.phase, .paused)
+        }
+
         TestRunner.run("Navigazione da tastiera: limiti della lista") {
             try TestRunner.assertNil(TorrentListNavigation.nextIndex(current: nil, count: 0, delta: 1))
             try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: nil, count: 3, delta: 1), 0)

@@ -75,6 +75,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
     @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
     @AppStorage(PrefKey.listenPort) private var listenPort = PrefDefault.listenPort
+    @AppStorage(PrefKey.maxActiveTorrents) private var maxActiveTorrents = PrefDefault.maxActiveTorrents
     @AppStorage(PrefKey.bindAddress) private var bindAddress = PrefDefault.bindAddress
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
     @AppStorage(PrefKey.pexEnabled) private var pexEnabled = PrefDefault.pexEnabled
@@ -182,6 +183,15 @@ struct SettingsSheet: View {
                                         subtitle: "Usata per le connessioni in ingresso",
                                         value: $listenPort,
                                         suffix: "TCP/UDP",
+                                        palette: palette
+                                    )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    numericRow(
+                                        icon: "square.stack",
+                                        title: "Torrent attivi",
+                                        subtitle: "Gli altri restano in coda",
+                                        value: $maxActiveTorrents,
+                                        suffix: "0 = tutti",
                                         palette: palette
                                     )
                                 }
@@ -335,6 +345,7 @@ struct SettingsSheet: View {
         .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
         .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
         .onChange(of: listenPort) { engine.applySettingsSoon() }
+        .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
         .onChange(of: bindAddress) { engine.applySettingsNow() }
         .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }

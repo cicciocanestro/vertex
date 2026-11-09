@@ -107,6 +107,9 @@ struct Palette {
         case .seeding: return violetText
         case .completed: return greenText
         case .paused: return Color.primary.opacity(0.5)
+        // Queued is not "off": it is informative, so it keeps the secondary text
+        // contrast instead of the muted paused grey.
+        case .queued: return secondary
         }
     }
 
@@ -120,6 +123,7 @@ struct Palette {
         case .seeding: return Theme.violet
         case .completed: return Theme.green
         case .paused: return Color.primary.opacity(0.28)
+        case .queued: return Color.primary.opacity(0.22)
         }
     }
 }
