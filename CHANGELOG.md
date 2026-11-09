@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Corretto
+- **Focus ring della lista**: rimosso l'alone blu di sistema introdotto con la navigazione
+  da tastiera; il focus resta indicato dalla riga selezionata.
+- **Avvio e aspetto**: l'aspetto salvato viene applicato in `applicationWillFinishLaunching`
+  e il chrome della finestra in `viewDidMoveToWindow`, evitando la transizione visibile
+  del primo frame al primo avvio dopo l'aggiornamento.
+
 ## [1.9.0] — 2026-11-09
 
 ### Novità

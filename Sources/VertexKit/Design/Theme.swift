@@ -186,20 +186,25 @@ struct LogoMark: View {
     }
 }
 
+private final class WindowConfiguratorView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        // Apply the chrome as soon as the view is in a window instead of on
+        // the next run loop: the first frame already has the final look.
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.minSize = NSSize(width: 980, height: 760)
+    }
+}
+
 package struct WindowConfigurator: NSViewRepresentable {
     package init() {}
 
     package func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            window.titlebarAppearsTransparent = true
-            window.isMovableByWindowBackground = true
-            window.backgroundColor = .clear
-            window.isOpaque = false
-            window.minSize = NSSize(width: 980, height: 760)
-        }
-        return view
+        WindowConfiguratorView()
     }
 
     package func updateNSView(_ nsView: NSView, context: Context) {}

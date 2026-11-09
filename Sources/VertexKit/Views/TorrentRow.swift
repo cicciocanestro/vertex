@@ -35,6 +35,10 @@ struct TorrentListView: View {
             .scrollIndicators(.hidden)
             .focusable()
             .focused($listFocused)
+            // Keep arrow-key navigation without the large blue system focus
+            // ring around the whole scroll area; the selected row is the focus
+            // indicator.
+            .focusEffectDisabled()
             .onMoveCommand { direction in
                 move(direction, proxy: proxy)
             }

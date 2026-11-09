@@ -25,9 +25,15 @@ struct VertexApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Apply the saved appearance before AppKit creates/shows the window, so
+    /// the first frame is already in the right theme instead of transitioning
+    /// from the system/restored snapshot.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        AppAppearance.apply()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        AppAppearance.apply()
         NSApp.activate(ignoringOtherApps: true)
         #if DEBUG
         scheduleSnapshotIfNeeded()
