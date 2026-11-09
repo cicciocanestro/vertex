@@ -298,17 +298,30 @@ struct InspectorView: View {
 
     private func fileRow(_ file: TorrentFile, _ palette: Palette) -> some View {
         HStack(spacing: 8) {
-            Button {
-                engine.setFilePriority(file, wanted: !file.isWanted, torrentID: torrent.id)
+            Menu {
+                ForEach(FilePriority.allCases, id: \.rawValue) { level in
+                    Button {
+                        engine.setFilePriority(file, priority: level, torrentID: torrent.id)
+                    } label: {
+                        if level == file.priorityLevel {
+                            Label(priorityLabel(level), systemImage: "checkmark")
+                        } else {
+                            Text(priorityLabel(level))
+                        }
+                    }
+                }
             } label: {
-                Image(systemName: file.isWanted ? "checkmark.circle.fill" : "circle")
+                Image(systemName: priorityIcon(file.priorityLevel))
                     .font(Typography.bodyLargeRegular)
-                    .foregroundStyle(file.isWanted ? Theme.mint : palette.tertiary)
+                    .foregroundStyle(priorityColor(file.priorityLevel, palette))
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .help(L(file.isWanted ? "Non scaricare questo file" : "Scarica questo file"))
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L("Priorità del file"))
+            .accessibilityLabel(Text(L("Priorità del file")))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(fileName(file.path))
@@ -418,6 +431,30 @@ struct InspectorView: View {
         .foregroundStyle(palette.tertiary)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 18)
+    }
+
+    private func priorityLabel(_ level: FilePriority) -> String {
+        switch level {
+        case .skip: return L("Non scaricare")
+        case .normal: return L("Normale")
+        case .high: return L("Alta")
+        }
+    }
+
+    private func priorityIcon(_ level: FilePriority) -> String {
+        switch level {
+        case .skip: return "circle"
+        case .normal: return "checkmark.circle.fill"
+        case .high: return "bolt.circle.fill"
+        }
+    }
+
+    private func priorityColor(_ level: FilePriority, _ palette: Palette) -> Color {
+        switch level {
+        case .skip: return palette.tertiary
+        case .normal: return Theme.mint
+        case .high: return Theme.violet
+        }
     }
 
     private func fileName(_ path: String) -> String {

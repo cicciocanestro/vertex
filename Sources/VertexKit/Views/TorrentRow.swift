@@ -37,6 +37,9 @@ struct TorrentRow: View {
 
     @Environment(\.colorScheme) private var scheme
     @StateObject private var hover = UIState(false)
+    /// The extra columns only make sense when the row is wide enough; the
+    /// row measures itself so opening the inspector hides them automatically.
+    @StateObject private var wide = UIState(false)
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -69,11 +72,18 @@ struct TorrentRow: View {
                     }
                 }
 
-                Text(metaText)
-                    .font(.system(size: 10.3, weight: .regular, design: .rounded))
-                    .foregroundStyle(palette.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    phasePill(palette)
+
+                    let details = metaDetails
+                    if !details.isEmpty {
+                        Text(details)
+                            .font(.system(size: 10.3, weight: .regular, design: .rounded))
+                            .foregroundStyle(palette.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
 
                 if torrent.hasError {
                     Text(torrent.error)
@@ -85,6 +95,50 @@ struct TorrentRow: View {
             }
 
             Spacer(minLength: 8)
+
+            if wide.value {
+                HStack(spacing: 14) {
+                    metric(
+                        icon: "externaldrive",
+                        value: torrent.hasMetadata ? Fmt.bytes(torrent.size) : "—",
+                        help: "Dimensione",
+                        width: 82,
+                        palette: palette
+                    )
+                    if torrent.phase == .downloading {
+                        metric(
+                            icon: "clock",
+                            value: Fmt.eta(torrent.eta),
+                            help: "Tempo rimasto",
+                            width: 62,
+                            palette: palette
+                        )
+                    } else if torrent.finished && torrent.ratio > 0 {
+                        metric(
+                            icon: "arrow.left.arrow.right",
+                            value: "×" + Fmt.ratio(torrent.ratio),
+                            help: "Rapporto",
+                            width: 62,
+                            palette: palette
+                        )
+                    } else {
+                        metric(
+                            icon: "clock",
+                            value: "—",
+                            help: "Tempo rimasto",
+                            width: 62,
+                            palette: palette
+                        )
+                    }
+                    metric(
+                        icon: "person.2",
+                        value: "\(torrent.peers) / \(torrent.seeds)",
+                        help: "Peer / Seed",
+                        width: 66,
+                        palette: palette
+                    )
+                }
+            }
 
             VStack(alignment: .trailing, spacing: 3) {
                 // Zero rates are the common case for seeds and paused rows:
@@ -99,7 +153,7 @@ struct TorrentRow: View {
                 // For a finished torrent the ratio is the useful number, and
                 // it used to live in the 10 pt meta line. Finished torrents
                 // with no upload yet keep the column empty.
-                if torrent.finished && torrent.ratio > 0 {
+                if !wide.value && torrent.finished && torrent.ratio > 0 {
                     Text(verbatim: "×\(Fmt.ratio(torrent.ratio))")
                         .font(.system(size: 9.8, weight: .medium, design: .rounded))
                         .monospacedDigit()
@@ -162,6 +216,11 @@ struct TorrentRow: View {
             }
         }
         .animation(.snappy(duration: 0.18), value: selected)
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width > 1180
+        } action: { value in
+            if wide.value != value { wide.value = value }
+        }
         .contextMenu {
             Button(L(torrent.paused ? "Riprendi" : "Pausa")) {
                 engine.togglePause(torrent)
@@ -197,9 +256,31 @@ struct TorrentRow: View {
         }
     }
 
-    private var metaText: String {
-        var parts: [String] = []
+    private func phasePill(_ palette: Palette) -> some View {
+        let color: Color
+        switch torrent.phase {
+        case .downloading: color = Theme.mint
+        case .metadata: color = Theme.amber
+        case .checking: color = Theme.blue
+        case .seeding: color = Theme.violet
+        case .completed: color = Theme.green
+        case .paused: color = Color.primary.opacity(0.5)
+        }
 
+        return Text(torrent.phase.label)
+            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    /// Narrow layout: the pill carries the state, these are the remaining
+    /// details. Wide layout moves size/ETA/peers into dedicated columns.
+    private var metaDetails: String {
+        if wide.value { return "" }
+
+        var parts: [String] = []
         if torrent.hasMetadata {
             if torrent.finished {
                 parts.append(Fmt.bytes(torrent.size))
@@ -208,29 +289,33 @@ struct TorrentRow: View {
             }
         }
 
-        switch torrent.phase {
-        case .paused:
-            parts.append(L("In pausa"))
-        case .metadata:
-            parts.append(L("Recupero metadati"))
-        case .checking:
-            parts.append(L("Verifica in corso"))
-        case .downloading:
+        if torrent.phase == .downloading {
             if torrent.downloadRate > 0 {
                 parts.append(LF("ETA %@", Fmt.eta(torrent.eta)))
             }
             parts.append(LF("%ld peer", torrent.peers))
-        case .seeding:
-            parts.append(L("In seed"))
-        case .completed:
-            parts.append(L("Completato"))
-        }
-
-        if torrent.hasError {
-            parts.append(L("Errore"))
         }
 
         return parts.joined(separator: "  ·  ")
+    }
+
+    private func metric(
+        icon: String,
+        value: String,
+        help: String,
+        width: CGFloat,
+        palette: Palette
+    ) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .semibold))
+            Text(value)
+                .font(.system(size: 10.2, weight: .medium, design: .rounded))
+                .monospacedDigit()
+        }
+        .foregroundStyle(palette.tertiary)
+        .frame(width: width, alignment: .leading)
+        .help(L(help))
     }
 
     private func backgroundFill(_ palette: Palette) -> Color {

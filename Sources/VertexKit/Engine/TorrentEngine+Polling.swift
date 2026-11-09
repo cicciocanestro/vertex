@@ -176,13 +176,20 @@ extension TorrentEngine {
         if hasLoadedSnapshot {
             let newlyFinished = finished.intersection(unfinishedIDs)
             if !newlyFinished.isEmpty {
-                let names = snapshot.torrents
-                    .filter { newlyFinished.contains($0.id) }
-                    .map(\.name)
-                if names.count == 1 {
-                    showToast(L("Download completato"), kind: .success, detail: names[0])
+                let completed = snapshot.torrents.filter { newlyFinished.contains($0.id) }
+                if completed.count == 1, let torrent = completed.first {
+                    let path = URL(fileURLWithPath: torrent.savePath)
+                        .appendingPathComponent(torrent.name)
+                        .path
+                    showToast(
+                        L("Download completato"),
+                        kind: .success,
+                        detail: torrent.name,
+                        actionTitle: L("Mostra nel Finder"),
+                        action: .reveal(path: path)
+                    )
                 } else {
-                    showToast(LF("%ld download completati", names.count), kind: .success)
+                    showToast(LF("%ld download completati", completed.count), kind: .success)
                 }
             }
         }

@@ -178,6 +178,16 @@ package struct RootView: View {
                 default:
                     break
                 }
+
+                if ProcessInfo.processInfo.environment["VERTEX_DEMO_TOAST"] == "1" {
+                    engine.showToast(
+                        L("Download completato"),
+                        kind: .success,
+                        detail: "Big.Buck.Bunny.4K.OPEN.MOVIE.mkv",
+                        actionTitle: L("Mostra nel Finder"),
+                        action: .reveal(path: NSHomeDirectory() + "/Downloads")
+                    )
+                }
             }
             #endif
     }
@@ -297,9 +307,11 @@ package struct RootView: View {
     @ViewBuilder
     private var toastLayer: some View {
         if let toast = engine.toast {
-            ToastView(toast: toast) {
-                engine.dismissToast()
-            }
+            ToastView(
+                toast: toast,
+                onDismiss: { engine.dismissToast() },
+                onAction: handleToastAction
+            )
             .padding(.horizontal, 20)
             .padding(.bottom, 52)
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -410,6 +422,23 @@ package struct RootView: View {
             select(nil)
         } else if let first = listResult.torrents.first {
             select(first)
+        }
+    }
+
+    /// Side effects for actionable toasts. Keeping them here means the toast
+    /// model stays a pure value and can be tested without AppKit.
+    private func handleToastAction(_ action: ToastMessage.Action) {
+        engine.dismissToast()
+        switch action {
+        case .reveal(let path):
+            let url = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: path) {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } else {
+                NSWorkspace.shared.open(url.deletingLastPathComponent())
+            }
+        case .openFolder(let path):
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
         }
     }
 

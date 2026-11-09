@@ -315,6 +315,7 @@ struct PulsingDot: View {
 struct ToastView: View {
     let toast: ToastMessage
     let onDismiss: () -> Void
+    let onAction: (ToastMessage.Action) -> Void
 
     @Environment(\.colorScheme) private var scheme
 
@@ -358,6 +359,13 @@ struct ToastView: View {
 
             Spacer(minLength: 10)
 
+            if let action = toast.action, let title = toast.actionTitle {
+                Button(title) {
+                    onAction(action)
+                }
+                .buttonStyle(SmallButtonStyle())
+            }
+
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8.5, weight: .bold))
@@ -370,7 +378,7 @@ struct ToastView: View {
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
-        .frame(maxWidth: 400)
+        .frame(maxWidth: toast.action == nil ? 400 : 460)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

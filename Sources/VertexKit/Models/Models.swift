@@ -367,6 +367,14 @@ package struct VertexSnapshot: Decodable {
     }
 }
 
+/// The three priority levels exposed by the inspector. The raw values are the
+/// libtorrent download priorities (0 = skip, 4 = default, 7 = maximum).
+package enum FilePriority: Int, CaseIterable {
+    case skip = 0
+    case normal = 4
+    case high = 7
+}
+
 package struct TorrentFile: Decodable, Identifiable, Equatable {
     package let index: Int
     package let path: String
@@ -376,6 +384,13 @@ package struct TorrentFile: Decodable, Identifiable, Equatable {
 
     package var id: Int { index }
     package var isWanted: Bool { priority > 0 }
+
+    /// Resume data may contain intermediate values (1-6); they map to the two
+    /// wanted levels so the UI always has an unambiguous state.
+    package var priorityLevel: FilePriority {
+        if priority <= 0 { return .skip }
+        return priority >= FilePriority.high.rawValue ? .high : .normal
+    }
 }
 
 package struct TorrentTracker: Decodable, Identifiable, Equatable {
@@ -542,15 +557,33 @@ package struct ToastMessage: Identifiable, Equatable {
         case info
     }
 
+    /// Optional action rendered inside the toast. The view stays presentation
+    /// only: the root view performs the side effect.
+    package enum Action: Equatable {
+        case reveal(path: String)
+        case openFolder(path: String)
+    }
+
     package let id: UUID
     package let kind: Kind
     package let text: String
     package let detail: String?
+    package let actionTitle: String?
+    package let action: Action?
 
-    package init(id: UUID = UUID(), kind: Kind, text: String, detail: String? = nil) {
+    package init(
+        id: UUID = UUID(),
+        kind: Kind,
+        text: String,
+        detail: String? = nil,
+        actionTitle: String? = nil,
+        action: Action? = nil
+    ) {
         self.id = id
         self.kind = kind
         self.text = text
         self.detail = detail
+        self.actionTitle = actionTitle
+        self.action = action
     }
 }

@@ -143,7 +143,7 @@ extension DemoData {
         let hasMultipleFiles = torrent.name.hasSuffix(".mkv") || torrent.name.hasSuffix(".zip")
         if hasMultipleFiles {
             files = [
-                TorrentFile(index: 0, path: "video/main-feature.mkv", size: Int64(Double(torrent.size) * 0.82), progress: torrent.finished ? 1 : torrent.progress, priority: 4),
+                TorrentFile(index: 0, path: "video/main-feature.mkv", size: Int64(Double(torrent.size) * 0.82), progress: torrent.finished ? 1 : torrent.progress, priority: 7),
                 TorrentFile(index: 1, path: "audio/italian.ac3", size: Int64(Double(torrent.size) * 0.12), progress: torrent.finished ? 1 : torrent.progress, priority: 4),
                 TorrentFile(index: 2, path: "subtitles/italian.srt", size: 48_210, progress: torrent.finished ? 1 : min(1, torrent.progress + 0.2), priority: 4),
                 TorrentFile(index: 3, path: "extras/behind-the-scenes.mkv", size: Int64(Double(torrent.size) * 0.06), progress: torrent.finished ? 1 : 0, priority: 0)

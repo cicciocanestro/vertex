@@ -50,7 +50,12 @@ extension TorrentEngine {
             return message
         }
 
-        showToast(L("Torrent aggiunto"), kind: .success)
+        showToast(
+            L("Torrent aggiunto"),
+            kind: .success,
+            actionTitle: L("Apri cartella"),
+            action: .openFolder(path: path)
+        )
         poll()
         return nil
     }
@@ -95,7 +100,13 @@ extension TorrentEngine {
             return message
         }
 
-        showToast(L("Torrent aggiunto"), kind: .success, detail: url.deletingPathExtension().lastPathComponent)
+        showToast(
+            L("Torrent aggiunto"),
+            kind: .success,
+            detail: url.deletingPathExtension().lastPathComponent,
+            actionTitle: L("Apri cartella"),
+            action: .openFolder(path: path)
+        )
         poll()
         return nil
     }
@@ -147,17 +158,22 @@ extension TorrentEngine {
         }
     }
 
-    func setFilePriority(_ file: TorrentFile, wanted: Bool, torrentID: String) {
+    func setFilePriority(_ file: TorrentFile, priority: FilePriority, torrentID: String) {
         let index = Int32(file.index)
-        let priority: Int32 = wanted ? 4 : 0
+        let value = Int32(priority.rawValue)
         enqueueSessionOperation { session in
             torrentID.withCString { idPointer in
-                vt_set_file_priority(session, idPointer, index, priority)
+                vt_set_file_priority(session, idPointer, index, value)
             }
         } onSuccess: { [weak self] in
             self?.forceDetailRefresh = true
             self?.poll()
         }
+    }
+
+    /// Backwards-compatible binary helper used by tests and older call sites.
+    func setFilePriority(_ file: TorrentFile, wanted: Bool, torrentID: String) {
+        setFilePriority(file, priority: wanted ? .normal : .skip, torrentID: torrentID)
     }
 
     func setAllFilePriorities(wanted: Bool, torrentID: String) {
@@ -371,12 +387,26 @@ extension TorrentEngine {
         toast = nil
     }
 
-    func showToast(_ text: String, kind: ToastMessage.Kind = .info, detail: String? = nil) {
-        let message = ToastMessage(kind: kind, text: text, detail: detail)
+    func showToast(
+        _ text: String,
+        kind: ToastMessage.Kind = .info,
+        detail: String? = nil,
+        actionTitle: String? = nil,
+        action: ToastMessage.Action? = nil
+    ) {
+        let message = ToastMessage(
+            kind: kind,
+            text: text,
+            detail: detail,
+            actionTitle: actionTitle,
+            action: action
+        )
         toast = message
         toastTask?.cancel()
+        // An actionable toast stays a little longer so it can be clicked.
+        let delay: UInt64 = action == nil ? 4_000_000_000 : 7_000_000_000
         toastTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
             guard !Task.isCancelled else { return }
             if self?.toast?.id == message.id {
                 self?.toast = nil

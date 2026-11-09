@@ -26,14 +26,18 @@
 - **UI**: contrasto di testi secondari e bordi nel tema chiaro, ETA “—” per i torrent in seed,
   contatori dei filtri sempre visibili, limite mostrato in KB/s come digitato, sparkline
   nascosta quando il traffico è zero.
-- **Lista torrent**: righe leggermente più compatte, velocità a zero nascoste (niente più
-  “↓ 0 B/s” ripetuto), rapporto (`×…`) nella colonna di destra dei torrent completati,
-  versione inline nell'header, controllo di ordinamento coerente e placeholder di
-  caricamento prima del primo snapshot.
-- **Inspector**: colore d'accento solo per download/upload attivi e percorso della cartella
-  sotto il nome dei file annidati.
+- **Lista torrent**: righe leggermente più compatte, pill di stato per riga (Metadati,
+  Download, Seed, In pausa, Completato), velocità a zero nascoste (niente più “↓ 0 B/s”
+  ripetuto), rapporto (`×…`) nella colonna di destra dei torrent completati, colonne
+  estese (dimensione, tempo/rapporto, peer/seed) sulle finestre larghe, versione inline
+  nell'header, controllo di ordinamento coerente e placeholder di caricamento prima del
+  primo snapshot.
+- **Inspector**: colore d'accento solo per download/upload attivi, percorso della cartella
+  sotto il nome dei file annidati e priorità file a tre livelli (Skip / Normale / Alta).
 - **Accessibilità**: etichette VoiceOver per i pulsanti a icona e rispetto di “Riduci
   movimento” per pulsazioni e rotazioni.
+- **Toast azionabili**: i toast di aggiunta e completamento offrono “Apri cartella” /
+  “Mostra nel Finder”, restano visibili 7 s e vengono chiusi dopo l'azione.
 
 ## [1.8.3] — 2026-11-08
 

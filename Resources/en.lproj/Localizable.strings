@@ -38,6 +38,7 @@
 "Incolla magnet dagli appunti" = "Paste magnet from clipboard";
 "Pausa / Riprendi" = "Pause / Resume";
 "Mostra nel Finder" = "Show in Finder";
+"Apri cartella" = "Open folder";
 "Copia link magnet" = "Copy magnet link";
 "Rimuovi…" = "Remove…";
 "Cerca" = "Find";
@@ -175,6 +176,10 @@
 "in connessione" = "connecting";
 "porta esterna %ld" = "external port %ld";
 "non mappata" = "not mapped";
+"Non scaricare" = "Do not download";
+"Normale" = "Normal";
+"Alta" = "High";
+"Priorità del file" = "File priority";
 "Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato." = "No mapping detected. The router may have UPnP/NAT-PMP disabled.";
 "UPnP / NAT-PMP disattivato" = "UPnP / NAT-PMP disabled";
 "Disattivato dal proxy SOCKS5 per prevenire leak." = "Disabled by the SOCKS5 proxy to prevent leaks.";

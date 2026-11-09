@@ -31,6 +31,7 @@
 "Incolla magnet dagli appunti" = "Incolla magnet dagli appunti";
 "Pausa / Riprendi" = "Pausa / Riprendi";
 "Mostra nel Finder" = "Mostra nel Finder";
+"Apri cartella" = "Apri cartella";
 "Copia link magnet" = "Copia link magnet";
 "Rimuovi…" = "Rimuovi…";
 "Cerca" = "Cerca";
@@ -134,6 +135,10 @@
 "Nessun file disponibile" = "Nessun file disponibile";
 "Nessun tracker disponibile" = "Nessun tracker disponibile";
 "Non scaricare questo file" = "Non scaricare questo file";
+"Non scaricare" = "Non scaricare";
+"Normale" = "Normale";
+"Alta" = "Alta";
+"Priorità del file" = "Priorità del file";
 "Scarica questo file" = "Scarica questo file";
 "%ld di %ld selezionati" = "%ld di %ld selezionati";
 "Nessuno" = "Nessuno";
