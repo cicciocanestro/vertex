@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.1] — 2026-11-09
 
 ### Corretto
 - **Focus ring della lista**: rimosso l'alone blu di sistema introdotto con la navigazione
