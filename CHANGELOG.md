@@ -1,6 +1,31 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.0] — 2026-11-09
+
+### Novità
+- **Impostazioni a sidebar**: rail verticale con Cartelle, Prestazioni, Rete, Proxy SOCKS5,
+  Comportamento, Aspetto, Informazioni; ogni sezione ha il proprio pannello e il proprio
+  scroll, quindi Proxy e le sezioni finali non restano più nascoste sotto la piega.
+- **Inspector ridimensionabile**: maniglia di trascinamento tra lista e dettagli (320–520 pt),
+  cursore di resize e azione regolabile per VoiceOver.
+- **Lista torrent rinnovata**: pill di stato per riga (Metadati, Download, Seed, In pausa,
+  Completato), velocità a zero nascoste, rapporto (`×…`) nella colonna di destra, colonne
+  estese (dimensione, tempo/rapporto, peer/seed) sulle finestre larghe, versione inline
+  nell'header e controllo di ordinamento coerente.
+- **Priorità file a tre livelli**: Skip / Normale / Alta per singolo file, con menu e icone
+  dedicate nell'inspector.
+- **Toast azionabili**: aggiunta → “Apri cartella”, completamento → “Mostra nel Finder”;
+  restano visibili 7 s e si chiudono dopo l'azione.
+- **Avvio non bloccante**: la sessione libtorrent viene creata su `sessionQueue`, con
+  placeholder di caricamento e vista di errore persistente con “Riprova”.
+- **Navigazione da tastiera**: `↑`/`↓` spostano la selezione nella lista e portano la riga
+  selezionata in vista.
+- **Barra di stato responsive**: layout compatto sotto 1120 pt; i limiti sono mostrati in
+  KB/s come digitati e le velocità non vanno più a capo.
+- **Accessibilità**: etichette VoiceOver sui pulsanti a icona e “Riduci movimento” rispettato
+  da tutte le animazioni (selezione, hover, toast, modali, filtri, sidebar, pulsanti).
+- **Diagnostica**: lo stato UPnP/NAT-PMP disattivato (per scelta o per proxy) è distinto
+  dall'errore di mapping, senza falsi allarmi.
 
 ### Corretto
 - **Autenticazione SOCKS5 (RFC 1929)**: con il campo **Utente** compilato il bridge configura
@@ -14,36 +39,11 @@
   dalla sonda TCP di raggiungibilità; il badge riflette anche gli errori di handshake.
 - **Sonda proxy**: `Darwin.select`/`fd_set` sostituiti da `poll`, eliminando il limite
   `FD_SETSIZE` e il rischio di scritture fuori bounds.
-- **Barra di stato responsive**: sotto 1120 pt nasconde limiti e contatori invece di comprimere
-  le velocità fino a mandarle a capo; i valori di velocità restano su una sola riga.
-- **Impostazioni**: sidebar verticale con rail delle sezioni (Proxy SOCKS5 e le sezioni
-  finali non restano più nascoste sotto la piega); ogni sezione ha il proprio pannello e il
-  proprio scroll.
-- **Inspector ridimensionabile**: maniglia di trascinamento tra lista e dettagli (320–520 pt),
-  con cursore di resize e supporto a VoiceOver tramite azione regolabile.
-- **Diagnostica**: UPnP/NAT-PMP disattivato (per scelta o per proxy) non è più mostrato come
-  errore di mapping.
 - **UI**: contrasto di testi secondari e bordi nel tema chiaro, ETA “—” per i torrent in seed,
   contatori dei filtri sempre visibili, limite mostrato in KB/s come digitato, sparkline
   nascosta quando il traffico è zero.
-- **Lista torrent**: righe leggermente più compatte, pill di stato per riga (Metadati,
-  Download, Seed, In pausa, Completato), velocità a zero nascoste (niente più “↓ 0 B/s”
-  ripetuto), rapporto (`×…`) nella colonna di destra dei torrent completati, colonne
-  estese (dimensione, tempo/rapporto, peer/seed) sulle finestre larghe, versione inline
-  nell'header, controllo di ordinamento coerente e placeholder di caricamento prima del
-  primo snapshot.
-- **Inspector**: colore d'accento solo per download/upload attivi, percorso della cartella
-  sotto il nome dei file annidati e priorità file a tre livelli (Skip / Normale / Alta).
-- **Accessibilità**: etichette VoiceOver per i pulsanti a icona, “Riduci movimento”
-  rispettato da tutte le animazioni (selezione, hover, toast, modali, filtri, sidebar,
-  pulsanti) e navigazione della lista con **↑/↓** che scorre la riga selezionata in vista.
-- **Toast azionabili**: i toast di aggiunta e completamento offrono “Apri cartella” /
-  “Mostra nel Finder”, restano visibili 7 s e vengono chiusi dopo l'azione.
 
 ### Robustezza
-- **Avvio non bloccante**: la creazione della sessione libtorrent e il caricamento del resume
-  girano su `sessionQueue`, non sul main actor. La UI mostra un placeholder di caricamento e,
-  in caso di errore, una vista persistente con “Riprova” invece di un toast temporaneo.
 - **Apertura file da Finder**: l'AppDelegate attende (max 5 s) che la sessione sia pronta
   prima di consumare i `.torrent`/magnet, evitando di perderli durante l'avvio asincrono.
 - **Deduplica dei toast**: un errore di aggiunta non viene più mostrato due volte (ritorno
