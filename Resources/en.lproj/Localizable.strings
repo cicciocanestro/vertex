@@ -293,6 +293,9 @@
 "File ignorato: serve un file .torrent o un link magnet" = "File ignored: drop a .torrent file or a magnet link";
 "Aggiungi tracker (URL)" = "Add tracker (URL)";
 "Rimuovi tracker" = "Remove tracker";
+"URL del tracker troppo lungo" = "Tracker URL too long";
+"URL del tracker non valido" = "Invalid tracker URL";
+"Troppi tracker" = "Too many trackers";
 
 /* Queue and active-torrent limit */
 "In coda" = "Queued";

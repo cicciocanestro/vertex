@@ -27,7 +27,7 @@ package enum ViewRenderingSupport {
         results["SettingsSheet"] = render(
             SettingsSheet(engine: engine, onClose: {}, onOpenDiagnostics: {}),
             width: 700,
-            height: 780
+            height: 540
         )
         results["AddTorrentSheet"] = render(
             AddTorrentSheet(engine: engine, initialMode: .magnet, onClose: {}),

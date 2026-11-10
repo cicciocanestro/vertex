@@ -1611,6 +1611,7 @@ int vt_set_trackers(vt_session* session, const char* torrent_id_value, const cha
         }
 
         handle.replace_trackers(entries);
+        handle.save_resume_data(lt::torrent_handle::save_info_dict);
         return 0;
     }
     VT_CATCH_ALL(session, -1)

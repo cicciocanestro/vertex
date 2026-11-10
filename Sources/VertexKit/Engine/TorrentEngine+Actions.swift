@@ -556,6 +556,9 @@ extension TorrentEngine {
         case "Parametri non validi": return L("Link o file non valido.")
         case "La destinazione non è una cartella.": return L("La destinazione non è una cartella.")
         case "La cartella di destinazione non è scrivibile.": return L("La cartella di destinazione non è scrivibile.")
+        case "URL del tracker troppo lungo": return L("URL del tracker troppo lungo")
+        case "URL del tracker non valido": return L("URL del tracker non valido")
+        case "Troppi tracker": return L("Troppi tracker")
         case "Errore sconosciuto": return L("Errore sconosciuto")
         default: return value
         }

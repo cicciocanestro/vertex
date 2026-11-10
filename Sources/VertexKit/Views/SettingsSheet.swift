@@ -101,7 +101,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
     private var appearance: Binding<AppearanceOption> {
         Binding(
-            get: { AppearanceOption(rawValue: appearanceRaw) ?? .dark },
+            get: { AppearanceOption(rawValue: appearanceRaw) ?? .system },
             set: { appearanceRaw = $0.rawValue }
         )
     }
@@ -328,7 +328,7 @@ struct SettingsSheet: View {
                 }
             }
         }
-        .frame(width: 700, height: 700)
+        .frame(width: 700, height: 540)
         .onAppear {
             interfaces.value = LocalNetwork.ipv4Interfaces()
             // Normalizing calls into the bridge, which stats the path. It runs

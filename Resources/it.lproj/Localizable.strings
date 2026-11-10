@@ -262,6 +262,9 @@
 "File ignorato: serve un file .torrent o un link magnet" = "File ignorato: serve un file .torrent o un link magnet";
 "Aggiungi tracker (URL)" = "Aggiungi tracker (URL)";
 "Rimuovi tracker" = "Rimuovi tracker";
+"URL del tracker troppo lungo" = "URL del tracker troppo lungo";
+"URL del tracker non valido" = "URL del tracker non valido";
+"Troppi tracker" = "Troppi tracker";
 
 /* Queue and active-torrent limit */
 "In coda" = "In coda";

@@ -238,9 +238,10 @@ struct TorrentRow: View {
         .padding(.vertical, 9)
         .background {
             // The progress track lives inside the card background so it is
-            // clipped by the rounded corners. A finished torrent has nothing to
-            // measure, and a full-width coloured line would just read as a
-            // border, so the bar is drawn only while there is progress to show.
+            // clipped by the rounded corners. It is padded on the leading side
+            // (14 pt padding + 42 pt ring + 13 pt spacing = 69 pt) so it sits
+            // cleanly under the content area without crossing or cutting through
+            // the progress ring. Drawn only while there is progress to show.
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(backgroundFill(palette))
                 .overlay(alignment: .bottom) {
@@ -249,7 +250,8 @@ struct TorrentRow: View {
                             progress: torrent.displayProgress,
                             color: palette.phaseAccent(torrent.phase)
                         )
-                        .padding(.horizontal, 16)
+                        .padding(.leading, 69)
+                        .padding(.trailing, 16)
                         .padding(.bottom, 6)
                     }
                 }
@@ -285,7 +287,7 @@ struct TorrentRow: View {
             if wide.value != value { wide.value = value }
         }
         .contextMenu {
-            Button(L(torrent.paused ? "Riprendi" : "Pausa")) {
+            Button(L(torrent.isQueued ? "Escludi dalla coda" : (torrent.paused ? "Riprendi" : "Pausa"))) {
                 engine.togglePause(torrent)
             }
 

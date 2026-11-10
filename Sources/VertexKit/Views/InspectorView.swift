@@ -76,19 +76,28 @@ struct InspectorView: View {
                     .lineLimit(2)
                     .truncationMode(.middle)
 
-                HStack(spacing: 5) {
-                    Text(torrent.phase.label)
-                        .font(Typography.smallMedium)
-                        .foregroundStyle(palette.secondary)
-                }
+                HStack(spacing: 6) {
+                    phasePill(palette)
 
-                Text(shortHash)
-                    .font(.system(size: 8.5, weight: .regular, design: .monospaced))
-                    .foregroundStyle(palette.tertiary)
+                    Text(shortHash)
+                        .font(.system(size: 8.5, weight: .regular, design: .monospaced))
+                        .foregroundStyle(palette.tertiary)
+                }
             }
 
             Spacer(minLength: 0)
         }
+    }
+
+    private func phasePill(_ palette: Palette) -> some View {
+        let color = palette.phaseText(torrent.phase)
+
+        return Text(torrent.phase.label)
+            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 
     private func actions(_ palette: Palette) -> some View {
@@ -102,9 +111,18 @@ struct InspectorView: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .frame(maxWidth: .infinity)
+            } else if torrent.isQueued {
+                Button {
+                    engine.togglePause(torrent)
+                } label: {
+                    Label("Escludi dalla coda", systemImage: "pause.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .frame(maxWidth: .infinity)
             } else {
                 Button {
-                    torrent.isQueued ? engine.togglePause(torrent) : engine.pause(torrent)
+                    engine.pause(torrent)
                 } label: {
                     Label("Pausa", systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
