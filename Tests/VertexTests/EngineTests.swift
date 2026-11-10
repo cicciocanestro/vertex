@@ -98,7 +98,7 @@ enum EngineTests {
             // signal the add sheet has to keep itself open.
             var duplicateOutcome: String?
             var duplicateCompleted = false
-            onMain {
+            _ = onMain {
                 engine.addMagnet(
                     magnet,
                     destination: destination,

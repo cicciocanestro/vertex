@@ -79,6 +79,9 @@ extension TorrentEngine {
                         guard let self else { return }
                         self.isProxyProbeInFlight = false
                         guard self.sessionGeneration == generation, !self.isShuttingDown else { return }
+                        // Ensure the probed target still matches the currently active proxy configuration
+                        let currentProxy = self.pollState.stats.proxy
+                        guard currentProxy.enabled, currentProxy.hostname == host, currentProxy.port == port else { return }
                         let newError: String? = isReachable ? nil : L("Connessione rifiutata")
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError

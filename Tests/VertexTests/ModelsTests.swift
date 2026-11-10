@@ -274,12 +274,13 @@ enum ModelsTests {
             // filtered (files set to Skip).
             let activeDownloading = Torrent.test(id: "1", name: "T1", stateCode: 3)
             let pausedTorrent = Torrent.test(id: "2", name: "T2", stateCode: 3, paused: true)
-            let seedingTorrent = Torrent.test(id: "3", name: "T3", stateCode: 5, finished: true, seeding: true)
+            let seedingTorrent = Torrent.test(id: "3", name: "T3", stateCode: 5, uploadRate: 1024, finished: true, seeding: true)
             let pausedCompleted = Torrent.test(
                 id: "4", name: "T4", stateCode: 5, finished: true, seeding: true, paused: true
             )
             let skippedFilesCompleted = Torrent.test(id: "5", name: "T5", stateCode: 4, finished: true)
             let checking = Torrent.test(id: "6", name: "T6", stateCode: 1)
+            let idleCompleted = Torrent.test(id: "7", name: "T7", stateCode: 5, uploadRate: 0, finished: true, seeding: true)
 
             let all = [
                 activeDownloading,
@@ -287,14 +288,22 @@ enum ModelsTests {
                 seedingTorrent,
                 pausedCompleted,
                 skippedFilesCompleted,
-                checking
+                checking,
+                idleCompleted
             ]
 
-            // A finished download with filtered pieces is "completato", not a
-            // seeder: this is the state that used to be unreachable.
+            // A finished download with filtered pieces is "completato".
             try TestRunner.assertEqual(TorrentFilter.category(for: skippedFilesCompleted), .completed)
+            try TestRunner.assertEqual(skippedFilesCompleted.phase, .completed)
+            // An active seeder with upload > 0 is seeding.
             try TestRunner.assertEqual(TorrentFilter.category(for: seedingTorrent), .seeding)
+            try TestRunner.assertEqual(seedingTorrent.phase, .seeding)
+            // A finished torrent that is paused shows as .completed phase (green ✓) but categorizes in paused filter.
+            try TestRunner.assertEqual(pausedCompleted.phase, .completed)
             try TestRunner.assertEqual(TorrentFilter.category(for: pausedCompleted), .paused)
+            // A finished torrent in seed with uploadRate == 0 shows as .completed phase (green ✓) and categorizes in completed.
+            try TestRunner.assertEqual(idleCompleted.phase, .completed)
+            try TestRunner.assertEqual(TorrentFilter.category(for: idleCompleted), .completed)
 
             let filteredDownloading = all.filter { TorrentFilter.downloading.matches($0) }
             try TestRunner.assertEqual(filteredDownloading.map(\.id), ["1", "6"])
@@ -309,7 +318,7 @@ enum ModelsTests {
             // seeded ones included, so the chip is not empty for a normal
             // library (where every finished torrent is a seeder).
             let filteredCompleted = all.filter { TorrentFilter.completed.matches($0) }
-            try TestRunner.assertEqual(filteredCompleted.map(\.id), ["3", "4", "5"])
+            try TestRunner.assertEqual(filteredCompleted.map(\.id), ["3", "4", "5", "7"])
             try TestRunner.assertTrue(
                 filteredCompleted.contains { TorrentFilter.seeding.matches($0) },
                 "Un torrent in seed deve comparire anche tra i completati"
@@ -322,11 +331,11 @@ enum ModelsTests {
             // The three primary buckets plus the state-4 group are exclusive
             // and cover the whole list exactly once.
             let completedGroup = all.filter { TorrentFilter.category(for: $0) == .completed }
-            try TestRunner.assertEqual(completedGroup.map(\.id), ["5"])
+            try TestRunner.assertEqual(completedGroup.map(\.id), ["5", "7"])
             let exclusive = filteredDownloading + filteredPaused + filteredSeeding + completedGroup
             try TestRunner.assertEqual(exclusive.count, all.count)
             try TestRunner.assertEqual(Set(exclusive.map(\.id)), Set(all.map(\.id)))
-            try TestRunner.assertFalse(filteredSeeding.contains { $0.id == "4" || $0.id == "5" })
+            try TestRunner.assertFalse(filteredSeeding.contains { $0.id == "4" || $0.id == "5" || $0.id == "7" })
 
             let counts = TorrentListPipeline.applyWithCounts(
                 to: all,
@@ -334,11 +343,11 @@ enum ModelsTests {
                 search: "",
                 sort: .recent
             ).counts
-            try TestRunner.assertEqual(counts[.all, default: -1], 6)
+            try TestRunner.assertEqual(counts[.all, default: -1], 7)
             try TestRunner.assertEqual(counts[.downloading, default: -1], 2)
             try TestRunner.assertEqual(counts[.seeding, default: -1], 1)
             try TestRunner.assertEqual(counts[.paused, default: -1], 2)
-            try TestRunner.assertEqual(counts[.completed, default: -1], 3)
+            try TestRunner.assertEqual(counts[.completed, default: -1], 4)
         }
 
         TestRunner.run("TorrentListPipeline: filtro, ricerca e ordinamento") {

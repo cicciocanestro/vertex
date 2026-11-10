@@ -168,7 +168,14 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         // `paused` alone does not say who paused the torrent: the auto-manager
         // pauses the torrents that do not fit in the active limit, so a paused
         // auto-managed torrent is waiting in the queue, not stopped by the user.
-        if paused { return autoManaged ? .queued : .paused }
+        if paused {
+            if autoManaged { return .queued }
+            // A torrent that finished downloading and was paused by the user is completed.
+            if finished || stateCode == LibtorrentStateCode.finished.rawValue || stateCode == LibtorrentStateCode.seeding.rawValue {
+                return .completed
+            }
+            return .paused
+        }
         if !hasMetadata || stateCode == LibtorrentStateCode.downloadingMetadata.rawValue {
             return .metadata
         }
@@ -176,16 +183,14 @@ package struct Torrent: Decodable, Identifiable, Equatable {
             || stateCode == LibtorrentStateCode.checkingResumeData.rawValue {
             return .checking
         }
-        // `seeding` alone is not enough: libtorrent keeps `is_seeding` true for
-        // every torrent that has all the pieces, so a finished torrent that
-        // skipped some files would be presented as a seeder. The state code is
-        // what separates a pure seeder (5) from a finished download with
-        // filtered pieces (4).
-        if seeding && stateCode == LibtorrentStateCode.seeding.rawValue {
-            return .seeding
-        }
-        if finished || stateCode == LibtorrentStateCode.finished.rawValue {
-            return .completed
+        // When completed or seeding, distinguish active uploading from completed idle:
+        // if actively uploading (uploadRate > 0) show seeding (purple ↑),
+        // if finished with uploadRate == 0 show completed (green ✓).
+        let isFullyDownloaded = finished
+            || stateCode == LibtorrentStateCode.finished.rawValue
+            || (seeding && stateCode == LibtorrentStateCode.seeding.rawValue)
+        if isFullyDownloaded {
+            return uploadRate > 0 ? .seeding : .completed
         }
         return .downloading
     }
@@ -470,6 +475,11 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
     /// finito ma non seeder puro" (files set to Skip), which is the only
     /// torrent libtorrent reports with state 4.
     package static func category(for torrent: Torrent) -> TorrentFilter {
+        // Paused unfinished torrents belong to .paused; finished torrents (even if paused or idle)
+        // are categorized according to their active state or under completed/paused.
+        if torrent.paused && !torrent.autoManaged {
+            return .paused
+        }
         switch torrent.phase {
         case .downloading, .metadata, .checking: return .downloading
         case .seeding: return .seeding

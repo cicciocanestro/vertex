@@ -217,19 +217,19 @@ struct InspectorView: View {
         _ palette: Palette,
         accent: Color? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             SectionLabel(text: label)
             Text(value)
-                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 11.2, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(accent ?? palette.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .vertexCard(palette, radius: 10)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .vertexCard(palette, radius: 9)
     }
 
     private func tabs(_ palette: Palette) -> some View {

@@ -225,14 +225,14 @@ struct FilterChip: View {
                 Capsule()
                     .fill(selected
                           ? Theme.mint.opacity(scheme == .dark ? 0.13 : 0.18)
-                          : (hover.value ? palette.input : .clear))
+                          : (hover.value ? palette.input : (scheme == .dark ? .clear : palette.card.opacity(0.6))))
             )
             .overlay(
                 Capsule()
                     .stroke(
                         selected
                             ? Theme.mint.opacity(0.38)
-                            : (hover.value ? palette.stroke : .clear),
+                            : (hover.value ? palette.stroke : (scheme == .dark ? .clear : palette.stroke.opacity(0.5))),
                         lineWidth: 1
                     )
                     .allowsHitTesting(false)

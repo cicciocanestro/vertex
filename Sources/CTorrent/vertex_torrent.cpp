@@ -596,11 +596,14 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
 
 void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status)
 {
-    std::int64_t size = status.total;
-    if (size <= 0)
-        size = status.total_done;
+    std::int64_t total_size = status.total;
+    if (total_size <= 0)
+        total_size = status.total_done;
 
-    std::int64_t wanted = status.total_wanted > 0 ? status.total_wanted : size;
+    std::int64_t wanted = status.total_wanted > 0 ? status.total_wanted : total_size;
+    std::int64_t size = (status.has_metadata && status.total_wanted > 0) ? status.total_wanted : total_size;
+    std::int64_t downloaded = (status.has_metadata && status.total_wanted > 0) ? status.total_wanted_done : status.total_done;
+
     std::int64_t remaining = (std::max)(std::int64_t(0), wanted - status.total_wanted_done);
     std::int64_t eta = -1;
     if (status.is_finished || status.is_seeding)
@@ -620,7 +623,7 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
     out << "\"state_code\":" << static_cast<int>(status.state) << ",";
     out << "\"progress\":" << std::fixed << std::setprecision(5) << double(status.progress) << ",";
     out << "\"size\":" << size << ",";
-    out << "\"downloaded\":" << status.total_done << ",";
+    out << "\"downloaded\":" << downloaded << ",";
     out << "\"uploaded\":" << (status.all_time_upload > 0 ? status.all_time_upload : status.total_upload) << ",";
     out << "\"download_rate\":" << status.download_payload_rate << ",";
     out << "\"upload_rate\":" << status.upload_payload_rate << ",";
@@ -693,8 +696,8 @@ vt_session* vt_session_create_full(const char* download_dir,
             return nullptr;
 
         lt::settings_pack settings;
-        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.0 libtorrent/" LIBTORRENT_VERSION);
-        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1000-");
+        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.10.0 libtorrent/" LIBTORRENT_VERSION);
+        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1A00-");
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |
                                                         lt::alert_category::storage |

@@ -262,6 +262,16 @@ enum TorrentIntegrationTests {
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
 
+        // Con il secondo file escluso (16 KiB saltati), la dimensione 'wanted'
+        // del torrent corrisponde solo al primo file (32_768 byte).
+        let leechSnap = try leech.session.snapshot()
+        let downloadedTorrent = try TestRunner.assertNotNil(
+            leechSnap.torrents.first { $0.id == leech.torrentID },
+            "Il torrent deve essere presente nello snapshot"
+        )
+        try TestRunner.assertEqual(downloadedTorrent.size, 32_768, "La dimensione considerata deve riflettere i file richiesti")
+        try TestRunner.assertEqual(downloadedTorrent.downloaded, 32_768, "I byte scaricati devono corrispondere a total_wanted_done")
+
         let skipped = leech.session.downloadDirectory
             .appendingPathComponent(fixture.rootName, isDirectory: true)
             .appendingPathComponent("second.bin")

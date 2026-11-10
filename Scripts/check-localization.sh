@@ -34,6 +34,8 @@ KEY_CALLS = re.compile(
     r'|\b(?:text|title|subtitle|help):\s*"((?:[^"\\]|\\.)*)"'  # component parameters
 )
 
+CPP_LAST_ERROR = re.compile(r'last_error\s*=\s*"((?:[^"\\]|\\.)*)"')
+
 failed = False
 
 
@@ -127,17 +129,40 @@ def strip_comments(text):
     return "".join(out)
 
 
+SWIFT_MAPPED_CASE = re.compile(r'case\s*"((?:[^"\\]|\\.)*)"\s*:\s*return')
+
 used = {}
+mapped_cases = set()
+
+# Scan Swift first
 for directory, _, files in os.walk(sources):
     for name in files:
-        if not name.endswith(".swift"):
-            continue
-        path = os.path.join(directory, name)
-        text = strip_comments(open(path, encoding="utf-8").read())
-        for match in KEY_CALLS.finditer(text):
-            key = next(group for group in match.groups() if group is not None)
-            if key:
-                used.setdefault(key, set()).add(os.path.basename(path))
+        if name.endswith(".swift"):
+            path = os.path.join(directory, name)
+            text = strip_comments(open(path, encoding="utf-8").read())
+            for match in KEY_CALLS.finditer(text):
+                key = next(group for group in match.groups() if group is not None)
+                if key:
+                    used.setdefault(key, set()).add(os.path.basename(path))
+            for match in SWIFT_MAPPED_CASE.finditer(text):
+                mapped_cases.add(match.group(1))
+
+# Check that every Italian C++ last_error is mapped in Swift localizedError
+for directory, _, files in os.walk(sources):
+    for name in files:
+        if name.endswith(".cpp") or name.endswith(".h"):
+            path = os.path.join(directory, name)
+            text = strip_comments(open(path, encoding="utf-8").read())
+            for match in CPP_LAST_ERROR.finditer(text):
+                raw_err = match.group(1)
+                # Skip pure English technical errors handled via lowercase substring matching
+                if any(raw_err.startswith(prefix) for prefix in [
+                    "Magnet URI exceeds", "Torrent path is not", "Cannot stat", "Torrent file exceeds"
+                ]):
+                    continue
+                if raw_err not in mapped_cases and raw_err not in tables["en"]:
+                    failed = True
+                    print(f"✗ Errore C++ non mappato né localizzato: {raw_err!r} ({os.path.basename(path)})", file=sys.stderr)
 
 missing = sorted(key for key in used if key not in tables["en"])
 print(f"  codice: {len(used)} chiavi distinte usate nei sorgenti")

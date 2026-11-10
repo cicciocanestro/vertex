@@ -134,10 +134,12 @@ final class TestRunner {
         }
     }
 
-    static func assertNotNil<T>(_ value: T?, _ message: String = "Expected non-nil value", file: StaticString = #file, line: UInt = #line) throws {
-        if value == nil {
+    @discardableResult
+    static func assertNotNil<T>(_ value: T?, _ message: String = "Expected non-nil value", file: StaticString = #file, line: UInt = #line) throws -> T {
+        guard let value else {
             throw TestFailure(message: message, file: file, line: line)
         }
+        return value
     }
 
     static func assertNil<T>(_ value: T?, _ message: String = "Expected nil value", file: StaticString = #file, line: UInt = #line) throws {
