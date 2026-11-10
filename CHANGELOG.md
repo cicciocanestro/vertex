@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.10.1] — 2026-11-10
+
+### Aspetto e Grafica
+- **Anello e stato "Completato"**: introdotta la comparsa naturale dell'anello circolare verde con
+  spunta ✓ (`TorrentPhase.completed`) per tutti i torrent completati al 100%, sia quando sono
+  fermati in pausa manuale, sia quando sono attivi ma senza peer in upload (`uploadRate == 0 B/s`).
+  L'anello viola `In seed` (↑) si attiva dinamicamente quando c'è upload in corso.
+- **Traccia di avanzamento nella riga**: allineata la barra orizzontale di progresso (`ProgressTrack`)
+  esclusivamente all'area dei contenuti (con rientro di 69 pt a sinistra), eliminando l'intersezione
+  e il taglio visivo sul `ProgressRing`.
+- **Modale Impostazioni**: altezza riproporzionata a 540 pt (anziché 700 pt) per eliminare lo spazio
+  vuoto inferiore ed evitare che la modale tocchi quasi i bordi della finestra a dimensioni minime.
+- **Dettagli Inspector**: l'intestazione dell'Inspector riutilizza la pillola di stato colorata
+  della riga e la griglia delle statistiche è resa più compatta.
+- **Filtri in tema chiaro**: aumentato il contrasto dei chip di filtro non selezionati nel tema chiaro.
+
+### Corretto
+- **Coerenza controlli torrent in coda**: nel menu contestuale della riga e nell'Inspector il pulsante
+  di pausa per un torrent in coda indica esplicitamente "Escludi dalla coda" (anziché "Riprendi" o "Pausa").
+- **Localizzazione errori tracker**: tradotti e mappati in italiano e inglese i messaggi di errore
+  del bridge per il tracker editor ("URL del tracker troppo lungo", "URL del tracker non valido", "Troppi tracker").
+- **Persistenza resume data per i tracker**: `vt_set_trackers` richiede esplicitamente il salvataggio
+  immediato del resume data (`save_info_dict`), garantendo la persistenza anche in caso di chiusura immediata.
+- **Coerenza dimensione con file esclusi**: per torrent con file impostati su "Skip", dimensione e byte
+  scaricati riflettono i soli file richiesti (`total_wanted`), allineandosi al progresso percentuale.
+- **Sonda TCP Proxy SOCKS5**: aggiunta guardia su host, porta e stato attivo all'arrivo dei risultati
+  della sonda asincrona per prevenire sovrascritture di stato con vecchie risposte.
+- **Script di localizzazione**: `check-localization.sh` esteso alla verifica automatica delle stringhe
+  di errore C++ assegnate a `last_error`.
+
 ## [1.10.0] — 2026-11-09
 
 ### Novità

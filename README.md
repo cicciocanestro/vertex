@@ -53,8 +53,8 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - Add from magnet links, `.torrent` files, drag and drop, clipboard, Finder or browser.
 - Search, filters, sorting and an inspector with statistics, files (Skip/Normal/High priorities) and trackers.
 - Pause/resume, sequential download, resume data and visible error details.
-- Global speed limits, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
-- **Refreshed UI**: settings sidebar, resizable inspector, per-row state pills, wide-window
+- Global speed limits, active torrent queue, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
+- **Refreshed UI**: settings sidebar, resizable inspector, per-row state pills (including queued and completed states), wide-window
   columns, actionable toasts and keyboard navigation (`↑`/`↓`).
 - **Interface binding**: pin the engine to one local address, so traffic only leaves through
   it. It is what makes the client usable behind CGNAT together with a WireGuard tunnel and
