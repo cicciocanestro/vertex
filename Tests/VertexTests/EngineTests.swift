@@ -17,10 +17,11 @@ enum EngineTests {
             }
 
             let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567"
+            let destination = engineDownloadPath(workspace, "magnet")
             let addError = onMain {
                 engine.addMagnet(
                     magnet,
-                    destination: engineDownloadPath(workspace, "magnet"),
+                    destination: destination,
                     startPaused: true,
                     sequential: false
                 )
@@ -73,8 +74,7 @@ enum EngineTests {
             // The bridge call runs off the main thread, so a valid request is
             // accepted synchronously and reports its outcome through the
             // callback. The sheet closes only on that outcome.
-            var firstOutcome: String?
-            var firstCompleted = false
+            let firstBox = onMain { AsyncBox<String>() }
             let accepted = onMain {
                 engine.addMagnet(
                     magnet,
@@ -82,22 +82,21 @@ enum EngineTests {
                     startPaused: true,
                     sequential: false,
                     completion: { failure in
-                        firstOutcome = failure
-                        firstCompleted = true
+                        firstBox.value = failure
+                        firstBox.isDone = true
                     }
                 )
             }
             try TestRunner.assertNil(accepted, "Un magnet valido deve essere accettato senza errori sincroni")
-            try waitUntil("callback della prima aggiunta") { firstCompleted }
-            try TestRunner.assertNil(firstOutcome, "La prima aggiunta non deve riportare errori")
+            try waitUntil("callback della prima aggiunta") { onMain { firstBox.isDone } }
+            try TestRunner.assertNil(onMain { firstBox.value }, "La prima aggiunta non deve riportare errori")
 
             try waitForTorrent(engine)
             try TestRunner.assertEqual(onMain { engine.torrents.count }, 1)
 
             // A duplicate must surface through the callback: it is the only
             // signal the add sheet has to keep itself open.
-            var duplicateOutcome: String?
-            var duplicateCompleted = false
+            let duplicateBox = onMain { AsyncBox<String>() }
             _ = onMain {
                 engine.addMagnet(
                     magnet,
@@ -105,12 +104,13 @@ enum EngineTests {
                     startPaused: true,
                     sequential: false,
                     completion: { failure in
-                        duplicateOutcome = failure
-                        duplicateCompleted = true
+                        duplicateBox.value = failure
+                        duplicateBox.isDone = true
                     }
                 )
             }
-            try waitUntil("errore dell'aggiunta duplicata") { duplicateCompleted }
+            try waitUntil("errore dell'aggiunta duplicata") { onMain { duplicateBox.isDone } }
+            let duplicateOutcome = onMain { duplicateBox.value }
             try TestRunner.assertNotNil(duplicateOutcome, "Un torrent duplicato deve riportare un errore")
             try TestRunner.assertEqual(onMain { engine.torrents.count }, 1)
         }
@@ -157,30 +157,24 @@ enum EngineTests {
             // libtorrent applies file priorities asynchronously, so the refreshed
             // detail converges a few polls later instead of immediately.
             try waitFor(engine) {
-                onMain {
-                    engine.detail?.files.first(where: { $0.index == second.index })?.isWanted == false
-                }
+                engine.detail?.files.first(where: { $0.index == second.index })?.isWanted == false
             }
 
             // Bulk file priorities: deselect all, then select all.
             onMain { engine.setAllFilePriorities(wanted: false, torrentID: torrent.id) }
             try waitFor(engine) {
-                onMain {
-                    let files = engine.detail?.files ?? []
-                    return files.count == 2 && files.allSatisfy { !$0.isWanted }
-                }
+                let files = engine.detail?.files ?? []
+                return files.count == 2 && files.allSatisfy { !$0.isWanted }
             }
             onMain { engine.setAllFilePriorities(wanted: true, torrentID: torrent.id) }
             try waitFor(engine) {
-                onMain {
-                    let files = engine.detail?.files ?? []
-                    return files.count == 2 && files.allSatisfy(\.isWanted)
-                }
+                let files = engine.detail?.files ?? []
+                return files.count == 2 && files.allSatisfy(\.isWanted)
             }
 
             onMain { engine.togglePause(torrent) }
             try waitFor(engine) {
-                onMain { engine.torrents.first?.paused == false }
+                engine.torrents.first?.paused == false
             }
             guard let resumed = onMain({ engine.torrents.first }) else {
                 try TestRunner.assertTrue(false, "Lo snapshot del torrent deve essere disponibile")
@@ -404,18 +398,18 @@ enum EngineTests {
                 "La sessione deve essere pronta dopo il riavvio per PEX"
             )
 
-            var firstCompleted = false
-            var secondCompleted = false
+            let firstCompleted = onMain { AsyncBox<Void>() }
+            let secondCompleted = onMain { AsyncBox<Void>() }
             var pausedAgain = configuration
             pausedAgain.pex = false
             onMain {
                 engine.setConfigurationForTesting(pausedAgain)
                 engine.applySettings()
-                engine.shutdown { firstCompleted = true }
-                engine.shutdown { secondCompleted = true }
+                engine.shutdown { firstCompleted.isDone = true }
+                engine.shutdown { secondCompleted.isDone = true }
             }
             try waitUntil("shutdown con completion concorrenti") {
-                firstCompleted && secondCompleted
+                onMain { firstCompleted.isDone && secondCompleted.isDone }
             }
             try TestRunner.assertFalse(onMain { engine.isReady })
         }
@@ -426,10 +420,11 @@ enum EngineTests {
             defer { shutdown(engine) }
 
             let fixture = IntegrationFixture.v1
+            let downloadPath = engineDownloadPath(workspace, "views")
             let addError = onMain {
                 engine.addTorrentFile(
                     fixture.torrentURL,
-                    destination: engineDownloadPath(workspace, "views"),
+                    destination: downloadPath,
                     startPaused: true,
                     sequential: false
                 )
@@ -511,7 +506,7 @@ enum EngineTests {
     private static func waitFor(
         _ engine: TorrentEngine,
         timeout: TimeInterval = 10,
-        _ condition: @MainActor () -> Bool
+        _ condition: @escaping @Sendable @MainActor () -> Bool
     ) throws {
         try TestsSupport.waitFor("condizione dell'engine", timeout: timeout) {
             onMain {
@@ -534,12 +529,22 @@ enum EngineTests {
     }
 
     private static func shutdown(_ engine: TorrentEngine) {
-        var completed = false
-        onMain { engine.shutdown { completed = true } }
+        let box = onMain { AsyncBox<Void>() }
+        onMain { engine.shutdown { box.isDone = true } }
         let deadline = Date().addingTimeInterval(5)
-        while !completed && Date() < deadline {
+        while !onMain({ box.isDone }) && Date() < deadline {
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
         }
+    }
+}
+
+@MainActor
+private final class AsyncBox<T> {
+    var value: T?
+    var isDone = false
+
+    init(_ value: T? = nil) {
+        self.value = value
     }
 }
 #endif

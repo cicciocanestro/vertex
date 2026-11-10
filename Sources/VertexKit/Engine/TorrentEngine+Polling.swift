@@ -89,8 +89,11 @@ extension TorrentEngine {
                                 self.pollState.stats.proxy.error = newError
                             }
                             if isReachable, let s = self.session {
+                                let pointer = SessionPointerBox(s)
                                 self.sessionQueue.async {
-                                    vt_clear_proxy_error(s)
+                                    if let value = pointer.value {
+                                        vt_clear_proxy_error(value)
+                                    }
                                 }
                             }
                         }

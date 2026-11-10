@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.11.0] — 2026-11-10
+
+### Architettura e Concorrenza
+- **Migrazione a Swift 6 language mode**: il package adotta `swift-tools-version: 6.0` e
+  `swiftLanguageModes: [.v6]`, abilitando la verifica statica completa contro i data race
+  (`strict concurrency`) su tutti i moduli (`CTorrent`, `VertexKit`, `Vertex`, `VertexTestRunner`).
+- **Isolamento `@MainActor`**: esplicitato l'isolamento del thread principale su `OpenPanelFactory`
+  (pannelli di selezione file e cartelle), `AppAppearance` (gestione aspetto dell'app e delle finestre),
+  sullo stato locale delle viste (`UIState<Value>`, `DotGridCache`) e sugli handler associati.
+- **Thread-safety e tipi `Sendable`**:
+  - `TorrentDropHandler` adotta closure `@Sendable @MainActor` ed estende `TorrentDropItem` a `Sendable`,
+    garantendo il passaggio sicuro dei file e magnet trascinati tra i thread di AppKit e la UI.
+  - Sincronizzazione sicura del puntatore di sessione C++ (`vt_session*`) tra il motore e la coda seriale
+    dedicata tramite `SessionPointerBox`.
+  - La soglia `compactWidthThreshold` in `StatusBarView` è dichiarata `nonisolated` per l'uso
+    conforme nella closure `Sendable` di `.onGeometryChange`.
+- **Suite di test modernizzata**:
+  - Introdotto `AsyncBox` per isolare e sincronizzare le asserzioni delle callback asincrone su `@MainActor`
+    senza data race di regione.
+  - Contatori del test runner protetti con `nonisolated(unsafe)` e `onMain` vincolato a tipi `Sendable`.
+- **Requisiti di build**: aggiornato il requisito per la compilazione dai sorgenti a Swift 6.0+
+  (incluso in Xcode 16.0+ e Command Line Tools per macOS Sequoia).
+
 ## [1.10.2] — 2026-11-10
 
 ### Aspetto e Grafica

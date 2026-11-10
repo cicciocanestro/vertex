@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 /// Single place for the open panels used by the main window, the add sheet and
 /// settings. Keeps the torrent type filter and the directory options aligned.
+@MainActor
 enum OpenPanelFactory {
     static func torrent(
         allowMultiple: Bool,

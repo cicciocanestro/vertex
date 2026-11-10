@@ -198,7 +198,7 @@ enum AppCommandsTests {
         }
     }
 
-    private final class NotificationRecorder {
+    private final class NotificationRecorder: @unchecked Sendable {
         private(set) var names: [Notification.Name] = []
         private(set) var objects: [String?] = []
 

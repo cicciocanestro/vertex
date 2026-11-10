@@ -162,6 +162,7 @@ struct AmbientBackground: View {
     }
 }
 
+@MainActor
 private final class DotGridCache: ObservableObject {
     var path = Path()
     var size: CGSize = .zero

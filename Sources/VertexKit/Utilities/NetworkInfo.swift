@@ -90,7 +90,9 @@ enum LocalNetwork {
             )
             guard result == 0 else { continue }
 
-            let ip = String(cString: host)
+            let ip = host.withUnsafeBufferPointer { ptr in
+                ptr.baseAddress.map { String(cString: $0) } ?? ""
+            }
             guard !ip.isEmpty, isUsableLANAddress(ip) else { continue }
 
             let name = String(cString: interface.ifa_name)

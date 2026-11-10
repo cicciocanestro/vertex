@@ -81,7 +81,7 @@ cd vertex
 open dist/Vertex.app
 ```
 
-Per compilare servono Xcode Command Line Tools con Swift 5.10+ (testato con Swift 6.4) e
+Per compilare servono Xcode Command Line Tools con Swift 6.0+ (testato con Swift 6.4) e
 CMake 3.20+. La prima build compila le dipendenze fissate in `Scripts/deps.env`; le build
 successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a runtime.
 

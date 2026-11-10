@@ -18,12 +18,12 @@ final class TestRunner {
         let failure: String?
     }
 
-    static var passed = 0
-    static var failed = 0
-    static var failures: [String] = []
-    static var records: [TestRecord] = []
-    static var suiteOrder: [String] = []
-    static var currentSuite = "Tests"
+    nonisolated(unsafe) static var passed = 0
+    nonisolated(unsafe) static var failed = 0
+    nonisolated(unsafe) static var failures: [String] = []
+    nonisolated(unsafe) static var records: [TestRecord] = []
+    nonisolated(unsafe) static var suiteOrder: [String] = []
+    nonisolated(unsafe) static var currentSuite = "Tests"
 
     static func beginSuite(_ name: String) {
         currentSuite = name
@@ -152,7 +152,7 @@ final class TestRunner {
 // MARK: - Test Helpers
 
 /// Runs a closure on the main actor from the synchronous test runner.
-func onMain<T>(_ body: @MainActor () throws -> T) rethrows -> T {
+func onMain<T: Sendable>(_ body: @MainActor () throws -> T) rethrows -> T {
     try MainActor.assumeIsolated(body)
 }
 

@@ -1,7 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
 
-enum TorrentDropItem {
+enum TorrentDropItem: Sendable {
     case torrent(URL)
     case magnet(String)
 }
@@ -19,8 +19,8 @@ enum TorrentDropHandler {
     @discardableResult
     static func handle(
         _ providers: [NSItemProvider],
-        onItem: @escaping @MainActor (TorrentDropItem) -> Void,
-        onRejected: (@MainActor (String?) -> Void)? = nil
+        onItem: @escaping @Sendable @MainActor (TorrentDropItem) -> Void,
+        onRejected: (@Sendable @MainActor (String?) -> Void)? = nil
     ) -> Bool {
         var handled = false
 

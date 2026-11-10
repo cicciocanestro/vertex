@@ -13,7 +13,7 @@ struct StatusBarView: View {
     /// Below this width the status bar drops the least essential groups
     /// (limits and torrent counters) instead of compressing the speed labels
     /// until they wrap onto a second line.
-    private static let compactWidthThreshold: CGFloat = 1120
+    nonisolated private static let compactWidthThreshold: CGFloat = 1120
     @StateObject private var compactLayout = UIState(false)
 
     var body: some View {
