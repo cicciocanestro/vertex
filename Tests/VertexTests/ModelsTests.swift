@@ -298,8 +298,8 @@ enum ModelsTests {
             // An active seeder with upload > 0 is seeding.
             try TestRunner.assertEqual(TorrentFilter.category(for: seedingTorrent), .seeding)
             try TestRunner.assertEqual(seedingTorrent.phase, .seeding)
-            // A finished torrent that is paused shows as .completed phase (green ✓) but categorizes in paused filter.
-            try TestRunner.assertEqual(pausedCompleted.phase, .completed)
+            // A finished torrent that is paused shows as .completedPaused phase (green ring with ⏸ icon, pill "Completato · In pausa") and categorizes in paused filter.
+            try TestRunner.assertEqual(pausedCompleted.phase, .completedPaused)
             try TestRunner.assertEqual(TorrentFilter.category(for: pausedCompleted), .paused)
             // A finished torrent in seed with uploadRate == 0 shows as .completed phase (green ✓) and categorizes in completed.
             try TestRunner.assertEqual(idleCompleted.phase, .completed)

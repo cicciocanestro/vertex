@@ -323,12 +323,23 @@ struct TorrentRow: View {
     private func phasePill(_ palette: Palette) -> some View {
         let color = palette.phaseText(torrent.phase)
 
-        return Text(torrent.phase.label)
-            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-            .foregroundStyle(color)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1.5)
-            .background(Capsule().fill(color.opacity(0.12)))
+        return Group {
+            if torrent.phase == .completedPaused {
+                HStack(spacing: 3) {
+                    Text(L("Completato"))
+                        .foregroundStyle(color)
+                    Text(L("· In pausa"))
+                        .foregroundStyle(Color.primary.opacity(0.5))
+                }
+            } else {
+                Text(torrent.phase.label)
+                    .foregroundStyle(color)
+            }
+        }
+        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1.5)
+        .background(Capsule().fill(color.opacity(0.12)))
     }
 
     /// Narrow layout: the pill carries the state, these are the remaining

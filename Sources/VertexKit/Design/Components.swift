@@ -40,7 +40,7 @@ struct ProgressRing: View {
             return LinearGradient(colors: [Theme.blue, Theme.violet], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .seeding:
             return LinearGradient(colors: [Theme.violet, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .completed:
+        case .completed, .completedPaused:
             return LinearGradient(colors: [Theme.green, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .paused:
             return LinearGradient(colors: [Color.primary.opacity(0.28), Color.primary.opacity(0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -51,7 +51,7 @@ struct ProgressRing: View {
 
     private var iconColor: Color {
         switch phase {
-        case .paused: return Color.primary.opacity(0.45)
+        case .paused, .completedPaused: return Color.primary.opacity(0.45)
         case .metadata: return Theme.amber
         case .checking: return Theme.blue
         case .seeding: return Theme.violet
@@ -64,8 +64,8 @@ struct ProgressRing: View {
     @ViewBuilder
     private var icon: some View {
         switch phase {
-        case .paused, .queued:
-            // The queue is a kind of pause, but the row pill says which one.
+        case .paused, .queued, .completedPaused:
+            // Paused / queued / completed in pause show the respective pause or clock icon.
             Image(systemName: phase == .queued ? "clock" : "pause.fill")
                 .font(.system(size: size * 0.25, weight: .bold))
                 .foregroundStyle(iconColor)

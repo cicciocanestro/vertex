@@ -7,6 +7,7 @@ package enum TorrentPhase: Equatable {
     case checking
     case seeding
     case completed
+    case completedPaused
     case paused
     /// Paused by the queue manager: the torrent is waiting for an active slot.
     case queued
@@ -18,6 +19,7 @@ package enum TorrentPhase: Equatable {
         case .checking: return L("Verifica")
         case .seeding: return L("In seed")
         case .completed: return L("Completato")
+        case .completedPaused: return L("Completato · In pausa")
         case .paused: return L("In pausa")
         case .queued: return L("In coda")
         }
@@ -170,9 +172,9 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         // auto-managed torrent is waiting in the queue, not stopped by the user.
         if paused {
             if autoManaged { return .queued }
-            // A torrent that finished downloading and was paused by the user is completed.
+            // A torrent that finished downloading and was paused by the user is completed (paused).
             if finished || stateCode == LibtorrentStateCode.finished.rawValue || stateCode == LibtorrentStateCode.seeding.rawValue {
-                return .completed
+                return .completedPaused
             }
             return .paused
         }
@@ -483,7 +485,7 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         switch torrent.phase {
         case .downloading, .metadata, .checking: return .downloading
         case .seeding: return .seeding
-        case .completed: return .completed
+        case .completed, .completedPaused: return .completed
         case .paused: return .paused
         // A queued torrent is not stopped by the user: it waits for a slot in the
         // bucket it belongs to, so "In pausa" keeps meaning "paused by you".

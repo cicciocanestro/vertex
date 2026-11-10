@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.2] — 2026-11-10
+
+### Aspetto e Grafica
+- **Stato completato in pausa distinto**: quando un torrent completato al 100% viene fermato in
+  pausa manuale, il cerchio esterno rimane verde al 100% ma l'icona interna mostra la pausa `⏸` in
+  grigio anziché la spunta `✓`, e la pillola indica "Completato" in verde affiancato da "· In pausa"
+  in grigio tenue, rendendo evidente a colpo d'occhio che il torrent è sia finito sia fermato.
+
 ## [1.10.1] — 2026-11-10
 
 ### Aspetto e Grafica
