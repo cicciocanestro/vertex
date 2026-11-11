@@ -696,8 +696,8 @@ vt_session* vt_session_create_full(const char* download_dir,
             return nullptr;
 
         lt::settings_pack settings;
-        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.10.0 libtorrent/" LIBTORRENT_VERSION);
-        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1A00-");
+        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.13.0 libtorrent/" LIBTORRENT_VERSION);
+        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1D00-");
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |
                                                         lt::alert_category::storage |
@@ -1457,6 +1457,7 @@ namespace {
 enum class ControlAction {
     pause,
     resume,
+    forceStart,
     reannounce,
     sequentialOn,
     sequentialOff,
@@ -1470,6 +1471,7 @@ ControlAction parse_control_action(std::string const& action)
 {
     if (action == "pause")         return ControlAction::pause;
     if (action == "resume")        return ControlAction::resume;
+    if (action == "force_start")   return ControlAction::forceStart;
     if (action == "reannounce")    return ControlAction::reannounce;
     if (action == "sequential_on") return ControlAction::sequentialOn;
     if (action == "sequential_off")return ControlAction::sequentialOff;
@@ -1513,6 +1515,15 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // Resuming puts the torrent back in the queue: the auto-manager owns
             // the decision of when it actually starts.
             handle.set_flags(lt::torrent_flags::auto_managed);
+            handle.resume();
+            break;
+
+        case ControlAction::forceStart:
+            // Force start starts the torrent immediately, bypassing queue limits
+            // by disabling auto_managed and resuming.
+            if (handle.status(lt::status_flags_t{}).errc)
+                handle.clear_error();
+            handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.resume();
             break;
 
@@ -1640,6 +1651,7 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
         }
         handle.file_priority(lt::file_index_t(file_index),
                              lt::download_priority_t(std::uint8_t(priority)));
+        handle.save_resume_data(lt::torrent_handle::save_info_dict);
         return 0;
     }
     VT_CATCH_ALL(session, -1)
@@ -1674,6 +1686,7 @@ int vt_set_all_file_priorities(vt_session* session, const char* torrent_id_value
             std::size_t((std::max)(0, count)),
             lt::download_priority_t(std::uint8_t(priority)));
         handle.prioritize_files(priorities);
+        handle.save_resume_data(lt::torrent_handle::save_info_dict);
         return 0;
     }
     VT_CATCH_ALL(session, -1)

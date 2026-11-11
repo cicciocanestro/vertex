@@ -71,6 +71,7 @@
 "Disattiva download sequenziale" = "Disattiva download sequenziale";
 "Download sequenziale" = "Download sequenziale";
 "%@ di %@" = "%@ di %@";
+"%@ di %@ · %@" = "%@ di %@ · %@";
 "Recupero metadati" = "Recupero metadati";
 "Verifica in corso" = "Verifica in corso";
 "ETA %@" = "ETA %@";
@@ -172,6 +173,9 @@
 "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@." = "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.";
 "Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT." = "Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT.";
 "Il test copre solo il TCP; il traffico UDP/uTP non è verificato." = "Il test copre solo il TCP; il traffico UDP/uTP non è verificato.";
+"Test non disponibile con proxy SOCKS5 attivo" = "Test non disponibile con proxy SOCKS5 attivo";
+"Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5." = "Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5.";
+"In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel." = "In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel.";
 "Impostazioni rete" = "Impostazioni rete";
 "Il servizio di test non ha restituito nodi." = "Il servizio di test non ha restituito nodi.";
 "Il servizio di test non ha risposto in tempo." = "Il servizio di test non ha risposto in tempo.";
@@ -273,5 +277,9 @@
 "Torrent attivi" = "Torrent attivi";
 "Gli altri restano in coda" = "Gli altri restano in coda";
 "Escludi dalla coda" = "Escludi dalla coda";
+"Avvia ora (ignora coda)" = "Avvia ora (ignora coda)";
+"Avvia ora" = "Avvia ora";
+"Escludi" = "Escludi";
+"Avvia subito ignorando i limiti della coda" = "Avvia subito ignorando i limiti della coda";
 "Numero di torrent attivi non valido" = "Numero di torrent attivi non valido";
 "Inserisci 0 (illimitato) o un valore tra 1 e 1000." = "Inserisci 0 (illimitato) o un valore tra 1 e 1000.";

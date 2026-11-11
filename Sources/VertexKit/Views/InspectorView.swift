@@ -126,13 +126,24 @@ struct InspectorView: View {
                 .frame(maxWidth: .infinity)
             } else if torrent.isQueued {
                 Button {
+                    engine.forceStart(torrent)
+                } label: {
+                    Label(L("Avvia ora"), systemImage: "bolt.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .frame(maxWidth: .infinity)
+                .help(L("Avvia subito ignorando i limiti della coda"))
+
+                Button {
                     engine.togglePause(torrent)
                 } label: {
-                    Label("Escludi dalla coda", systemImage: "pause.fill")
+                    Label("Escludi", systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryButtonStyle())
                 .frame(maxWidth: .infinity)
+                .help(L("Escludi dalla coda"))
             } else {
                 Button {
                     engine.pause(torrent)
@@ -356,12 +367,18 @@ struct InspectorView: View {
             .accessibilityLabel(Text(L("Priorità del file")))
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(fileName(file.path))
-                    .font(Typography.smallMediumText)
-                    .foregroundStyle(file.isWanted ? palette.text : palette.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(file.path)
+                HStack(spacing: 5) {
+                    Image(systemName: fileTypeIcon(file.path))
+                        .font(Typography.badgeText)
+                        .foregroundStyle(palette.tertiary)
+
+                    Text(fileName(file.path))
+                        .font(Typography.smallMediumText)
+                        .foregroundStyle(file.isWanted ? palette.text : palette.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(file.path)
+                }
 
                 // Nested files are only distinguishable by their folder: the
                 // row used to show the last path component alone.
@@ -375,16 +392,23 @@ struct InspectorView: View {
                 }
 
                 if file.progress > 0 && file.progress < 1 {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.primary.opacity(0.06))
-                            Capsule()
-                                .fill(Theme.mint.opacity(0.65))
-                                .frame(width: geometry.size.width * file.progress)
+                    HStack(spacing: 6) {
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.06))
+                                Capsule()
+                                    .fill(Theme.mint.opacity(0.65))
+                                    .frame(width: geometry.size.width * file.progress)
+                            }
                         }
+                        .frame(height: 2.5)
+
+                        Text(Fmt.percent(file.progress))
+                            .font(Typography.microRoundedText)
+                            .monospacedDigit()
+                            .foregroundStyle(palette.tertiary)
                     }
-                    .frame(height: 2.5)
                 }
             }
             .layoutPriority(1)
@@ -560,6 +584,24 @@ struct InspectorView: View {
 
     private func fileFolder(_ path: String) -> String {
         (path as NSString).deletingLastPathComponent
+    }
+
+    private func fileTypeIcon(_ path: String) -> String {
+        let ext = (path as NSString).pathExtension.lowercased()
+        switch ext {
+        case "mkv", "mp4", "avi", "mov", "wmv", "m4v":
+            return "film"
+        case "mp3", "flac", "aac", "wav", "m4a", "ac3", "ogg":
+            return "waveform"
+        case "srt", "sub", "vtt", "txt", "nfo":
+            return "doc.text"
+        case "zip", "tar", "gz", "rar", "7z", "iso", "dmg":
+            return "doc.zipper"
+        case "jpg", "jpeg", "png", "webp", "gif":
+            return "photo"
+        default:
+            return "doc"
+        }
     }
 
     private var shortHash: String {

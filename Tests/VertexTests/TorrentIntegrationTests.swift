@@ -472,18 +472,26 @@ enum TorrentIntegrationTests {
             return torrent.paused && torrent.autoManaged
         }
 
+        // Force start bypasses the limit immediately by disabling auto_managed and resuming.
+        try session.control(torrentID: queuedID, action: "force_start")
+        try TestsSupport.waitFor("forzato l'avvio ignorando il limite") {
+            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
+                return false
+            }
+            return !torrent.paused && !torrent.autoManaged
+        }
+        try TestRunner.assertEqual(
+            try session.snapshot().torrents.filter { !$0.paused }.count,
+            2,
+            "Entrambi i torrent devono essere attivi dopo force_start anche se il limite è 1"
+        )
+
         // Freeing the slot starts the queued torrent without another command.
         guard let activeID = try session.snapshot().torrents.first(where: { !$0.paused })?.id else {
             try TestRunner.assertTrue(false, "Serve un torrent attivo da mettere in pausa")
             return
         }
         try session.control(torrentID: activeID, action: "pause")
-        try TestsSupport.waitFor("il torrent in coda parte quando si libera lo slot") {
-            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
-                return false
-            }
-            return !torrent.paused
-        }
 
         // Removing the limit wakes everything up.
         try session.setActiveLimit(0)

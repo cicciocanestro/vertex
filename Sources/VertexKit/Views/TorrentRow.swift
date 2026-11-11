@@ -154,7 +154,7 @@ struct TorrentRow: View {
                             minWidth: 62,
                             palette: palette
                         )
-                    } else if torrent.finished && torrent.ratio > 0 {
+                    } else if torrent.finished {
                         metric(
                             icon: "arrow.left.arrow.right",
                             value: "×" + Fmt.ratio(torrent.ratio),
@@ -248,7 +248,7 @@ struct TorrentRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(backgroundFill(palette))
                 .overlay(alignment: .bottom) {
-                    if torrent.displayProgress < 0.999 {
+                    if torrent.hasMetadata && torrent.displayProgress > 0 && torrent.displayProgress < 0.999 {
                         ProgressTrack(
                             progress: torrent.displayProgress,
                             color: palette.phaseAccent(torrent.phase)
@@ -266,10 +266,12 @@ struct TorrentRow: View {
                 .allowsHitTesting(false)
         )
         .shadow(
-            color: selected ? Theme.mint.opacity(0.06) : .clear,
-            radius: 14,
+            color: selected
+                ? Theme.mint.opacity(0.12)
+                : (scheme == .dark ? Color.clear : Color.black.opacity(0.03)),
+            radius: selected ? 14 : 6,
             x: 0,
-            y: 4
+            y: selected ? 4 : 2
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture(count: 2) {
@@ -290,6 +292,12 @@ struct TorrentRow: View {
             if wide.value != value { wide.value = value }
         }
         .contextMenu {
+            if torrent.isQueued {
+                Button(L("Avvia ora (ignora coda)")) {
+                    engine.forceStart(torrent)
+                }
+            }
+
             Button(L(torrent.isQueued ? "Escludi dalla coda" : (torrent.paused ? "Riprendi" : "Pausa"))) {
                 engine.togglePause(torrent)
             }
@@ -346,9 +354,14 @@ struct TorrentRow: View {
     }
 
     /// Narrow layout: the pill carries the state, these are the remaining
-    /// details. Wide layout moves size/ETA/peers into dedicated columns.
+    /// details. In wide layout, we preserve progress details for paused or queued unfinished torrents.
     private var metaDetails: String {
-        if wide.value { return "" }
+        if wide.value {
+            if torrent.hasMetadata && !torrent.finished && torrent.size > 0 && torrent.downloaded > 0 {
+                return LF("%@ di %@ · %@", Fmt.bytes(torrent.downloaded), Fmt.bytes(torrent.size), Fmt.percent(torrent.displayProgress))
+            }
+            return ""
+        }
 
         var parts: [String] = []
         if torrent.hasMetadata {
@@ -379,12 +392,13 @@ struct TorrentRow: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(Typography.badgeText)
+                .foregroundStyle(palette.tertiary)
             Text(value)
                 .font(Typography.captionMediumRoundedText)
                 .monospacedDigit()
+                .foregroundStyle(palette.secondary)
                 .lineLimit(1)
         }
-        .foregroundStyle(palette.tertiary)
         .frame(minWidth: minWidth, alignment: .leading)
         .help(L(help))
     }
@@ -398,7 +412,7 @@ struct TorrentRow: View {
 
     private func borderColor(_ palette: Palette) -> Color {
         if selected {
-            return Theme.mint.opacity(0.32)
+            return Theme.mint.opacity(scheme == .dark ? 0.45 : 0.60)
         }
         return hover.value ? palette.strokeStrong : palette.stroke
     }

@@ -84,6 +84,7 @@
 
 /* Torrent row meta */
 "%@ di %@" = "%@ of %@";
+"%@ di %@ · %@" = "%@ of %@ · %@";
 "Recupero metadati" = "Fetching metadata";
 "Verifica in corso" = "Checking";
 "ETA %@" = "ETA %@";
@@ -197,6 +198,9 @@
 "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@." = "Enable UPnP/NAT-PMP on the router, or forward TCP and UDP %ld to %@.";
 "Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT." = "Check that the router's WAN IP matches the public IP: if they differ, you may be behind CGNAT.";
 "Il test copre solo il TCP; il traffico UDP/uTP non è verificato." = "The test only covers TCP; UDP/uTP traffic is not checked.";
+"Test non disponibile con proxy SOCKS5 attivo" = "Test not available with active SOCKS5 proxy";
+"Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5." = "External reachability test does not apply when traffic is routed through SOCKS5 proxy.";
+"In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel." = "In split-tunneling configurations, verify that the port test reflects the tunnel gateway IP.";
 "Impostazioni rete" = "Network settings";
 
 /* Port reachability tester errors */
@@ -304,5 +308,9 @@
 "Torrent attivi" = "Active torrents";
 "Gli altri restano in coda" = "The others wait in the queue";
 "Escludi dalla coda" = "Remove from queue";
+"Avvia ora (ignora coda)" = "Start now (ignore queue)";
+"Avvia ora" = "Start now";
+"Escludi" = "Remove";
+"Avvia subito ignorando i limiti della coda" = "Start immediately ignoring queue limits";
 "Numero di torrent attivi non valido" = "Invalid active-torrent count";
 "Inserisci 0 (illimitato) o un valore tra 1 e 1000." = "Enter 0 (unlimited) or a value between 1 and 1000.";

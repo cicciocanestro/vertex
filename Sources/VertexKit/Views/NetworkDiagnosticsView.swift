@@ -409,9 +409,13 @@ struct NetworkDiagnosticsView: View {
                         tester.start(port: testPort)
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(testPort <= 0 || isTesting)
+                    .disabled(testPort <= 0 || isTesting || engine.stats.isProxyActive)
 
-                    if case .idle = tester.state {
+                    if engine.stats.isProxyActive {
+                        Text(L("Test non disponibile con proxy SOCKS5 attivo"))
+                            .font(Typography.captionTinyNarrowText)
+                            .foregroundStyle(palette.tertiary)
+                    } else if case .idle = tester.state {
                         Text("Test TCP tramite check-host.net")
                             .font(Typography.captionTinyNarrowText)
                             .foregroundStyle(palette.tertiary)
@@ -438,6 +442,9 @@ struct NetworkDiagnosticsView: View {
     }
 
     private var testStateText: String {
+        if engine.stats.isProxyActive {
+            return L("Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5.")
+        }
         switch tester.state {
         case .idle:
             return L("Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test.")
@@ -482,6 +489,7 @@ struct NetworkDiagnosticsView: View {
             if engine.stats.isBoundToAddress {
                 instruction(LF("Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.", engine.stats.bindAddress, engine.stats.effectivePort), palette)
                 instruction(L("Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta."), palette)
+                instruction(L("In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel."), palette)
             } else {
                 instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
                 instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)

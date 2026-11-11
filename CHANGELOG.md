@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.13.0] — 2026-11-11
+
+### Novità e Funzionalità
+- **Avvio forzato dei torrent in coda**: introdotto il comando `force_start` nel bridge C++ e nell'engine.
+  Nel menu contestuale della riga compare ora "Avvia ora (ignora coda)" e nell'Inspector il pulsante
+  primario dedicato "Avvia ora", consentendo di avviare immediatamente un download scavalcando i limiti di coda
+  senza dover modificare le preferenze globali.
+- **I/O cartelle completamente asincrono**: spostata la validazione e creazione cartelle (`preparedDestination`)
+  interamente sulla coda seriale di background `sessionQueue`, rimuovendo ogni operazione di disco e stat
+  sincrona dal `MainActor` durante l'aggiunta di file `.torrent` e link magnet per prevenire qualsiasi freeze
+  della UI su volumi SMB, NAS o dischi esterni lenti.
+
+### Correzioni e Robustezza
+- **Persistenza immediata priorità file**: `vt_set_file_priority` e `vt_set_all_file_priorities` richiedono ora
+  il salvataggio immediato del resume data (`save_info_dict`), garantendo che le esclusioni ("Non scaricare") o le
+  priorità alte sopravvivano anche a una chiusura anticipata dell'app prima del salvataggio periodico.
+- **Throttling sonda proxy SOCKS5**: ridotta la frequenza del probe TCP a ~8 s quando il proxy è sano (mantenendo
+  ~2,4 s in stato di errore), eliminando il log di connessioni/disconnessioni rapide ripetute su demoni Tor e proxy locali.
+- **Diagnostica e test porta**: disabilitato il test porta esterno in presenza di proxy SOCKS5 attivo (non applicabile
+  e fonte di potenziale confusione per il traffico anonimizzato) con spiegazione contestuale per configurazioni split-tunneling.
+- **User-Agent C++ e Fingerprint**: sincronizzati con la versione corrente dell'applicazione.
+- **Test suite**: corretto il backup/restore del dizionario dei defaults in `PreferencesTests` e aggiunta copertura
+  d'integrazione per `force_start`.
+
+### Aspetto e Grafica
+- **Dettaglio progresso nelle righe in pausa/coda**: mostrati sempre i byte scaricati e la percentuale per torrent parziali
+  anche in modalità finestra estesa (`wide`), evitando che il progresso scompaia dalla riga.
+- **Rapporto coerente sui completati**: la colonna centrale nelle finestre estese mostra il rapporto effettivo (`×...`)
+  invece del segnaposto orologio con trattino per tutti i torrent completati.
+- **Pulizia visiva tracce orizzontali**: `ProgressTrack` non viene più disegnata per i torrent allo 0% o in attesa di metadati.
+- **Inspector file**: aggiunte icone semantiche dedicate per tipo di file (video, audio, testo, archivi, immagini) e indicatore
+  della percentuale numerica individuale.
+- **Profondità e contrasto tema chiaro**: campo di ricerca con sfondo bianco rialzato e micro-ombre morbide sulle card dei torrent.
+
 ## [1.12.0] — 2026-11-11
 
 ### Accessibilità e Tipografia

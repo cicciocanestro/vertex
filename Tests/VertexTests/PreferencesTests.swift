@@ -140,15 +140,13 @@ enum PreferencesTests {
                 PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath,
                 PrefKey.proxyPort, PrefKey.proxyHost
             ]
-            let backup = keys.compactMap { defaults.object(forKey: $0) }
+            let backup: [String: Any?] = Dictionary(uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
             defer {
-                for (key, value) in zip(keys, backup) {
-                    if let string = value as? String {
-                        defaults.set(string, forKey: key)
-                    } else if let number = value as? NSNumber {
-                        defaults.set(number, forKey: key)
-                    } else if let bool = value as? Bool {
-                        defaults.set(bool, forKey: key)
+                for (key, value) in backup {
+                    if let value = value {
+                        defaults.set(value, forKey: key)
+                    } else {
+                        defaults.removeObject(forKey: key)
                     }
                 }
             }

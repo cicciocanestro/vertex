@@ -84,12 +84,17 @@ struct HeaderBar: View {
         .frame(minHeight: 30)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(palette.input)
+                .fill(scheme == .dark ? palette.input : Color.white.opacity(0.92))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(searchFocused.wrappedValue ? Theme.mint.opacity(0.4) : palette.stroke, lineWidth: 1)
                 .allowsHitTesting(false)
+        )
+        .shadow(
+            color: scheme == .dark ? Color.clear : Color.black.opacity(0.03),
+            radius: 3,
+            y: 1
         )
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: searchFocused.wrappedValue)
     }

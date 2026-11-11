@@ -62,14 +62,13 @@ extension TorrentEngine {
         lastAppliedPollID = id
         guard let snapshot else { return }
 
-        // Perform an active TCP health-check probe on the configured proxy
-        // every ~2.4 seconds (every 3 polls) or immediately if there is a detected error.
-        // If the proxy is not reachable at transport level (e.g. Tor or local proxy is down),
-        // we override the proxy error so the UI badge turns coral immediately.
-        // When it recovers, we clear the health error override and clear bridge errors.
+        // Perform an active TCP health-check probe on the configured proxy:
+        // - every ~8 seconds (every 10 polls) when healthy, to avoid connection spam on local daemons (Tor/SOCKS5)
+        // - or every ~2.4 seconds (every 3 polls) if there is an active error, to quickly detect recovery.
         if snapshot.stats.proxy.enabled && !snapshot.stats.proxy.hostname.isEmpty && snapshot.stats.proxy.port > 0 {
             proxyCheckTick += 1
-            if !isProxyProbeInFlight && (proxyCheckTick % 3 == 0 || (proxyHealthError != nil && proxyCheckTick % 2 == 0)) {
+            let checkInterval = proxyHealthError != nil ? 3 : 10
+            if !isProxyProbeInFlight && (proxyCheckTick % checkInterval == 0) {
                 isProxyProbeInFlight = true
                 let host = snapshot.stats.proxy.hostname
                 let port = snapshot.stats.proxy.port

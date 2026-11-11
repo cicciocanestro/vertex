@@ -34,19 +34,27 @@ extension TorrentEngine {
             return message
         }
 
-        let prepared = preparedDestination(destination)
-        guard let path = prepared.path else {
-            let message = prepared.error ?? L("Cartella di destinazione non valida.")
-            showToast(message, kind: .error)
-            completion?(message)
-            return message
-        }
+        guard !isShuttingDown, let session else { return nil }
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
 
-        let operation: @Sendable (OpaquePointer) -> Int32 = { session in
-            trimmed.withCString { uriPointer in
+        sessionQueue.async { [weak self] in
+            guard let s = pointer.value else { return }
+            let prepared = Self.preparedDestination(destination)
+            guard let path = prepared.path else {
+                let message = prepared.error ?? L("Cartella di destinazione non valida.")
+                DispatchQueue.main.async {
+                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                }
+                return
+            }
+
+            let code = trimmed.withCString { uriPointer in
                 path.withCString { pathPointer in
                     vt_add_magnet(
-                        session,
+                        s,
                         uriPointer,
                         pathPointer,
                         startPaused ? 1 : 0,
@@ -54,31 +62,38 @@ extension TorrentEngine {
                     )
                 }
             }
-        }
 
-        let accepted = enqueueSessionOperation(
-            operation: operation,
-            onSuccess: { [weak self] in
-                self?.showToast(
+            let rawError = code != 0 ? Self.readLastError(s) : ""
+            DispatchQueue.main.async {
+                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                    if self?.isShuttingDown == false {
+                        completion?(L("Motore non disponibile."))
+                    }
+                    return
+                }
+
+                if code != 0 {
+                    let message = self.localizedError(
+                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? L("Errore sconosciuto.")
+                            : rawError
+                    )
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                    return
+                }
+
+                self.showToast(
                     L("Torrent aggiunto"),
                     kind: .success,
                     actionTitle: L("Apri cartella"),
                     action: .openFolder(path: path)
                 )
-                self?.poll()
+                self.poll()
                 completion?(nil)
-            },
-            onFailure: { [weak self] message in
-                self?.showToast(message, kind: .error)
-                completion?(message)
             }
-        )
-
-        guard accepted else {
-            let message = L("Motore non disponibile.")
-            completion?(message)
-            return message
         }
+
         return nil
     }
 
@@ -98,20 +113,31 @@ extension TorrentEngine {
             completion?(message)
             return message
         }
-        let prepared = preparedDestination(destination)
-        guard let path = prepared.path else {
-            let message = prepared.error ?? L("Cartella di destinazione non valida.")
-            showToast(message, kind: .error)
-            completion?(message)
-            return message
-        }
 
         let filePath = url.path
-        let operation: @Sendable (OpaquePointer) -> Int32 = { session in
-            filePath.withCString { filePointer in
+        let detail = url.deletingPathExtension().lastPathComponent
+
+        guard !isShuttingDown, let session else { return nil }
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
+
+        sessionQueue.async { [weak self] in
+            guard let s = pointer.value else { return }
+            let prepared = Self.preparedDestination(destination)
+            guard let path = prepared.path else {
+                let message = prepared.error ?? L("Cartella di destinazione non valida.")
+                DispatchQueue.main.async {
+                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                }
+                return
+            }
+
+            let code = filePath.withCString { filePointer in
                 path.withCString { pathPointer in
                     vt_add_torrent_file(
-                        session,
+                        s,
                         filePointer,
                         pathPointer,
                         startPaused ? 1 : 0,
@@ -119,33 +145,39 @@ extension TorrentEngine {
                     )
                 }
             }
-        }
 
-        let detail = url.deletingPathExtension().lastPathComponent
-        let accepted = enqueueSessionOperation(
-            operation: operation,
-            onSuccess: { [weak self] in
-                self?.showToast(
+            let rawError = code != 0 ? Self.readLastError(s) : ""
+            DispatchQueue.main.async {
+                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                    if self?.isShuttingDown == false {
+                        completion?(L("Motore non disponibile."))
+                    }
+                    return
+                }
+
+                if code != 0 {
+                    let message = self.localizedError(
+                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? L("Errore sconosciuto.")
+                            : rawError
+                    )
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                    return
+                }
+
+                self.showToast(
                     L("Torrent aggiunto"),
                     kind: .success,
                     detail: detail,
                     actionTitle: L("Apri cartella"),
                     action: .openFolder(path: path)
                 )
-                self?.poll()
+                self.poll()
                 completion?(nil)
-            },
-            onFailure: { [weak self] message in
-                self?.showToast(message, kind: .error)
-                completion?(message)
             }
-        )
-
-        guard accepted else {
-            let message = L("Motore non disponibile.")
-            completion?(message)
-            return message
         }
+
         return nil
     }
 
@@ -165,6 +197,10 @@ extension TorrentEngine {
 
     func resume(_ torrent: Torrent) {
         control("resume", id: torrent.id)
+    }
+
+    func forceStart(_ torrent: Torrent) {
+        control("force_start", id: torrent.id)
     }
 
     func reannounce(_ torrent: Torrent) {
@@ -513,7 +549,7 @@ extension TorrentEngine {
         }
     }
 
-    func preparedDestination(_ requested: String?) -> (path: String?, error: String?) {
+    nonisolated static func preparedDestination(_ requested: String?) -> (path: String?, error: String?) {
         let raw = requested ?? UserDefaults.standard.string(forKey: PrefKey.downloadPath)
         let path = Preferences.resolvedDownloadPath(raw)
         let fileManager = FileManager.default
