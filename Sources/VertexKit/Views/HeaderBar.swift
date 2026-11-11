@@ -18,14 +18,14 @@ struct HeaderBar: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(verbatim: "Vertex")
-                        .font(Typography.modalTitle)
+                        .font(Typography.modalTitleText)
                         .foregroundStyle(palette.text)
                     Text(verbatim: "v\(AppInfo.version)")
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .font(Typography.captionTinyMonoText)
                         .foregroundStyle(palette.tertiary)
                 }
                 Text(verbatim: "TORRENT CLIENT")
-                    .font(Typography.badge)
+                    .font(Typography.badgeText)
                     .tracking(1.6)
                     .foregroundStyle(palette.tertiary)
             }
@@ -37,7 +37,7 @@ struct HeaderBar: View {
             Button(action: onAdd) {
                 HStack(spacing: 5) {
                     Image(systemName: "plus")
-                        .font(.system(size: 9.5, weight: .bold))
+                        .font(Typography.microSemiboldText)
                     Text("Aggiungi")
                 }
             }
@@ -49,18 +49,19 @@ struct HeaderBar: View {
         }
         .padding(.leading, 84)
         .padding(.trailing, 18)
-        .frame(height: 62)
+        .padding(.vertical, 12)
+        .frame(minHeight: 62)
     }
 
     private func searchField(_ palette: Palette) -> some View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
-                .font(Typography.smallMedium)
+                .font(Typography.smallMediumText)
                 .foregroundStyle(searchFocused.wrappedValue ? Theme.mint : palette.tertiary)
 
             TextField("Cerca torrent…", text: $search)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12))
+                .font(Typography.bodyLargeRegularText)
                 .foregroundStyle(palette.text)
                 .focused(searchFocused)
 
@@ -69,7 +70,7 @@ struct HeaderBar: View {
                     search = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(Typography.caption)
+                        .font(Typography.captionText)
                         .foregroundStyle(palette.tertiary)
                         .frame(width: 16, height: 16)
                         .contentShape(Rectangle())
@@ -78,7 +79,9 @@ struct HeaderBar: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(width: 236, height: 30)
+        .padding(.vertical, 5)
+        .frame(width: 236)
+        .frame(minHeight: 30)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .fill(palette.input)
@@ -135,16 +138,17 @@ struct FilterBar: View {
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.up.arrow.down")
-                        .font(Typography.microSemibold)
+                        .font(Typography.microSemiboldText)
                     Text(sort.label)
-                        .font(Typography.bodyMedium)
+                        .font(Typography.bodyMediumText)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 7, weight: .bold))
+                        .font(Typography.badgeText)
                         .opacity(0.55)
                 }
                 .foregroundStyle(palette.secondary)
                 .padding(.horizontal, 10)
-                .frame(height: 27)
+                .padding(.vertical, 4)
+                .frame(minHeight: 27)
                 .background(Capsule().fill(palette.input))
                 .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
                 .contentShape(Capsule())
@@ -159,9 +163,10 @@ struct FilterBar: View {
                 }
             } label: {
                 Image(systemName: sortAscending ? "arrow.up" : "arrow.down")
-                    .font(.system(size: 9.5, weight: .semibold))
+                    .font(Typography.microSemiboldText)
                     .foregroundStyle(palette.secondary)
-                    .frame(width: 34, height: 27)
+                    .padding(.vertical, 4)
+                    .frame(minWidth: 34, minHeight: 27)
                     .background(Capsule().fill(palette.input))
                     .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
                     .contentShape(Capsule())

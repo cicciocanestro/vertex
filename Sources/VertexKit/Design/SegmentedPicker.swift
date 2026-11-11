@@ -42,7 +42,7 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
         corner: CGFloat = 7,
         horizontalPadding: CGFloat = 3,
         verticalPadding: CGFloat = 2,
-        font: Font = .system(size: 10.5, weight: .medium),
+        font: Font = Typography.smallMediumText,
         onSelect: ((T) -> Void)? = nil,
         @ViewBuilder label: @escaping (T, Bool) -> L
     ) {
@@ -74,7 +74,8 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
                     .font(font)
                     .foregroundStyle(selected ? palette.text : palette.secondary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: height)
+                    .frame(minHeight: height)
+                    .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: corner, style: .continuous)
                             .fill(selected ? palette.cardHover : .clear)

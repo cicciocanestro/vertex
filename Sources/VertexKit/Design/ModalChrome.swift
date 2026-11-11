@@ -18,17 +18,17 @@ struct ModalHeader: View {
                 .frame(width: iconSize, height: iconSize)
                 .overlay(
                     Image(systemName: icon)
-                        .font(.system(size: iconSize * 0.42, weight: .semibold))
+                        .font(Typography.proportional(size: iconSize * 0.42, weight: .semibold))
                         .foregroundStyle(Color(hex: 0x061014).opacity(0.85))
                 )
                 .shadow(color: Theme.mint.opacity(0.2), radius: 10, y: 4)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(Typography.modalTitle)
+                    .font(Typography.modalTitleText)
                     .foregroundStyle(palette.text)
                 Text(subtitle)
-                    .font(Typography.small)
+                    .font(Typography.smallText)
                     .foregroundStyle(palette.secondary)
             }
 

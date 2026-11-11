@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.12.0] — 2026-11-11
+
+### Accessibilità e Tipografia
+- **Tipografia semantica di sistema (Dynamic Type)**: migrata `Typography` dai valori a dimensione
+  fissa (8…13.5 pt) ai text style semantici di sistema (`Font.system(.largeTitle/.title2/.title3/.headline/.body/.subheadline/.callout/.caption/.caption2)`
+  con varianti `.rounded` e `.monospaced`), rimuovendo tutte le dichiarazioni `.system(size:)` dirette
+  dalle viste e abilitando lo scaling di accessibilità su tutta l'applicazione.
+- **Layout adattivi per colonne e controlli**:
+  - `TorrentRow`: sostituite le larghezze fisse delle metriche e della colonna velocità (`82 / 62 / 66 / 88 pt`)
+    con `frame(minWidth:)` + `.fixedSize(horizontal: true, vertical: false)` e `.layoutPriority(1)`
+    sulla colonna del titolo/metadati.
+  - `StatusBarView`: convertita l'altezza fissa (`40 pt`) in `frame(minHeight: 40)` con padding
+    verticale e `.fixedSize` sui gruppi informativi, mantenendo la soglia compatta sotto `1120 pt`.
+  - `SettingsSheet`: resa elastica la sidebar (`minWidth: 168, idealWidth: 176, maxWidth: 210`) e
+    convertiti i campi numerici e proxy a `frame(minWidth:maxWidth:minHeight:)` con `.layoutPriority(1)`
+    sulle etichette descrittive.
+  - `InspectorView`, `HeaderBar`, `AddTorrentSheet`, `NetworkDiagnosticsView`, `Components`,
+    `ModalChrome`, `SegmentedPicker`: convertiti pulsanti, chip, picker segmentati e campi di ricerca
+    a `minHeight` con padding verticale.
+- **Test e verifica di rendering**: esteso `ViewRenderingSupport` con varianti headless a larghezza
+  minima (`980 pt`) in `.dynamicTypeSize(.large)` e `.dynamicTypeSize(.xxLarge)` e aggiunti in `DEBUG`
+  gli override `VERTEX_DYNAMIC_TYPE`, `VERTEX_WINDOW_WIDTH` e `VERTEX_WINDOW_HEIGHT`.
+
 ## [1.11.0] — 2026-11-10
 
 ### Architettura e Concorrenza

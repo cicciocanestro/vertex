@@ -449,7 +449,7 @@ enum EngineTests {
             let variants = onMain {
                 ViewRenderingSupport.renderStateVariants(engine: engine, torrents: engine.torrents)
             }
-            try TestRunner.assertEqual(variants.count, 13)
+            try TestRunner.assertEqual(variants.count, 16)
             for (name, area) in variants {
                 try TestRunner.assertTrue(
                     area > 0,

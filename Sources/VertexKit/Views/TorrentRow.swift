@@ -89,21 +89,21 @@ struct TorrentRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(torrent.name)
-                        .font(Typography.rowTitle)
+                        .font(Typography.rowTitleText)
                         .foregroundStyle(palette.text)
                         .lineLimit(1)
                         .truncationMode(.middle)
 
                     if torrent.hasError {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(Typography.micro)
+                            .font(Typography.microText)
                             .foregroundStyle(Theme.coral)
                             .help(torrent.error)
                     }
 
                     if torrent.sequential {
                         Text(verbatim: "SEQ")
-                            .font(Typography.badge)
+                            .font(Typography.badgeText)
                             .tracking(0.6)
                             .foregroundStyle(palette.violetText)
                             .padding(.horizontal, 5)
@@ -118,7 +118,7 @@ struct TorrentRow: View {
                     let details = metaDetails
                     if !details.isEmpty {
                         Text(details)
-                            .font(Typography.rowMeta)
+                            .font(Typography.rowMetaText)
                             .foregroundStyle(palette.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -127,12 +127,13 @@ struct TorrentRow: View {
 
                 if torrent.hasError {
                     Text(torrent.error)
-                        .font(Typography.microMedium)
+                        .font(Typography.microMediumText)
                         .foregroundStyle(palette.coralText)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -142,7 +143,7 @@ struct TorrentRow: View {
                         icon: "externaldrive",
                         value: torrent.hasMetadata ? Fmt.bytes(torrent.size) : "—",
                         help: "Dimensione",
-                        width: 82,
+                        minWidth: 82,
                         palette: palette
                     )
                     if torrent.phase == .downloading {
@@ -150,7 +151,7 @@ struct TorrentRow: View {
                             icon: "clock",
                             value: Fmt.eta(torrent.eta),
                             help: "Tempo rimasto",
-                            width: 62,
+                            minWidth: 62,
                             palette: palette
                         )
                     } else if torrent.finished && torrent.ratio > 0 {
@@ -158,7 +159,7 @@ struct TorrentRow: View {
                             icon: "arrow.left.arrow.right",
                             value: "×" + Fmt.ratio(torrent.ratio),
                             help: "Rapporto",
-                            width: 62,
+                            minWidth: 62,
                             palette: palette
                         )
                     } else {
@@ -166,7 +167,7 @@ struct TorrentRow: View {
                             icon: "clock",
                             value: "—",
                             help: "Tempo rimasto",
-                            width: 62,
+                            minWidth: 62,
                             palette: palette
                         )
                     }
@@ -174,10 +175,11 @@ struct TorrentRow: View {
                         icon: "person.2",
                         value: "\(torrent.peers) / \(torrent.seeds)",
                         help: "Peer / Seed",
-                        width: 66,
+                        minWidth: 66,
                         palette: palette
                     )
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
 
             VStack(alignment: .trailing, spacing: 3) {
@@ -195,7 +197,7 @@ struct TorrentRow: View {
                 // with no upload yet keep the column empty.
                 if !wide.value && torrent.finished && torrent.ratio > 0 {
                     Text(verbatim: "×\(Fmt.ratio(torrent.ratio))")
-                        .font(.system(size: 9.8, weight: .medium, design: .rounded))
+                        .font(Typography.captionMediumRoundedText)
                         .monospacedDigit()
                         .foregroundStyle(palette.violetText)
                         .help(L("Rapporto"))
@@ -204,7 +206,8 @@ struct TorrentRow: View {
                         )
                 }
             }
-            .frame(width: 88, alignment: .trailing)
+            .frame(minWidth: 88, alignment: .trailing)
+            .fixedSize(horizontal: true, vertical: false)
 
             HStack(spacing: 1) {
                 // A queued torrent is already stopped: the pause icon means
@@ -336,7 +339,7 @@ struct TorrentRow: View {
                     .foregroundStyle(color)
             }
         }
-        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+        .font(Typography.microRoundedSemiboldText)
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
         .background(Capsule().fill(color.opacity(0.12)))
@@ -370,18 +373,19 @@ struct TorrentRow: View {
         icon: String,
         value: String,
         help: String,
-        width: CGFloat,
+        minWidth: CGFloat,
         palette: Palette
     ) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 8, weight: .semibold))
+                .font(Typography.badgeText)
             Text(value)
-                .font(.system(size: 10.2, weight: .medium, design: .rounded))
+                .font(Typography.captionMediumRoundedText)
                 .monospacedDigit()
+                .lineLimit(1)
         }
         .foregroundStyle(palette.tertiary)
-        .frame(width: width, alignment: .leading)
+        .frame(minWidth: minWidth, alignment: .leading)
         .help(L(help))
     }
 

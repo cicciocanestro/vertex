@@ -157,6 +157,22 @@ package enum ViewRenderingSupport {
                 RootView(engine: engine, dropTargeted: true),
                 width: 1180,
                 height: 760
+            ),
+            "RootViewMinWidthLarge": render(
+                RootView(engine: engine).dynamicTypeSize(.large),
+                width: WindowMetrics.minimumWidth,
+                height: WindowMetrics.minimumHeight
+            ),
+            "RootViewMinWidthXXLarge": render(
+                RootView(engine: engine).dynamicTypeSize(.xxLarge),
+                width: WindowMetrics.minimumWidth,
+                height: WindowMetrics.minimumHeight
+            ),
+            "SettingsSheetXXLarge": render(
+                SettingsSheet(engine: engine, onClose: {}, onOpenDiagnostics: {})
+                    .dynamicTypeSize(.xxLarge),
+                width: 700,
+                height: 540
             )
         ]
 

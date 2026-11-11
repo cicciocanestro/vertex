@@ -71,9 +71,9 @@ struct AddTorrentSheet: View {
                 if let message = errorMessage.value {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.circle.fill")
-                            .font(Typography.caption)
+                            .font(Typography.captionText)
                         Text(message)
-                            .font(Typography.small)
+                            .font(Typography.smallText)
                             .lineLimit(2)
                     }
                     .foregroundStyle(palette.coralText)
@@ -118,7 +118,7 @@ struct AddTorrentSheet: View {
                             .font(Typography.iconLarge)
                             .foregroundStyle(Theme.mint)
                         Text("Rilascia il file .torrent")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(Typography.bodyLargeSemiboldText)
                             .foregroundStyle(palette.text)
                     }
                 }
@@ -148,12 +148,12 @@ struct AddTorrentSheet: View {
             corner: 8,
             horizontalPadding: 3,
             verticalPadding: 3,
-            font: .system(size: 11, weight: .medium),
+            font: Typography.bodyMediumText,
             onSelect: { _ in errorMessage.value = nil }
         ) { option, _ in
             HStack(spacing: 5) {
                 Image(systemName: option.icon)
-                    .font(Typography.microSemibold)
+                    .font(Typography.microSemiboldText)
                 Text(option.label)
             }
         }
@@ -167,13 +167,13 @@ struct AddTorrentSheet: View {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $magnet.value)
                         .focused($magnetFocused)
-                        .font(Typography.smallMono)
+                        .font(Typography.smallMonoText)
                         .foregroundStyle(palette.text)
                         .scrollContentBackground(.hidden)
                         .padding(.leading, 8)
                         .padding(.vertical, 8)
                         .padding(.trailing, 26)
-                        .frame(height: 88)
+                        .frame(minHeight: 88)
                         .background(
                             RoundedRectangle(cornerRadius: 11, style: .continuous)
                                 .fill(palette.input)
@@ -189,7 +189,7 @@ struct AddTorrentSheet: View {
 
                     if magnet.value.isEmpty {
                         Text(verbatim: "magnet:?xt=urn:btih:…")
-                            .font(Typography.smallMono)
+                            .font(Typography.smallMonoText)
                             .foregroundStyle(palette.tertiary)
                             .padding(.horizontal, 13)
                             .padding(.vertical, 12)
@@ -203,7 +203,7 @@ struct AddTorrentSheet: View {
                             magnetFocused = true
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
+                                .font(Typography.bodyLargeRegularText)
                                 .foregroundStyle(palette.tertiary)
                                 .frame(width: 18, height: 18)
                                 .contentShape(Circle())
@@ -223,9 +223,10 @@ struct AddTorrentSheet: View {
                         }
                     } label: {
                         Label("Incolla", systemImage: "doc.on.clipboard")
-                            .font(Typography.microMedium)
+                            .font(Typography.microMediumText)
                             .padding(.horizontal, 9)
-                            .frame(height: 22)
+                            .padding(.vertical, 3)
+                            .frame(minHeight: 22)
                             .background(Capsule().fill(palette.input))
                             .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
                             .contentShape(Capsule())
@@ -234,17 +235,17 @@ struct AddTorrentSheet: View {
                     .foregroundStyle(palette.secondary)
 
                     Text("Oppure trascina qui un file .torrent")
-                        .font(Typography.micro)
+                        .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
 
                     Spacer()
                 }
             }
-            .frame(height: 118, alignment: .top)
+            .frame(minHeight: 118, alignment: .top)
 
         case .file:
             fileDropZone(palette)
-                .frame(height: 118)
+                .frame(minHeight: 118)
         }
     }
 
@@ -252,11 +253,11 @@ struct AddTorrentSheet: View {
         VStack(spacing: 8) {
             if let fileURL = fileURL.value {
                 Image(systemName: "doc.fill")
-                    .font(.system(size: 22, weight: .light))
+                    .font(Typography.iconDoc)
                     .foregroundStyle(Theme.mint)
 
                 Text(fileURL.lastPathComponent)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(Typography.bodyLargeSemiboldText)
                     .foregroundStyle(palette.text)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -270,7 +271,7 @@ struct AddTorrentSheet: View {
 
                     if let size = fileSize(fileURL) {
                         Text(Fmt.bytes(size))
-                            .font(.system(size: 9.5, design: .rounded))
+                            .font(Typography.microRoundedText)
                             .foregroundStyle(palette.tertiary)
                     }
                 }
@@ -280,7 +281,7 @@ struct AddTorrentSheet: View {
                     .foregroundStyle(dropTargeted.value ? Theme.mint : palette.secondary)
 
                 Text("Trascina qui un file .torrent")
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.secondary)
 
                 Button("Scegli file…") {
@@ -289,6 +290,7 @@ struct AddTorrentSheet: View {
                 .buttonStyle(SmallButtonStyle())
             }
         }
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -307,18 +309,19 @@ struct AddTorrentSheet: View {
     private func destinationRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
-                .font(.system(size: 12, weight: .medium))
+                .font(Typography.bodyLargeMediumText)
                 .foregroundStyle(Theme.mint)
 
             VStack(alignment: .leading, spacing: 2) {
                 SectionLabel(text: "Cartella per questo torrent")
                 Text(downloadPath.value)
-                    .font(.system(size: 10.3, weight: .medium))
+                    .font(Typography.smallMediumText)
                     .foregroundStyle(palette.text)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(downloadPath.value)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -340,7 +343,7 @@ struct AddTorrentSheet: View {
         }
         .toggleStyle(.switch)
         .controlSize(.mini)
-        .font(Typography.smallMedium)
+        .font(Typography.smallMediumText)
         .foregroundStyle(palette.secondary)
         .tint(Theme.teal)
     }
@@ -445,10 +448,11 @@ struct SmallButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let palette = Palette(scheme: scheme)
         configuration.label
-            .font(.system(size: 9.8, weight: .medium))
+            .font(Typography.captionMediumText)
             .foregroundStyle(palette.secondary)
             .padding(.horizontal, 9)
-            .frame(height: 22)
+            .padding(.vertical, 3)
+            .frame(minHeight: 22)
             .background(Capsule().fill(palette.cardHover))
             .overlay(Capsule().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
             .contentShape(Capsule())

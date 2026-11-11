@@ -30,10 +30,10 @@ struct InspectorView: View {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "sidebar.right")
-                        .font(Typography.captionMedium)
+                        .font(Typography.captionMediumText)
                         .foregroundStyle(palette.tertiary)
                     Text("Dettagli")
-                        .font(Typography.bodySemibold)
+                        .font(Typography.bodySemiboldText)
                         .foregroundStyle(palette.secondary)
                 }
 
@@ -42,7 +42,8 @@ struct InspectorView: View {
                 IconButton(icon: "xmark", help: "Chiudi", size: 24, action: onClose)
             }
             .padding(.horizontal, 16)
-            .frame(height: 44)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
 
             Hairline(palette: palette)
 
@@ -71,7 +72,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(torrent.name)
-                    .font(Typography.title)
+                    .font(Typography.titleText)
                     .foregroundStyle(palette.text)
                     .lineLimit(2)
                     .truncationMode(.middle)
@@ -80,8 +81,9 @@ struct InspectorView: View {
                     phasePill(palette)
 
                     Text(shortHash)
-                        .font(.system(size: 8.5, weight: .regular, design: .monospaced))
+                        .font(Typography.captionTinyMonoText)
                         .foregroundStyle(palette.tertiary)
+                        .lineLimit(1)
                 }
             }
 
@@ -105,7 +107,7 @@ struct InspectorView: View {
                     .foregroundStyle(color)
             }
         }
-        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+        .font(Typography.microRoundedSemiboldText)
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
         .background(Capsule().fill(color.opacity(0.12)))
@@ -166,20 +168,20 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(Typography.caption)
+                    .font(Typography.captionText)
                 Text("Errore del torrent")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(Typography.smallSemiboldText)
             }
             .foregroundStyle(palette.coralText)
 
             Text(torrent.error)
-                .font(Typography.caption)
+                .font(Typography.captionText)
                 .foregroundStyle(palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
 
             Text(torrent.savePath)
-                .font(.system(size: 8.8, design: .monospaced))
+                .font(Typography.captionTinyMonoText)
                 .foregroundStyle(palette.tertiary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -231,7 +233,7 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 3) {
             SectionLabel(text: label)
             Text(value)
-                .font(.system(size: 11.2, weight: .semibold, design: .rounded))
+                .font(Typography.smallRoundedSemiboldText)
                 .monospacedDigit()
                 .foregroundStyle(accent ?? palette.text)
                 .lineLimit(1)
@@ -251,12 +253,12 @@ struct InspectorView: View {
             corner: 7,
             horizontalPadding: 2,
             verticalPadding: 2,
-            font: .system(size: 10.5, weight: .medium)
+            font: Typography.smallMediumText
         ) { option, selected in
             Text(option.label)
             if option == .files, let count = engine.detail?.files.count, count > 0 {
                 Text(verbatim: "\(count)")
-                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                    .font(Typography.microRoundedSemiboldText)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Color.primary.opacity(0.07)))
@@ -306,7 +308,7 @@ struct InspectorView: View {
 
         return HStack(spacing: 6) {
             Text(LF("%ld di %ld selezionati", wantedCount, files.count))
-                .font(Typography.caption)
+                .font(Typography.captionText)
                 .foregroundStyle(palette.tertiary)
 
             Spacer()
@@ -342,7 +344,7 @@ struct InspectorView: View {
                 }
             } label: {
                 Image(systemName: priorityIcon(file.priorityLevel))
-                    .font(Typography.bodyLargeRegular)
+                    .font(Typography.bodyLargeRegularText)
                     .foregroundStyle(priorityColor(file.priorityLevel, palette))
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
@@ -355,7 +357,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(fileName(file.path))
-                    .font(.system(size: 10.8, weight: .medium))
+                    .font(Typography.smallMediumText)
                     .foregroundStyle(file.isWanted ? palette.text : palette.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -366,7 +368,7 @@ struct InspectorView: View {
                 let folder = fileFolder(file.path)
                 if !folder.isEmpty {
                     Text(folder)
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(Typography.captionTinyMonoText)
                         .foregroundStyle(palette.tertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -385,13 +387,15 @@ struct InspectorView: View {
                     .frame(height: 2.5)
                 }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 6)
 
             Text(Fmt.bytes(file.size))
-                .font(.system(size: 9.3, weight: .regular, design: .rounded))
+                .font(Typography.microRoundedText)
                 .monospacedDigit()
                 .foregroundStyle(palette.tertiary)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, 6)
     }
@@ -422,9 +426,10 @@ struct InspectorView: View {
         HStack(spacing: 6) {
             TextField(L("Aggiungi tracker (URL)"), text: $newTracker.value)
                 .textFieldStyle(.plain)
-                .font(.system(size: 9.8, design: .monospaced))
+                .font(Typography.captionMonoText)
                 .foregroundStyle(palette.text)
-                .frame(height: 24)
+                .padding(.vertical, 4)
+                .frame(minHeight: 24)
                 .padding(.horizontal, 7)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -482,7 +487,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(tracker.url)
-                    .font(.system(size: 9.8, weight: .medium, design: .monospaced))
+                    .font(Typography.captionMonoMediumText)
                     .foregroundStyle(palette.secondary)
                     .lineLimit(2)
                     .truncationMode(.middle)
@@ -490,17 +495,18 @@ struct InspectorView: View {
 
                 if !tracker.message.isEmpty {
                     Text(tracker.message)
-                        .font(Typography.captionTiny)
+                        .font(Typography.captionTinyText)
                         .foregroundStyle(palette.coralText)
                         .lineLimit(2)
                 }
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 4)
 
             if tracker.peers >= 0 {
                 Text(verbatim: "\(tracker.peers)")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .font(Typography.microRoundedMediumText)
                     .monospacedDigit()
                     .foregroundStyle(palette.tertiary)
             }
@@ -515,9 +521,9 @@ struct InspectorView: View {
     private func waiting(_ palette: Palette, text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "hourglass")
-                .font(Typography.captionMedium)
+                .font(Typography.captionMediumText)
             Text(L(text))
-                .font(Typography.small)
+                .font(Typography.smallText)
         }
         .foregroundStyle(palette.tertiary)
         .frame(maxWidth: .infinity, alignment: .center)

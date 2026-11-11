@@ -20,10 +20,30 @@ struct VertexApp: App {
                 .background(WindowConfigurator())
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1220, height: 800)
+        .defaultSize(width: initialWindowWidth, height: initialWindowHeight)
         .commands {
             AppCommands()
         }
+    }
+
+    private var initialWindowWidth: CGFloat {
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
+           let value = Double(raw), value >= Double(WindowMetrics.minimumWidth) {
+            return CGFloat(value)
+        }
+        #endif
+        return 1220
+    }
+
+    private var initialWindowHeight: CGFloat {
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"],
+           let value = Double(raw), value >= Double(WindowMetrics.minimumHeight) {
+            return CGFloat(value)
+        }
+        #endif
+        return 800
     }
 }
 
@@ -115,6 +135,13 @@ extension AppDelegate {
         guard let path = ProcessInfo.processInfo.environment["VERTEX_SNAPSHOT"] else { return }
 
         Task { @MainActor in
+            if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
+               let rawW = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
+               let widthVal = Double(rawW) {
+                let heightVal = ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"].flatMap(Double.init) ?? Double(window.frame.height)
+                window.setContentSize(NSSize(width: widthVal, height: heightVal))
+            }
+
             try? await Task.sleep(nanoseconds: 2_200_000_000)
 
             if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),

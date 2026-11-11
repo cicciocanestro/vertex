@@ -1,66 +1,95 @@
 import SwiftUI
 
-/// Semantic type scale used by the shared components and the main views.
+/// Semantic type scale based on system text styles (Dynamic Type).
 ///
-/// The sizes are grouped in six steps (8, 9, 10, 10.5, 11, 12) plus the two
-/// display sizes. The names are kept from the previous version so the call
-/// sites did not have to change, but the values that differed by 0.2–0.5 pt
-/// (8.5 / 9.2 / 9.8 / 12.5) are collapsed: steps that close are not perceivable
-/// and only made the hierarchy noisy.
-///
-/// A future redesign should also replace the fixed sizes with the system text
-/// styles (`.caption`, `.body`, …) to get Dynamic Type and accessibility
-/// scaling; that requires touching every view, so it stays a separate change.
+/// All views and shared components use these semantic tokens instead of
+/// fixed `.system(size:)` declarations so text scales cleanly with system
+/// Dynamic Type and accessibility preferences while preserving the visual
+/// hierarchy across the app.
 enum Typography {
-    // Step 8 — badges and micro labels.
-    static let badge = Font.system(size: 8, weight: .semibold)
-    static let captionMicroSemibold = Font.system(size: 9, weight: .semibold)
+    // MARK: - Display & Title styles
 
-    // Step 9 — the densest informative text.
-    static let captionTiny = Font.system(size: 9)
-    static let captionTinyNarrow = Font.system(size: 9)
-    static let captionTinySemibold = Font.system(size: 9, weight: .semibold)
-    static let micro = Font.system(size: 9.5)
-    static let microMedium = Font.system(size: 9.5, weight: .medium)
-    static let microSemibold = Font.system(size: 9.5, weight: .semibold)
+    static let heroText = Font.system(.largeTitle, design: .rounded).weight(.semibold)
+    static let modalTitleText = Font.system(.title2, design: .rounded).weight(.semibold)
+    static let sectionTitleText = Font.system(.title3, design: .rounded).weight(.semibold)
+    static let titleText = Font.system(.title3).weight(.semibold)
+    static let rowTitleText = Font.system(.headline).weight(.semibold)
 
-    // Step 10 — captions, subtitles, secondary rows.
-    static let caption = Font.system(size: 10)
-    static let captionMedium = Font.system(size: 10, weight: .medium)
-    static let captionMediumRounded = Font.system(size: 10, weight: .medium, design: .rounded)
-    static let captionMono = Font.system(size: 10, design: .monospaced)
-    static let captionSmall = Font.system(size: 10)
+    // MARK: - Body & Subheadline styles
 
-    // Step 10.5 — small controls and labels.
-    static let small = Font.system(size: 10.5)
-    static let smallMedium = Font.system(size: 10.5, weight: .medium)
-    static let smallMono = Font.system(size: 10.5, design: .monospaced)
+    static let bodyLargeSemiboldText = Font.system(.body).weight(.semibold)
+    static let bodyLargeRegularText = Font.system(.body)
+    static let bodyLargeMediumText = Font.system(.body).weight(.medium)
+    static let bodyLargeText = Font.system(.body)
+    static let bodySemiboldText = Font.system(.subheadline).weight(.semibold)
+    static let bodyMediumText = Font.system(.subheadline).weight(.medium)
+    static let bodyText = Font.system(.subheadline)
 
-    // Step 11 — body text inside cards and settings rows.
-    static let body = Font.system(size: 11)
-    static let bodyMedium = Font.system(size: 11, weight: .medium)
-    static let bodySemibold = Font.system(size: 11, weight: .semibold)
+    // MARK: - Small & Callout styles
 
-    // Step 11.5 — emphasised body (setting titles, dialog rows).
-    static let bodyLarge = Font.system(size: 11.5)
-    static let bodyLargeMedium = Font.system(size: 11.5, weight: .medium)
+    static let smallText = Font.system(.callout)
+    static let smallMediumText = Font.system(.callout).weight(.medium)
+    static let smallSemiboldText = Font.system(.callout).weight(.semibold)
+    static let smallRoundedMediumText = Font.system(.callout, design: .rounded).weight(.medium)
+    static let smallRoundedSemiboldText = Font.system(.callout, design: .rounded).weight(.semibold)
+    static let smallMonoText = Font.system(.callout, design: .monospaced)
+    static let rowMetaText = Font.system(.subheadline, design: .rounded)
 
-    // Step 12 — readable text: empty states, descriptions.
-    static let bodyLargeRegular = Font.system(size: 12)
-    static let bodyLargeSemibold = Font.system(size: 12, weight: .semibold)
+    // MARK: - Caption styles
 
-    // Row typography. A torrent name must win against the metadata below it,
-    // so it sits one step above the body text.
-    static let rowTitle = Font.system(size: 13, weight: .semibold)
-    static let rowMeta = Font.system(size: 10.5, weight: .regular, design: .rounded)
+    static let captionText = Font.system(.caption)
+    static let captionSmallText = Font.system(.caption)
+    static let captionMediumText = Font.system(.caption).weight(.medium)
+    static let captionSemiboldText = Font.system(.caption).weight(.semibold)
+    static let captionMediumRoundedText = Font.system(.caption, design: .rounded).weight(.medium)
+    static let captionRegularRoundedText = Font.system(.caption, design: .rounded)
+    static let captionMonoText = Font.system(.caption, design: .monospaced)
+    static let captionMonoMediumText = Font.system(.caption, design: .monospaced).weight(.medium)
 
-    // Display.
-    static let title = Font.system(size: 13.5, weight: .semibold)
-    static let modalTitle = Font.system(size: 16, weight: .semibold, design: .rounded)
-    static let hero = Font.system(size: 22, weight: .semibold, design: .rounded)
+    // MARK: - Footnote & Micro styles
 
-    // Decorative icons.
+    static let microText = Font.system(.caption2)
+    static let microMediumText = Font.system(.caption2).weight(.medium)
+    static let microSemiboldText = Font.system(.caption2).weight(.semibold)
+    static let microRoundedText = Font.system(.caption2, design: .rounded)
+    static let microRoundedMediumText = Font.system(.caption2, design: .rounded).weight(.medium)
+    static let microRoundedSemiboldText = Font.system(.caption2, design: .rounded).weight(.semibold)
+    static let captionTinyText = Font.system(.caption2)
+    static let captionTinyNarrowText = Font.system(.caption2)
+    static let captionTinySemiboldText = Font.system(.caption2).weight(.semibold)
+    static let captionTinyMonoText = Font.system(.caption2, design: .monospaced)
+    static let captionMicroSemiboldText = Font.system(.caption2).weight(.semibold)
+    static let badgeText = Font.system(.caption2).weight(.semibold)
+
+    // MARK: - Decorative & Hero Icons
+
+    static let iconHero = Font.system(size: 34, weight: .light)
+    static let iconDrop = Font.system(size: 30, weight: .light)
     static let iconLarge = Font.system(size: 26, weight: .light)
     static let iconMedium = Font.system(size: 24, weight: .light)
     static let iconSmall = Font.system(size: 23, weight: .light)
+    static let iconDoc = Font.system(size: 22, weight: .light)
+    static let iconInline = Font.system(.caption2).weight(.bold)
+
+    // MARK: - Dynamic Helpers
+
+    static func chipLabelText(selected: Bool) -> Font {
+        Font.system(.subheadline).weight(selected ? .semibold : .medium)
+    }
+
+    static func sidebarItemText(selected: Bool) -> Font {
+        Font.system(.subheadline).weight(selected ? .semibold : .regular)
+    }
+
+    static func speedIcon(compact: Bool) -> Font {
+        Font.system(compact ? .caption2 : .caption).weight(.bold)
+    }
+
+    static func speedValue(compact: Bool) -> Font {
+        Font.system(compact ? .caption : .callout, design: .rounded).weight(.medium)
+    }
+
+    static func proportional(size: CGFloat, weight: Font.Weight = .semibold, design: Font.Design = .default) -> Font {
+        Font.system(size: size, weight: weight, design: design)
+    }
 }

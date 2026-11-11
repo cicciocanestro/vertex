@@ -23,9 +23,11 @@ struct StatusBarView: View {
             HStack(spacing: 7) {
                 PulsingDot(color: dhtEnabled ? Theme.green : palette.tertiary)
                 Text(dhtLabel)
-                    .font(Typography.smallMedium)
+                    .font(Typography.smallMediumText)
                     .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
@@ -34,6 +36,7 @@ struct StatusBarView: View {
                 Sparkline(values: engine.downloadHistory, color: Theme.mint)
                     .frame(width: 88, height: 16)
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             HStack(spacing: 5) {
                 SpeedText(value: engine.stats.uploadRate, upload: true)
@@ -41,6 +44,7 @@ struct StatusBarView: View {
                     .frame(width: 52, height: 16)
                     .opacity(0.8)
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Spacer(minLength: 10)
 
@@ -48,7 +52,7 @@ struct StatusBarView: View {
                 if downloadLimitKB > 0 || uploadLimitKB > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "gauge.with.dots.needle.33percent")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(Typography.microMediumText)
                         // Show the value the user typed in Settings. Converting it to
                         // bytes and formatting it with 1000-based units turned 150
                         // KB/s into "154 KB/s".
@@ -59,21 +63,24 @@ struct StatusBarView: View {
                             Text(verbatim: "↑ \(uploadLimitKB) KB/s")
                         }
                     }
-                    .font(.system(size: 9.6, weight: .medium, design: .rounded))
+                    .font(Typography.captionMediumRoundedText)
                     .monospacedDigit()
                     .foregroundStyle(palette.tertiary)
+                    .lineLimit(1)
                 }
 
                 Text(LF("%ld attivi", engine.stats.active))
-                    .font(Typography.smallMedium)
+                    .font(Typography.smallMediumText)
                     .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
 
                 Text(verbatim: "·")
                     .foregroundStyle(palette.tertiary)
 
                 Text(LF("%ld torrent", engine.torrents.count))
-                    .font(Typography.smallMedium)
+                    .font(Typography.smallMediumText)
                     .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
             }
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
@@ -82,14 +89,15 @@ struct StatusBarView: View {
                 let hasProxyError = engine.stats.proxy.hasError
                 HStack(spacing: 3) {
                     Image(systemName: hasProxyError ? "exclamationmark.shield.fill" : "shield.lefthalf.filled")
-                        .font(Typography.captionMicroSemibold)
+                        .font(Typography.captionMicroSemiboldText)
                     Text(verbatim: "SOCKS5")
-                        .font(Typography.badge)
+                        .font(Typography.badgeText)
                 }
                 .foregroundStyle(hasProxyError ? palette.coralText : palette.mintText)
                 .help(hasProxyError
                     ? LF("Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname, engine.stats.proxy.port, engine.stats.proxy.error)
                     : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port))
+                .fixedSize(horizontal: true, vertical: false)
 
                 Text(verbatim: "·")
                     .foregroundStyle(palette.tertiary)
@@ -100,10 +108,11 @@ struct StatusBarView: View {
                     Image(systemName: engine.stats.isBoundToAddress
                         ? "lock.shield.fill"
                         : "network")
-                        .font(Typography.captionMicroSemibold)
+                        .font(Typography.captionMicroSemiboldText)
                     Text(LF("Porta %ld", engine.stats.effectivePort))
-                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                        .font(Typography.captionRegularRoundedText)
                         .monospacedDigit()
+                        .lineLimit(1)
                 }
                 .foregroundStyle(engine.stats.isListening ? palette.tertiary : palette.coralText)
                 .padding(.horizontal, 5)
@@ -111,12 +120,14 @@ struct StatusBarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .fixedSize(horizontal: true, vertical: false)
             .help(engine.stats.isBoundToAddress
                 ? LF("Diagnostica rete · associato a %@", engine.stats.bindAddress)
                 : L("Diagnostica rete"))
         }
         .padding(.horizontal, 18)
-        .frame(height: 40)
+        .padding(.vertical, 8)
+        .frame(minHeight: 40)
         .background(palette.panel)
         .overlay(alignment: .top) {
             Hairline(palette: palette)

@@ -67,23 +67,23 @@ struct ProgressRing: View {
         case .paused, .queued, .completedPaused:
             // Paused / queued / completed in pause show the respective pause or clock icon.
             Image(systemName: phase == .queued ? "clock" : "pause.fill")
-                .font(.system(size: size * 0.25, weight: .bold))
+                .font(Typography.proportional(size: size * 0.25, weight: .bold))
                 .foregroundStyle(iconColor)
         case .seeding:
             Image(systemName: "arrow.up")
-                .font(.system(size: size * 0.27, weight: .bold))
+                .font(Typography.proportional(size: size * 0.27, weight: .bold))
                 .foregroundStyle(iconColor)
         case .completed:
             Image(systemName: "checkmark")
-                .font(.system(size: size * 0.27, weight: .bold))
+                .font(Typography.proportional(size: size * 0.27, weight: .bold))
                 .foregroundStyle(iconColor)
         case .metadata:
             Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(size: size * 0.24, weight: .semibold))
+                .font(Typography.proportional(size: size * 0.24, weight: .semibold))
                 .foregroundStyle(iconColor)
         case .checking:
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: size * 0.25, weight: .semibold))
+                .font(Typography.proportional(size: size * 0.25, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .rotationEffect(.degrees(reduceMotion ? 0 : (spin.value ? 360 : 0)))
                 .animation(
@@ -95,7 +95,7 @@ struct ProgressRing: View {
                 }
         case .downloading:
             Text(Fmt.percent(progress))
-                .font(.system(size: size * 0.215, weight: .semibold, design: .rounded))
+                .font(Typography.proportional(size: size * 0.215, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(iconColor)
         }
@@ -108,10 +108,11 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Typography.bodyLargeSemibold)
+            .font(Typography.bodyLargeSemiboldText)
             .foregroundStyle(Color(hex: 0x071016).opacity(isEnabled ? 0.92 : 0.45))
             .padding(.horizontal, 16)
-            .frame(height: 34)
+            .padding(.vertical, 6)
+            .frame(minHeight: 34)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Theme.accentGradient)
@@ -136,10 +137,11 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let palette = Palette(scheme: scheme)
         configuration.label
-            .font(.system(size: 12.5, weight: .medium))
+            .font(Typography.bodyLargeMediumText)
             .foregroundStyle(palette.text.opacity(configuration.isPressed ? 0.6 : 0.84))
             .padding(.horizontal, 14)
-            .frame(height: 34)
+            .padding(.vertical, 6)
+            .frame(minHeight: 34)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(palette.input)
@@ -168,7 +170,7 @@ struct IconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: size * 0.4, weight: .semibold))
+                .font(Typography.proportional(size: size * 0.4, weight: .semibold))
                 .foregroundStyle(tint ?? Color.primary.opacity(hover.value ? 0.88 : 0.5))
                 .frame(width: size, height: size)
                 .background(
@@ -202,7 +204,7 @@ struct FilterChip: View {
                 // shrinks whenever a torrent changes category makes the whole
                 // filter bar jitter, and a missing number is ambiguous.
                 Text(verbatim: "\(count)")
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .font(Typography.microRoundedSemiboldText)
                     .monospacedDigit()
                     .foregroundStyle(count == 0
                         ? palette.tertiary
@@ -217,10 +219,11 @@ struct FilterChip: View {
                                   : Color.primary.opacity(count > 0 ? 0.07 : 0.035))
                     )
             }
-            .font(.system(size: 12, weight: selected ? .semibold : .medium))
+            .font(Typography.chipLabelText(selected: selected))
             .foregroundStyle(selected ? palette.text : palette.secondary)
             .padding(.horizontal, 12)
-            .frame(height: 27)
+            .padding(.vertical, 4)
+            .frame(minHeight: 27)
             .background(
                 Capsule()
                     .fill(selected
@@ -371,17 +374,17 @@ struct ToastView: View {
             ZStack {
                 Circle().fill(accent.opacity(0.16)).frame(width: 28, height: 28)
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(Typography.bodySemiboldText)
                     .foregroundStyle(accent)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.text)
-                    .font(Typography.bodyLargeSemibold)
+                    .font(Typography.bodyLargeSemiboldText)
                     .foregroundStyle(palette.text)
                 if let detail = toast.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(Typography.body)
+                        .font(Typography.bodyText)
                         .foregroundStyle(palette.secondary)
                         .lineLimit(1)
                 }
@@ -398,7 +401,7 @@ struct ToastView: View {
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 8.5, weight: .bold))
+                    .font(Typography.iconInline)
                     .foregroundStyle(palette.tertiary)
                     .frame(width: 20, height: 20)
                     .background(Circle().fill(Color.primary.opacity(0.05)))
@@ -424,7 +427,7 @@ struct SectionLabel: View {
 
     var body: some View {
         Text(L(text).uppercased())
-            .font(Typography.microSemibold)
+            .font(Typography.microSemiboldText)
             .tracking(0.9)
             .foregroundStyle(Palette(scheme: scheme).tertiary)
     }
@@ -442,9 +445,9 @@ struct SpeedText: View {
         let color = value > 0 ? (upload ? palette.violetText : palette.mintText) : palette.tertiary
         HStack(spacing: 3) {
             Image(systemName: upload ? "arrow.up" : "arrow.down")
-                .font(.system(size: compact ? 7.5 : 8.5, weight: .bold))
+                .font(Typography.speedIcon(compact: compact))
             Text(Fmt.rate(value))
-                .font(.system(size: compact ? 9.5 : 10.5, weight: .medium, design: .rounded))
+                .font(Typography.speedValue(compact: compact))
                 .monospacedDigit()
                 .lineLimit(1)
         }

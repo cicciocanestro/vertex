@@ -145,7 +145,8 @@ struct SettingsSheet: View {
 
                 HStack(spacing: 0) {
                     settingsSidebar(palette)
-                        .frame(width: 168)
+                        .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
+                        .fixedSize(horizontal: true, vertical: false)
 
                     Hairline(palette: palette, axis: .vertical)
 
@@ -239,7 +240,7 @@ struct SettingsSheet: View {
 
                                 if !bindAddress.isEmpty {
                                     Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                                        .font(Typography.captionTinyNarrow)
+                                        .font(Typography.captionTinyNarrowText)
                                         .foregroundStyle(palette.tertiary)
                                         .fixedSize(horizontal: false, vertical: true)
                                         .padding(.horizontal, 4)
@@ -265,7 +266,7 @@ struct SettingsSheet: View {
 
                                 if proxyEnabled {
                                     Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
-                                        .font(Typography.captionTinyNarrow)
+                                        .font(Typography.captionTinyNarrowText)
                                         .foregroundStyle(palette.tertiary)
                                         .fixedSize(horizontal: false, vertical: true)
                                         .padding(.horizontal, 4)
@@ -317,7 +318,7 @@ struct SettingsSheet: View {
                     Text(engine.isRestartingSession
                         ? L("Riavvio del motore BitTorrent…")
                         : L("Le modifiche di rete vengono applicate automaticamente."))
-                        .font(Typography.micro)
+                        .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
                 } trailing: {
                     Button("Fine") {
@@ -417,7 +418,7 @@ struct SettingsSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(L(item.titleKey))
-                .font(.system(size: 14, weight: .semibold))
+                .font(Typography.sectionTitleText)
                 .foregroundStyle(palette.text)
             VStack(spacing: 0) {
                 content()
@@ -441,16 +442,17 @@ struct SettingsSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: item.icon)
-                            .font(.system(size: 10.5, weight: .semibold))
+                            .font(Typography.smallSemiboldText)
                             .frame(width: 16)
                         Text(L(item.titleKey))
-                            .font(.system(size: 11.5, weight: selected ? .semibold : .regular))
+                            .font(Typography.sidebarItemText(selected: selected))
                             .lineLimit(1)
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(selected ? palette.text : palette.secondary)
                     .padding(.horizontal, 9)
-                    .frame(height: 30)
+                    .padding(.vertical, 5)
+                    .frame(minHeight: 30)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(selected
@@ -473,21 +475,22 @@ struct SettingsSheet: View {
     private func destinationRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
-                .font(Typography.bodyLargeMedium)
+                .font(Typography.bodyLargeMediumText)
                 .foregroundStyle(Theme.mint)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Cartella di download")
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(downloadPath)
-                    .font(Typography.captionSmall)
+                    .font(Typography.captionSmallText)
                     .foregroundStyle(palette.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(downloadPath)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -509,18 +512,19 @@ struct SettingsSheet: View {
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(L(subtitle))
-                    .font(Typography.micro)
+                    .font(Typography.microText)
                     .foregroundStyle(palette.tertiary)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -528,17 +532,19 @@ struct SettingsSheet: View {
                 TextField("", value: value, format: .number.grouping(.never))
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .font(Typography.smallRoundedMediumText)
                     .monospacedDigit()
                     .foregroundStyle(palette.text)
-                    .frame(width: 62)
+                    .frame(minWidth: 62, maxWidth: 84)
 
                 Text(suffix)
-                    .font(.system(size: 8.5, weight: .medium))
+                    .font(Typography.microMediumText)
                     .foregroundStyle(palette.tertiary)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 8)
-            .frame(height: 26)
+            .padding(.vertical, 4)
+            .frame(minHeight: 26)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(palette.input)
@@ -555,18 +561,19 @@ struct SettingsSheet: View {
     private func bindingRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Interfaccia di rete")
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(L("Il traffico esce solo da questo indirizzo"))
-                    .font(Typography.micro)
+                    .font(Typography.microText)
                     .foregroundStyle(palette.tertiary)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -608,17 +615,18 @@ struct SettingsSheet: View {
     private func bindingLabel(_ palette: Palette) -> some View {
         HStack(spacing: 5) {
             Text(bindingText)
-                .font(Typography.captionMediumRounded)
+                .font(Typography.captionMediumRoundedText)
                 .foregroundStyle(palette.text)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 170, alignment: .trailing)
+                .frame(maxWidth: 180, alignment: .trailing)
             Image(systemName: "chevron.up.chevron.down")
-                .font(Typography.badge)
+                .font(Typography.badgeText)
                 .foregroundStyle(palette.tertiary)
         }
         .padding(.horizontal, 8)
-        .frame(height: 26)
+        .padding(.vertical, 4)
+        .frame(minHeight: 26)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(palette.input)
@@ -645,23 +653,23 @@ struct SettingsSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "network")
-                    .font(Typography.bodyMedium)
+                    .font(Typography.bodyMediumText)
                     .foregroundStyle(palette.secondary)
                     .frame(width: 18)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Diagnostica rete")
-                        .font(Typography.bodyLargeMedium)
+                        .font(Typography.bodyLargeMediumText)
                         .foregroundStyle(palette.text)
                     Text("Porta effettiva, mapping e test esterno")
-                        .font(Typography.micro)
+                        .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
                 }
 
                 Spacer(minLength: 8)
 
                 Image(systemName: "chevron.right")
-                    .font(Typography.captionTinySemibold)
+                    .font(Typography.captionTinySemiboldText)
                     .foregroundStyle(palette.tertiary)
             }
             .padding(.vertical, 8)
@@ -673,28 +681,30 @@ struct SettingsSheet: View {
     private func proxyHostRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "server.rack")
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L("Server e porta"))
-                    .font(Typography.bodyMedium)
+                    .font(Typography.bodyMediumText)
                     .foregroundStyle(palette.text)
                 Text(L("Host proxy SOCKS5 e porta"))
-                    .font(Typography.captionTiny)
+                    .font(Typography.captionTinyText)
                     .foregroundStyle(palette.secondary)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
             TextField(Self.proxyHostPlaceholder, text: $proxyHost)
                 .textFieldStyle(.plain)
-                .font(Typography.captionMono)
+                .font(Typography.captionMonoText)
                 .foregroundStyle(palette.text)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 120, height: 26)
                 .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .frame(minWidth: 110, maxWidth: 150, minHeight: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(palette.input)
@@ -705,16 +715,17 @@ struct SettingsSheet: View {
                 )
 
             Text(verbatim: ":")
-                .font(Typography.captionMono)
+                .font(Typography.captionMonoText)
                 .foregroundStyle(palette.tertiary)
 
             TextField(Self.proxyPortPlaceholder, value: $proxyPort, format: .number.grouping(.never))
                 .textFieldStyle(.plain)
-                .font(Typography.captionMono)
+                .font(Typography.captionMonoText)
                 .foregroundStyle(palette.text)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 55, height: 26)
                 .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .frame(minWidth: 55, maxWidth: 72, minHeight: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(palette.input)
@@ -730,27 +741,29 @@ struct SettingsSheet: View {
     private func proxyAuthRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "key")
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L("Autenticazione"))
-                    .font(Typography.bodyMedium)
+                    .font(Typography.bodyMediumText)
                     .foregroundStyle(palette.text)
                 Text(L("Facoltativa (RFC 1929)"))
-                    .font(Typography.captionTiny)
+                    .font(Typography.captionTinyText)
                     .foregroundStyle(palette.secondary)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
             TextField(L("Utente"), text: $proxyUser)
                 .textFieldStyle(.plain)
-                .font(Typography.captionSmall)
+                .font(Typography.captionSmallText)
                 .foregroundStyle(palette.text)
-                .frame(width: 85, height: 26)
                 .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .frame(minWidth: 85, maxWidth: 115, minHeight: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(palette.input)
@@ -762,10 +775,11 @@ struct SettingsSheet: View {
 
             SecureField(L("Password"), text: $proxyPasswordValue.value)
                 .textFieldStyle(.plain)
-                .font(Typography.captionSmall)
+                .font(Typography.captionSmallText)
                 .foregroundStyle(palette.text)
-                .frame(width: 85, height: 26)
                 .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .frame(minWidth: 85, maxWidth: 115, minHeight: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(palette.input)
@@ -787,18 +801,19 @@ struct SettingsSheet: View {
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(L(subtitle))
-                    .font(Typography.micro)
+                    .font(Typography.microText)
                     .foregroundStyle(palette.tertiary)
             }
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
@@ -819,11 +834,11 @@ struct SettingsSheet: View {
             corner: 7,
             horizontalPadding: 3,
             verticalPadding: 3,
-            font: .system(size: 10, weight: .medium)
+            font: Typography.captionMediumText
         ) { (option: AppearanceOption, _) in
             HStack(spacing: 5) {
                 Image(systemName: option.icon)
-                    .font(Typography.captionTinySemibold)
+                    .font(Typography.captionTinySemiboldText)
                 Text(option.label)
             }
         }
@@ -832,16 +847,16 @@ struct SettingsSheet: View {
     private func versionRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle")
-                .font(Typography.bodyMedium)
+                .font(Typography.bodyMediumText)
                 .foregroundStyle(palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(verbatim: "Vertex")
-                    .font(Typography.bodyLargeMedium)
+                    .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(LF("Versione %@ (build %@)", AppInfo.version, AppInfo.build))
-                    .font(Typography.micro)
+                    .font(Typography.microText)
                     .foregroundStyle(palette.tertiary)
             }
 

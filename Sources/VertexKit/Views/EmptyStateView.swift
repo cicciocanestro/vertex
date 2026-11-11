@@ -19,14 +19,14 @@ struct EmptyStateView: View {
 
             VStack(spacing: 7) {
                 Text("Nessun torrent")
-                    .font(Typography.hero)
+                    .font(Typography.heroText)
                     .foregroundStyle(palette.text)
 
                 Text("Aggiungi un file .torrent o incolla un link magnet per iniziare.")
-                    .font(Typography.bodyLargeRegular)
+                    .font(Typography.bodyLargeRegularText)
                     .foregroundStyle(palette.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 330)
+                    .frame(maxWidth: 360)
             }
 
             HStack(spacing: 9) {
@@ -41,9 +41,9 @@ struct EmptyStateView: View {
 
             HStack(spacing: 7) {
                 Image(systemName: "arrow.down.doc")
-                    .font(Typography.captionMedium)
+                    .font(Typography.captionMediumText)
                 Text("Trascina qui i file .torrent")
-                    .font(Typography.smallMedium)
+                    .font(Typography.smallMediumText)
             }
             .foregroundStyle(palette.tertiary)
             .padding(.horizontal, 15)
@@ -78,16 +78,16 @@ struct EngineUnavailableView: View {
         let palette = Palette(scheme: scheme)
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 34, weight: .light))
+                .font(Typography.iconHero)
                 .foregroundStyle(Theme.coral)
 
             Text(L("Motore BitTorrent non disponibile"))
-                .font(Typography.hero)
+                .font(Typography.heroText)
                 .foregroundStyle(palette.text)
                 .multilineTextAlignment(.center)
 
             Text(message)
-                .font(Typography.bodyLarge)
+                .font(Typography.bodyLargeText)
                 .foregroundStyle(palette.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -115,7 +115,7 @@ struct LoadingStateView: View {
             ProgressView()
                 .controlSize(.small)
             Text(L("Caricamento torrent…"))
-                .font(Typography.bodyLarge)
+                .font(Typography.bodyLargeText)
                 .foregroundStyle(palette.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -137,13 +137,13 @@ struct NoResultsView: View {
                 .foregroundStyle(palette.tertiary)
 
             Text("Nessun risultato")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(Typography.sectionTitleText)
                 .foregroundStyle(palette.text)
 
             Text(query.isEmpty
                  ? L("Nessun torrent in questo filtro.")
                  : LF("Nessun torrent corrisponde a “%@”.", query))
-                .font(Typography.bodyLarge)
+                .font(Typography.bodyLargeText)
                 .foregroundStyle(palette.secondary)
 
             Button("Azzera filtri", action: onReset)
@@ -165,14 +165,14 @@ struct DropOverlay: View {
 
             VStack(spacing: 12) {
                 Image(systemName: "arrow.down.doc.fill")
-                    .font(.system(size: 30, weight: .light))
+                    .font(Typography.iconDrop)
                     .foregroundStyle(Theme.mint)
 
                 Text("Rilascia per aggiungere")
-                    .font(Typography.modalTitle)
+                    .font(Typography.modalTitleText)
 
                 Text(".torrent o link magnet")
-                    .font(Typography.body)
+                    .font(Typography.bodyText)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 52)

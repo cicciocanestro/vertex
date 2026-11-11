@@ -116,6 +116,9 @@ package struct RootView: View {
 
     package var body: some View {
         layout
+            #if DEBUG
+            .dynamicTypeSize(debugDynamicTypeSize)
+            #endif
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: engine.selectedID)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: activeModal.value)
@@ -236,6 +239,21 @@ package struct RootView: View {
             }
             #endif
     }
+
+    #if DEBUG
+    private var debugDynamicTypeSize: DynamicTypeSize {
+        switch ProcessInfo.processInfo.environment["VERTEX_DYNAMIC_TYPE"] {
+        case "xSmall": return .xSmall
+        case "small": return .small
+        case "medium": return .medium
+        case "large": return .large
+        case "xLarge": return .xLarge
+        case "xxLarge": return .xxLarge
+        case "xxxLarge": return .xxxLarge
+        default: return .large
+        }
+    }
+    #endif
 
     private var layout: some View {
         ZStack(alignment: .bottom) {

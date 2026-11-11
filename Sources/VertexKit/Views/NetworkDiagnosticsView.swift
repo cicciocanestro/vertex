@@ -140,14 +140,14 @@ struct NetworkDiagnosticsView: View {
                         .frame(width: 6, height: 6)
                 }
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(Typography.rowTitleText)
                     .monospacedDigit()
                     .foregroundStyle(palette.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
             Text(detail)
-                .font(Typography.micro)
+                .font(Typography.microText)
                 .foregroundStyle(palette.tertiary)
                 .lineLimit(1)
         }
@@ -166,21 +166,21 @@ struct NetworkDiagnosticsView: View {
 
                 HStack(spacing: 9) {
                     Image(systemName: hasError ? "exclamationmark.shield.fill" : "shield.lefthalf.filled")
-                        .font(Typography.bodyLargeMedium)
+                        .font(Typography.bodyLargeMediumText)
                         .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                         .frame(width: 20)
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(L(hasError ? "Proxy non raggiungibile" : "Proxy attivo"))
-                                .font(Typography.bodyLargeMedium)
+                                .font(Typography.bodyLargeMediumText)
                                 .foregroundStyle(palette.text)
                             Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
-                                .font(Typography.captionMono)
+                                .font(Typography.captionMonoText)
                                 .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                             if engine.stats.proxy.auth {
                                 Text(verbatim: "RFC 1929")
-                                    .font(Typography.captionMicroSemibold)
+                                    .font(Typography.captionMicroSemiboldText)
                                     .foregroundStyle(hasError ? palette.coralText : palette.mintText)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 1.5)
@@ -191,11 +191,11 @@ struct NetworkDiagnosticsView: View {
                         }
                         if hasError {
                             Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.error))
-                                .font(Typography.micro)
+                                .font(Typography.microText)
                                 .foregroundStyle(palette.coralText)
                         } else {
                             Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
-                                .font(Typography.micro)
+                                .font(Typography.microText)
                                 .foregroundStyle(palette.secondary)
                         }
                     }
@@ -220,16 +220,16 @@ struct NetworkDiagnosticsView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(Typography.caption)
+                            .font(Typography.captionText)
                             .foregroundStyle(palette.coralText)
                         Text(engine.stats.listenError)
-                            .font(Typography.captionMono)
+                            .font(Typography.captionMonoText)
                             .foregroundStyle(palette.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Text(L("L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce."))
-                        .font(Typography.micro)
+                        .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -247,16 +247,16 @@ struct NetworkDiagnosticsView: View {
             if let reason = upnpDisabledReason {
                 HStack(spacing: 9) {
                     Image(systemName: "wifi.router")
-                        .font(Typography.bodyMedium)
+                        .font(Typography.bodyMediumText)
                         .foregroundStyle(palette.tertiary)
                         .frame(width: 20)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("UPnP / NAT-PMP disattivato"))
-                            .font(Typography.bodyLargeMedium)
+                            .font(Typography.bodyLargeMediumText)
                             .foregroundStyle(palette.text)
                         Text(reason)
-                            .font(Typography.micro)
+                            .font(Typography.microText)
                             .foregroundStyle(palette.tertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -282,10 +282,10 @@ struct NetworkDiagnosticsView: View {
                 Hairline(palette: palette)
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(Typography.captionTiny)
+                        .font(Typography.captionTinyText)
                         .foregroundStyle(palette.coralText)
                     Text(engine.stats.portmap.error)
-                        .font(Typography.captionSmall)
+                        .font(Typography.captionSmallText)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -298,7 +298,7 @@ struct NetworkDiagnosticsView: View {
         if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
             && !engine.stats.portmap.hasError {
             Text(L("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."))
-                .font(Typography.captionSmall)
+                .font(Typography.captionSmallText)
                 .foregroundStyle(palette.tertiary)
         }
     }
@@ -311,19 +311,19 @@ struct NetworkDiagnosticsView: View {
                     .frame(width: 6, height: 6)
 
                 Text(label)
-                    .font(Typography.bodySemibold)
+                    .font(Typography.bodySemiboldText)
                     .foregroundStyle(palette.text)
 
                 Spacer()
 
                 if info.mapped {
                     Text(LF("porta esterna %ld", info.externalPort))
-                        .font(Typography.captionMediumRounded)
+                        .font(Typography.captionMediumRoundedText)
                         .monospacedDigit()
                         .foregroundStyle(palette.secondary)
                     if !info.transport.isEmpty {
                         Text(info.transport)
-                            .font(Typography.captionMicroSemibold)
+                            .font(Typography.captionMicroSemiboldText)
                             .foregroundStyle(Theme.green)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
@@ -331,7 +331,7 @@ struct NetworkDiagnosticsView: View {
                     }
                 } else {
                     Text("non mappata")
-                        .font(Typography.captionMedium)
+                        .font(Typography.captionMediumText)
                         .foregroundStyle(palette.tertiary)
                 }
             }
@@ -339,10 +339,10 @@ struct NetworkDiagnosticsView: View {
             if info.hasError {
                 HStack(alignment: .top, spacing: 7) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(Typography.captionTiny)
+                        .font(Typography.captionTinyText)
                         .foregroundStyle(palette.coralText)
                     Text(info.error)
-                        .font(Typography.captionSmall)
+                        .font(Typography.captionSmallText)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -359,11 +359,11 @@ struct NetworkDiagnosticsView: View {
             VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 8) {
                     testStateIcon
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(Typography.bodyLargeSemiboldText)
                         .padding(.top, 1)
 
                     Text(testStateText)
-                        .font(.system(size: 10.8))
+                        .font(Typography.smallText)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -379,7 +379,7 @@ struct NetworkDiagnosticsView: View {
                     let endpoint = "\(publicIP):\(testPort)"
                     HStack(spacing: 8) {
                         Text(verbatim: endpoint)
-                            .font(Typography.captionMono)
+                            .font(Typography.captionMonoText)
                             .foregroundStyle(palette.text)
                             .textSelection(.enabled)
                             .lineLimit(1)
@@ -413,7 +413,7 @@ struct NetworkDiagnosticsView: View {
 
                     if case .idle = tester.state {
                         Text("Test TCP tramite check-host.net")
-                            .font(Typography.captionTinyNarrow)
+                            .font(Typography.captionTinyNarrowText)
                             .foregroundStyle(palette.tertiary)
                     }
                 }
@@ -497,7 +497,7 @@ struct NetworkDiagnosticsView: View {
                 .frame(width: 3.5, height: 3.5)
                 .padding(.top, 5)
             Text(text)
-                .font(Typography.captionSmall)
+                .font(Typography.captionSmallText)
                 .foregroundStyle(palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
