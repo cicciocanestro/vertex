@@ -153,168 +153,7 @@ struct SettingsSheet: View {
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
-                            if selectedSection.value == .folders {
-                                section(.folders, palette) {
-                                    destinationRow(palette)
-                                }
-                            }
-
-                            if selectedSection.value == .performance {
-                                section(.performance, palette) {
-                                    numericRow(
-                                        icon: "arrow.down",
-                                        title: "Limite download",
-                                        subtitle: "0 significa illimitato",
-                                        value: $downloadLimitKB,
-                                        suffix: "KB/s",
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    numericRow(
-                                        icon: "arrow.up",
-                                        title: "Limite upload",
-                                        subtitle: "0 significa illimitato",
-                                        value: $uploadLimitKB,
-                                        suffix: "KB/s",
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    numericRow(
-                                        icon: "network",
-                                        title: "Porta di ascolto",
-                                        subtitle: "Usata per le connessioni in ingresso",
-                                        value: $listenPort,
-                                        suffix: "TCP/UDP",
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    numericRow(
-                                        icon: "square.stack",
-                                        title: "Torrent attivi",
-                                        subtitle: "Gli altri restano in coda",
-                                        value: $maxActiveTorrents,
-                                        suffix: "0 = tutti",
-                                        palette: palette
-                                    )
-                                }
-                            }
-
-                            if selectedSection.value == .network {
-                                section(.network, palette) {
-                                    bindingRow(palette)
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    toggleRow(
-                                        icon: "globe",
-                                        title: "DHT",
-                                        subtitle: "Trova peer senza tracker centralizzati",
-                                        isOn: $dhtEnabled,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    toggleRow(
-                                        icon: "person.2",
-                                        title: "Peer Exchange (PEX)",
-                                        subtitle: "Scambia peer con i client connessi",
-                                        isOn: $pexEnabled,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    toggleRow(
-                                        icon: "dot.radiowaves.left.and.right",
-                                        title: "Local Service Discovery (LSD)",
-                                        subtitle: "Scopre peer sulla rete locale",
-                                        isOn: $lsdEnabled,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    toggleRow(
-                                        icon: "wifi.router",
-                                        title: "UPnP / NAT-PMP",
-                                        subtitle: "Apri automaticamente la porta sul router",
-                                        isOn: $upnpEnabled,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    diagnosticsRow(palette)
-                                }
-                                .disabled(engine.isRestartingSession)
-
-                                if !bindAddress.isEmpty {
-                                    Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                                        .font(Typography.captionTinyNarrowText)
-                                        .foregroundStyle(palette.tertiary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .padding(.horizontal, 4)
-                                }
-                            }
-
-                            if selectedSection.value == .proxy {
-                                section(.proxy, palette) {
-                                    toggleRow(
-                                        icon: "shield.lefthalf.filled",
-                                        title: "Usa proxy SOCKS5",
-                                        subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
-                                        isOn: $proxyEnabled,
-                                        palette: palette
-                                    )
-                                    if proxyEnabled {
-                                        Hairline(palette: palette).padding(.leading, 28)
-                                        proxyHostRow(palette)
-                                        Hairline(palette: palette).padding(.leading, 28)
-                                        proxyAuthRow(palette)
-                                    }
-                                }
-
-                                if proxyEnabled {
-                                    Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
-                                        .font(Typography.captionTinyNarrowText)
-                                        .foregroundStyle(palette.tertiary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .padding(.horizontal, 4)
-                                }
-                            }
-
-                            if selectedSection.value == .behavior {
-                                section(.behavior, palette) {
-                                    toggleRow(
-                                        icon: "pause.circle",
-                                        title: "Avvia i nuovi torrent in pausa",
-                                        subtitle: "Potrai riprenderli quando vuoi",
-                                        isOn: $startPaused,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    toggleRow(
-                                        icon: "arrow.down.to.line",
-                                        title: "Download sequenziale",
-                                        subtitle: "Scarica i file in ordine, utile per lo streaming",
-                                        isOn: $sequentialDefault,
-                                        palette: palette
-                                    )
-                                    Hairline(palette: palette).padding(.leading, 28)
-                                    decimalRow(
-                                        icon: "arrow.left.arrow.right",
-                                        title: "Ferma seed al rapporto",
-                                        subtitle: "Mette in pausa quando il rapporto raggiunge il limite",
-                                        value: $seedRatioLimit,
-                                        suffix: L("0 = mai"),
-                                        palette: palette
-                                    )
-                                }
-                            }
-
-                            if selectedSection.value == .appearance {
-                                section(.appearance, palette) {
-                                    appearancePicker(palette)
-                                        .padding(.vertical, 9)
-                                }
-                            }
-
-                            if selectedSection.value == .info {
-                                section(.info, palette) {
-                                    versionRow(palette)
-                                }
-                            }
+                            sectionContent(palette)
                         }
                         .padding(.horizontal, 22)
                         .padding(.top, 12)
@@ -419,6 +258,161 @@ struct SettingsSheet: View {
                 L("Impossibile salvare la password nel Portachiavi"),
                 kind: .error
             )
+        }
+    }
+
+    @ViewBuilder
+    private func sectionContent(_ palette: Palette) -> some View {
+        switch selectedSection.value {
+        case .folders:
+            section(.folders, palette) {
+                destinationRow(palette)
+            }
+        case .performance:
+            section(.performance, palette) {
+                numericRow(
+                    icon: "arrow.down",
+                    title: "Limite download",
+                    subtitle: "0 significa illimitato",
+                    value: $downloadLimitKB,
+                    suffix: "KB/s",
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                numericRow(
+                    icon: "arrow.up",
+                    title: "Limite upload",
+                    subtitle: "0 significa illimitato",
+                    value: $uploadLimitKB,
+                    suffix: "KB/s",
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                numericRow(
+                    icon: "network",
+                    title: "Porta di ascolto",
+                    subtitle: "Usata per le connessioni in ingresso",
+                    value: $listenPort,
+                    suffix: "TCP/UDP",
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                numericRow(
+                    icon: "square.stack",
+                    title: "Torrent attivi",
+                    subtitle: "Gli altri restano in coda",
+                    value: $maxActiveTorrents,
+                    suffix: "0 = tutti",
+                    palette: palette
+                )
+            }
+        case .network:
+            section(.network, palette) {
+                bindingRow(palette)
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "globe",
+                    title: "DHT",
+                    subtitle: "Trova peer senza tracker centralizzati",
+                    isOn: $dhtEnabled,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "person.2",
+                    title: "Peer Exchange (PEX)",
+                    subtitle: "Scambia peer con i client connessi",
+                    isOn: $pexEnabled,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "dot.radiowaves.left.and.right",
+                    title: "Local Service Discovery (LSD)",
+                    subtitle: "Scopre peer sulla rete locale",
+                    isOn: $lsdEnabled,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "wifi.router",
+                    title: "UPnP / NAT-PMP",
+                    subtitle: "Apri automaticamente la porta sul router",
+                    isOn: $upnpEnabled,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                diagnosticsRow(palette)
+            }
+            .disabled(engine.isRestartingSession)
+
+            if !bindAddress.isEmpty {
+                Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
+                    .font(Typography.captionTinyNarrowText)
+                    .foregroundStyle(palette.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+            }
+        case .proxy:
+            section(.proxy, palette) {
+                toggleRow(
+                    icon: "shield.lefthalf.filled",
+                    title: "Usa proxy SOCKS5",
+                    subtitle: "Instrada tracker e peer attraverso un proxy anonimo",
+                    isOn: $proxyEnabled,
+                    palette: palette
+                )
+                if proxyEnabled {
+                    Hairline(palette: palette).padding(.leading, 28)
+                    proxyHostRow(palette)
+                    Hairline(palette: palette).padding(.leading, 28)
+                    proxyAuthRow(palette)
+                }
+            }
+
+            if proxyEnabled {
+                Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
+                    .font(Typography.captionTinyNarrowText)
+                    .foregroundStyle(palette.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+            }
+        case .behavior:
+            section(.behavior, palette) {
+                toggleRow(
+                    icon: "pause.circle",
+                    title: "Avvia i nuovi torrent in pausa",
+                    subtitle: "Potrai riprenderli quando vuoi",
+                    isOn: $startPaused,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "arrow.down.to.line",
+                    title: "Download sequenziale",
+                    subtitle: "Scarica i file in ordine, utile per lo streaming",
+                    isOn: $sequentialDefault,
+                    palette: palette
+                )
+                Hairline(palette: palette).padding(.leading, 28)
+                decimalRow(
+                    icon: "arrow.left.arrow.right",
+                    title: "Ferma seed al rapporto",
+                    subtitle: "Mette in pausa quando il rapporto raggiunge il limite",
+                    value: $seedRatioLimit,
+                    suffix: L("0 = mai"),
+                    palette: palette
+                )
+            }
+        case .appearance:
+            section(.appearance, palette) {
+                appearancePicker(palette)
+                    .padding(.vertical, 9)
+            }
+        case .info:
+            section(.info, palette) {
+                versionRow(palette)
+            }
         }
     }
 
