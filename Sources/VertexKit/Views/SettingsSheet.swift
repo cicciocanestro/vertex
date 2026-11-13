@@ -134,41 +134,31 @@ struct SettingsSheet: View {
         let palette = Palette(scheme: scheme)
         settingsContainer(palette)
             .frame(width: 700, height: 540)
-            .onAppear {
-                interfaces.value = LocalNetwork.ipv4Interfaces()
-                let resolved = Preferences.resolvedDownloadPath(downloadPath)
-                if resolved != downloadPath {
-                    downloadPath = resolved
-                }
-                DispatchQueue.main.async {
-                    NSApp.keyWindow?.makeFirstResponder(nil)
-                }
-            }
-            .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
-            .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
-            .onChange(of: listenPort) { engine.applySettingsSoon() }
-            .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
-            .onChange(of: bindAddress) { engine.applySettingsNow() }
-            .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
-            .onChange(of: pexEnabled) { engine.applySettingsSoon() }
-            .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
-            .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
-            .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
-            .onChange(of: proxyEnabled) { _, enabled in
-                if enabled, proxyPasswordValue.value.isEmpty {
-                    proxyPasswordValue.value = Preferences.proxyPassword
-                }
-                engine.applySettingsNow()
-            }
-            .onChange(of: proxyHost) { engine.applySettingsSoon() }
-            .onChange(of: proxyPort) { engine.applySettingsSoon() }
-            .onChange(of: proxyUser) { engine.applySettingsSoon() }
-            .onChange(of: proxyPasswordValue.value) { scheduleProxyPasswordSave() }
-            .onChange(of: appearanceRaw) { AppAppearance.apply() }
-            .onDisappear {
-                flushProxyPassword()
-                engine.applySettingsNow()
-            }
+            .modifier(SettingsSheetEventHandlers(
+                onAppearAction: handleOnAppear,
+                onDisappearAction: handleOnDisappear
+            ))
+            .modifier(SettingsSheetChangeHandlers(
+                engine: engine,
+                proxyPasswordValue: proxyPasswordValue,
+                scheduleSave: scheduleProxyPasswordSave
+            ))
+    }
+
+    private func handleOnAppear() {
+        interfaces.value = LocalNetwork.ipv4Interfaces()
+        let resolved = Preferences.resolvedDownloadPath(downloadPath)
+        if resolved != downloadPath {
+            downloadPath = resolved
+        }
+        DispatchQueue.main.async {
+            NSApp.keyWindow?.makeFirstResponder(nil)
+        }
+    }
+
+    private func handleOnDisappear() {
+        flushProxyPassword()
+        engine.applySettingsNow()
     }
 
     private func settingsContainer(_ palette: Palette) -> some View {
@@ -943,5 +933,63 @@ struct SettingsSheet: View {
             downloadPath = url.path
             engine.applySettingsNow()
         }
+    }
+}
+
+private struct SettingsSheetEventHandlers: ViewModifier {
+    let onAppearAction: () -> Void
+    let onDisappearAction: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: onAppearAction)
+            .onDisappear(perform: onDisappearAction)
+    }
+}
+
+private struct SettingsSheetChangeHandlers: ViewModifier {
+    let engine: TorrentEngine
+    @ObservedObject var proxyPasswordValue: UIState<String>
+    let scheduleSave: () -> Void
+
+    @AppStorage(PrefKey.downloadLimitKB) private var downloadLimitKB = PrefDefault.downloadLimitKB
+    @AppStorage(PrefKey.uploadLimitKB) private var uploadLimitKB = PrefDefault.uploadLimitKB
+    @AppStorage(PrefKey.listenPort) private var listenPort = PrefDefault.listenPort
+    @AppStorage(PrefKey.maxActiveTorrents) private var maxActiveTorrents = PrefDefault.maxActiveTorrents
+    @AppStorage(PrefKey.bindAddress) private var bindAddress = PrefDefault.bindAddress
+    @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
+    @AppStorage(PrefKey.pexEnabled) private var pexEnabled = PrefDefault.pexEnabled
+    @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = PrefDefault.lsdEnabled
+    @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
+    @AppStorage(PrefKey.seedRatioLimit) private var seedRatioLimit = PrefDefault.seedRatioLimit
+    @AppStorage(PrefKey.proxyEnabled) private var proxyEnabled = PrefDefault.proxyEnabled
+    @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
+    @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
+    @AppStorage(PrefKey.proxyUser) private var proxyUser = PrefDefault.proxyUser
+    @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
+            .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
+            .onChange(of: listenPort) { engine.applySettingsSoon() }
+            .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
+            .onChange(of: bindAddress) { engine.applySettingsNow() }
+            .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
+            .onChange(of: pexEnabled) { engine.applySettingsSoon() }
+            .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
+            .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
+            .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
+            .onChange(of: proxyEnabled) { _, enabled in
+                if enabled, proxyPasswordValue.value.isEmpty {
+                    proxyPasswordValue.value = Preferences.proxyPassword
+                }
+                engine.applySettingsNow()
+            }
+            .onChange(of: proxyHost) { engine.applySettingsSoon() }
+            .onChange(of: proxyPort) { engine.applySettingsSoon() }
+            .onChange(of: proxyUser) { engine.applySettingsSoon() }
+            .onChange(of: proxyPasswordValue.value) { scheduleSave() }
+            .onChange(of: appearanceRaw) { AppAppearance.apply() }
     }
 }
