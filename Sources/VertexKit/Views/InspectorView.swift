@@ -161,6 +161,12 @@ struct InspectorView: View {
             .background(Circle().fill(palette.input))
             .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
 
+            IconButton(icon: "folder.badge.gearshape", help: "Sposta file…", size: 34) {
+                engine.chooseAndMoveStorage(for: torrent)
+            }
+            .background(Circle().fill(palette.input))
+            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
+
             IconButton(icon: "link", help: "Copia link magnet", size: 34) {
                 engine.copyMagnet(for: torrent)
             }

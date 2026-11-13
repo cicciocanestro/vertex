@@ -314,3 +314,14 @@
 "Avvia subito ignorando i limiti della coda" = "Start immediately ignoring queue limits";
 "Numero di torrent attivi non valido" = "Invalid active-torrent count";
 "Inserisci 0 (illimitato) o un valore tra 1 e 1000." = "Enter 0 (unlimited) or a value between 1 and 1000.";
+
+/* Seed ratio limit and move storage */
+"Ferma seed al rapporto" = "Stop seeding at ratio";
+"Mette in pausa quando il rapporto raggiunge il limite" = "Pause when share ratio reaches the limit";
+"0 = mai" = "0 = never";
+"Limite rapporto non valido" = "Invalid ratio limit";
+"Inserisci 0 (illimitato) o un valore positivo fino a 100." = "Enter 0 (unlimited) or a positive value up to 100.";
+"Seed completato (limite rapporto raggiunto)" = "Seeding completed (ratio limit reached)";
+"Sposta file…" = "Move files…";
+"Sposta" = "Move";
+"File spostati" = "Files moved";

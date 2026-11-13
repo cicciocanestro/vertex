@@ -403,6 +403,17 @@ final class BridgeSession {
         }
     }
 
+    func moveStorage(torrentID: String, destination: String) throws {
+        let result = torrentID.withCString { id in
+            destination.withCString { dest in
+                vt_move_storage(pointer, id, dest)
+            }
+        }
+        if result != 0 {
+            throw IntegrationTestError.bridge(lastError())
+        }
+    }
+
     func lastError() -> String {
         guard let cError = vt_last_error(pointer) else {
             return "errore sconosciuto"

@@ -106,8 +106,8 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 
 ### Gestione dei torrent
 
-- Pausa/ripresa, rimozione con o senza cancellazione dei file, **Mostra nel Finder**, copia
-  del magnet e download sequenziale.
+- Pausa/ripresa, rimozione con o senza cancellazione dei file, **Mostra nel Finder**, **Sposta file…**
+  su un'altra cartella o disco, copia del magnet e download sequenziale.
 - Selezionando un torrent si apre il pannello dettagli con statistiche, priorità dei file e
   tracker.
 - In caso di errore, il messaggio reale è visibile nella riga; messaggio e percorso sono
@@ -326,9 +326,6 @@ Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
   supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
 - Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
-- Non c'è un limite di rapporto: il seed continua finché non metti in pausa o rimuovi il
-  torrent.
-- Non è supportato lo spostamento dei dati di un torrent già aggiunto.
 - La DMG è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).
 
 ## Contribuire

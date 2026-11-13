@@ -696,8 +696,8 @@ vt_session* vt_session_create_full(const char* download_dir,
             return nullptr;
 
         lt::settings_pack settings;
-        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.13.0 libtorrent/" LIBTORRENT_VERSION);
-        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1D00-");
+        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.14.0 libtorrent/" LIBTORRENT_VERSION);
+        settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1E00-");
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |
                                                         lt::alert_category::storage |
@@ -961,6 +961,23 @@ void vt_session_poll(vt_session* session)
                 auto const id = to_hex(saved->params.info_hashes.get_best());
                 if (!is_removed(session, id) && saved->handle.is_valid())
                     write_resume_impl(session->resume_dir, saved->params);
+            }
+            else if (auto* moved = lt::alert_cast<lt::storage_moved_alert>(alert))
+            {
+                if (moved->handle.is_valid())
+                {
+                    try
+                    {
+                        moved->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+            else if (auto* move_failed = lt::alert_cast<lt::storage_moved_failed_alert>(alert))
+            {
+                session->last_alert_error = move_failed->error.message();
             }
             else if (auto* stats = lt::alert_cast<lt::session_stats_alert>(alert))
             {
@@ -1687,6 +1704,38 @@ int vt_set_all_file_priorities(vt_session* session, const char* torrent_id_value
             lt::download_priority_t(std::uint8_t(priority)));
         handle.prioritize_files(priorities);
         handle.save_resume_data(lt::torrent_handle::save_info_dict);
+        return 0;
+    }
+    VT_CATCH_ALL(session, -1)
+}
+
+int vt_move_storage(vt_session* session, const char* torrent_id_value, const char* save_path)
+{
+    if (!session || !session->session)
+        return -1;
+    if (!torrent_id_value || !save_path || !*save_path)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
+
+    try
+    {
+        auto handle = find_handle(session, torrent_id_value);
+        if (!handle.is_valid())
+        {
+            session->last_error = "Torrent non trovato";
+            return -1;
+        }
+
+        std::string const destination = normalized_save_path(save_path, "");
+        if (destination.empty() || !is_usable_directory(destination))
+        {
+            session->last_error = "La cartella di destinazione non è scrivibile.";
+            return -1;
+        }
+
+        handle.move_storage(destination, lt::move_flags_t::always_replace_files);
         return 0;
     }
     VT_CATCH_ALL(session, -1)

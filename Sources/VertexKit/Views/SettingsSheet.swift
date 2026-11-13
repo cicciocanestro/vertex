@@ -83,6 +83,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
     @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
+    @AppStorage(PrefKey.seedRatioLimit) private var seedRatioLimit = PrefDefault.seedRatioLimit
     @AppStorage(PrefKey.proxyEnabled) private var proxyEnabled = PrefDefault.proxyEnabled
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
@@ -290,6 +291,15 @@ struct SettingsSheet: View {
                                         isOn: $sequentialDefault,
                                         palette: palette
                                     )
+                                    Hairline(palette: palette).padding(.leading, 28)
+                                    decimalRow(
+                                        icon: "arrow.left.arrow.right",
+                                        title: "Ferma seed al rapporto",
+                                        subtitle: "Mette in pausa quando il rapporto raggiunge il limite",
+                                        value: $seedRatioLimit,
+                                        suffix: L("0 = mai"),
+                                        palette: palette
+                                    )
                                 }
                             }
 
@@ -352,6 +362,7 @@ struct SettingsSheet: View {
         .onChange(of: pexEnabled) { engine.applySettingsSoon() }
         .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
         .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
+        .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
         .onChange(of: proxyEnabled) { _, enabled in
             if enabled, proxyPasswordValue.value.isEmpty {
                 proxyPasswordValue.value = Preferences.proxyPassword
@@ -536,6 +547,66 @@ struct SettingsSheet: View {
                     .monospacedDigit()
                     .foregroundStyle(palette.text)
                     .frame(minWidth: 62, maxWidth: 84)
+
+                Text(suffix)
+                    .font(Typography.microMediumText)
+                    .foregroundStyle(palette.tertiary)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(minHeight: 26)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(palette.input)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(palette.stroke, lineWidth: 1)
+                    .allowsHitTesting(false)
+            )
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func decimalRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        value: Binding<Double>,
+        suffix: String,
+        palette: Palette
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(Typography.bodyMediumText)
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L(title))
+                    .font(Typography.bodyLargeMediumText)
+                    .foregroundStyle(palette.text)
+                Text(L(subtitle))
+                    .font(Typography.microText)
+                    .foregroundStyle(palette.tertiary)
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 4) {
+                TextField(
+                    "",
+                    value: value,
+                    format: .number.precision(.fractionLength(0...2)).grouping(.never)
+                )
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .font(Typography.smallRoundedMediumText)
+                .monospacedDigit()
+                .foregroundStyle(palette.text)
+                .frame(minWidth: 52, maxWidth: 72)
 
                 Text(suffix)
                     .font(Typography.microMediumText)

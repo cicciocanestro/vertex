@@ -207,3 +207,62 @@ extension Torrent {
         )
     }
 }
+
+extension VertexSnapshot {
+    static func test(
+        torrents: [Torrent] = [],
+        stats: SessionStats = SessionStats()
+    ) -> VertexSnapshot {
+        let torrentsJSON = torrents.map { t in
+            """
+            {
+                "id": "\(t.id)",
+                "name": "\(t.name)",
+                "state_code": \(t.stateCode),
+                "progress": \(t.progress),
+                "size": \(t.size),
+                "downloaded": \(t.downloaded),
+                "uploaded": \(t.uploaded),
+                "download_rate": \(t.downloadRate),
+                "upload_rate": \(t.uploadRate),
+                "peers": \(t.peers),
+                "seeds": \(t.seeds),
+                "eta": \(t.eta),
+                "finished": \(t.finished),
+                "seeding": \(t.seeding),
+                "paused": \(t.paused),
+                "auto_managed": \(t.autoManaged),
+                "sequential": \(t.sequential),
+                "has_metadata": \(t.hasMetadata),
+                "save_path": "\(t.savePath)",
+                "ratio": \(t.ratio),
+                "added": \(t.added),
+                "error": "\(t.error)"
+            }
+            """
+        }.joined(separator: ",")
+
+        let json = """
+        {
+            "download_rate": \(stats.downloadRate),
+            "upload_rate": \(stats.uploadRate),
+            "active": \(stats.active),
+            "paused_count": \(stats.paused),
+            "dht_nodes": \(stats.dhtNodes),
+            "alert_error": "",
+            "listen_actual_port": \(stats.actualPort),
+            "listening": \(stats.isListening),
+            "bind_address": "\(stats.bindAddress)",
+            "listen_error": "\(stats.listenError)",
+            "portmap": {
+                "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                "error": ""
+            },
+            "port": \(stats.port),
+            "torrents": [\(torrentsJSON)]
+        }
+        """
+        return try! JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
+    }
+}

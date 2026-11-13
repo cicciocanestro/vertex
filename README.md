@@ -104,8 +104,8 @@ needed at runtime.
 
 ### Managing torrents
 
-- Pause/resume, remove with or without deleting files, **Show in Finder**, copy magnet link
-  and sequential download.
+- Pause/resume, remove with or without deleting files, **Show in Finder**, **Move files…**
+  to another folder or drive, copy magnet link and sequential download.
 - Selecting a torrent opens the inspector with statistics, file priorities and trackers.
 - On error, the actual message is shown in the row; the message and path are shown in the
   inspector.
@@ -321,8 +321,6 @@ DEBUG builds provide demo data, window capture and a sample actionable toast
 - Ad-hoc, not notarized signature: expect a Gatekeeper confirmation on another Mac.
 - Italian or English interface based on the system language; no other translations.
 - Deliberately minimal: no RSS, built-in torrent search or scheduler.
-- There is no ratio limit: seeding continues until you pause or remove the torrent.
-- Moving data of an already added torrent is not supported.
 - The DMG is specific to the build Mac's architecture (arm64 on Apple Silicon).
 
 ## Contributing

@@ -15,6 +15,7 @@ package enum PrefKey {
     package static let upnpEnabled = "upnpEnabled"
     package static let startPaused = "startPaused"
     package static let sequentialDefault = "sequentialDefault"
+    package static let seedRatioLimit = "seedRatioLimit"
     package static let appearance = "appearance"
     package static let proxyEnabled = "proxyEnabled"
     package static let proxyHost = "proxyHost"
@@ -80,6 +81,20 @@ package enum Preferences {
     /// Whether an active-torrent limit is valid (0 = unlimited).
     package static func isValidActiveLimit(_ value: Int) -> Bool {
         (0...maximumActiveTorrents).contains(value)
+    }
+
+    /// Upper bound for the automatic seed ratio limit (0 = unlimited).
+    package static let maximumSeedRatio = 100.0
+
+    /// Whether a seed ratio limit is valid (0 = unlimited).
+    package static func isValidSeedRatio(_ value: Double) -> Bool {
+        value.isFinite && (0...maximumSeedRatio).contains(value)
+    }
+
+    /// Clamps a seed ratio limit to the valid range, treating NaN/negative as 0.
+    package static func clampedSeedRatio(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return min(max(value, 0), maximumSeedRatio)
     }
 
     /// Whether a port can be used for TCP/UDP listening.
@@ -248,6 +263,9 @@ package enum PrefDefault {
     package static let upnpEnabled = true
     package static let startPaused = false
     package static let sequentialDefault = false
+    /// 0 = seed indefinitely; a positive value pauses a finished torrent once
+    /// its share ratio reaches this threshold.
+    package static let seedRatioLimit = 0.0
     /// Follow the system appearance unless the user chose otherwise: opening a
     /// light-mode Mac into a dark window is a surprising default.
     package static let appearance = "system"
@@ -271,6 +289,7 @@ package enum PrefDefault {
             PrefKey.upnpEnabled: upnpEnabled,
             PrefKey.startPaused: startPaused,
             PrefKey.sequentialDefault: sequentialDefault,
+            PrefKey.seedRatioLimit: seedRatioLimit,
             PrefKey.appearance: appearance,
             PrefKey.proxyEnabled: proxyEnabled,
             PrefKey.proxyHost: proxyHost,
@@ -289,6 +308,8 @@ package struct SessionConfiguration: Sendable, Equatable {
     package var maxActive: Int32
     package var downloadLimit: Int32
     package var uploadLimit: Int32
+    /// Share ratio threshold at which finished torrents are paused (0 = none).
+    package var seedRatioLimit: Double
     package var dht: Bool
     package var pex: Bool
     package var lsd: Bool
@@ -308,6 +329,7 @@ package struct SessionConfiguration: Sendable, Equatable {
         maxActive: Int32 = 0,
         downloadLimit: Int32 = 0,
         uploadLimit: Int32 = 0,
+        seedRatioLimit: Double = 0,
         dht: Bool = false,
         pex: Bool = false,
         lsd: Bool = false,
@@ -325,6 +347,7 @@ package struct SessionConfiguration: Sendable, Equatable {
         self.maxActive = maxActive
         self.downloadLimit = downloadLimit
         self.uploadLimit = uploadLimit
+        self.seedRatioLimit = seedRatioLimit
         self.dht = dht
         self.pex = pex
         self.lsd = lsd
@@ -368,6 +391,12 @@ extension TorrentEngine {
         let rawMaxActive = defaults.integer(forKey: PrefKey.maxActiveTorrents)
         if !Preferences.isValidActiveLimit(rawMaxActive) {
             defaults.set(PrefDefault.maxActiveTorrents, forKey: PrefKey.maxActiveTorrents)
+        }
+
+        // seed ratio limit
+        let rawSeedRatio = defaults.double(forKey: PrefKey.seedRatioLimit)
+        if !Preferences.isValidSeedRatio(rawSeedRatio) {
+            defaults.set(Preferences.clampedSeedRatio(rawSeedRatio), forKey: PrefKey.seedRatioLimit)
         }
 
         // bind address
@@ -430,6 +459,7 @@ extension TorrentEngine {
                                  Preferences.maximumActiveTorrents)),
             downloadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB)),
             uploadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB)),
+            seedRatioLimit: Preferences.clampedSeedRatio(defaults.double(forKey: PrefKey.seedRatioLimit)),
             dht: defaults.bool(forKey: PrefKey.dhtEnabled),
             pex: defaults.bool(forKey: PrefKey.pexEnabled),
             lsd: defaults.bool(forKey: PrefKey.lsdEnabled),

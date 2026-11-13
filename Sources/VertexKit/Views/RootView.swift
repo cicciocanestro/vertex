@@ -174,6 +174,12 @@ package struct RootView: View {
                             engine.reveal(torrent)
                         }
                     },
+                    onMoveStorage: {
+                        guard !hasModalOverlay else { return }
+                        if let torrent = selectedTorrent {
+                            engine.chooseAndMoveStorage(for: torrent)
+                        }
+                    },
                     onCopyMagnet: {
                         guard !hasModalOverlay else { return }
                         if let torrent = selectedTorrent {
@@ -660,6 +666,7 @@ struct RootEventHandlerActions {
     var onPauseResume: () -> Void = {}
     var onRemove: () -> Void = {}
     var onReveal: () -> Void = {}
+    var onMoveStorage: () -> Void = {}
     var onCopyMagnet: () -> Void = {}
     var onFind: () -> Void = {}
     var onToggleInspector: () -> Void = {}
@@ -675,6 +682,7 @@ struct RootEventHandlerActions {
         case .vertexPauseResume: onPauseResume()
         case .vertexRemove: onRemove()
         case .vertexReveal: onReveal()
+        case .vertexMoveStorage: onMoveStorage()
         case .vertexCopyMagnet: onCopyMagnet()
         case .vertexFind: onFind()
         case .vertexToggleInspector: onToggleInspector()

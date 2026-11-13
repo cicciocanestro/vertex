@@ -329,6 +329,93 @@ extension TorrentEngine {
         }
     }
 
+    /// Moves the downloaded files of an already-added torrent to `destination`.
+    /// Directory validation and the bridge call run on `sessionQueue`, so the UI
+    /// thread never touches the filesystem.
+    package func moveStorage(
+        _ torrent: Torrent,
+        to destination: String,
+        completion: (@MainActor (String?) -> Void)? = nil
+    ) {
+        guard !isShuttingDown, let session else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
+            return
+        }
+        let torrentID = torrent.id
+        let currentSavePath = torrent.savePath
+        let generation = sessionGeneration
+        let pointer = SessionPointerBox(session)
+
+        sessionQueue.async { [weak self] in
+            guard let s = pointer.value else { return }
+            let prepared = Self.preparedDestination(destination)
+            guard let path = prepared.path else {
+                let message = prepared.error ?? L("Cartella di destinazione non valida.")
+                DispatchQueue.main.async {
+                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                }
+                return
+            }
+
+            if URL(fileURLWithPath: path).standardizedFileURL.path
+                == URL(fileURLWithPath: currentSavePath).standardizedFileURL.path {
+                DispatchQueue.main.async {
+                    completion?(nil)
+                }
+                return
+            }
+
+            let code = torrentID.withCString { idPointer in
+                path.withCString { pathPointer in
+                    vt_move_storage(s, idPointer, pathPointer)
+                }
+            }
+
+            let rawError = code != 0 ? Self.readLastError(s) : ""
+            DispatchQueue.main.async {
+                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                    if self?.isShuttingDown == false {
+                        completion?(L("Motore non disponibile."))
+                    }
+                    return
+                }
+
+                if code != 0 {
+                    let message = self.localizedError(
+                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? L("Errore sconosciuto.")
+                            : rawError
+                    )
+                    self.showToast(message, kind: .error)
+                    completion?(message)
+                    return
+                }
+
+                self.showToast(
+                    L("File spostati"),
+                    kind: .success,
+                    detail: path,
+                    actionTitle: L("Apri cartella"),
+                    action: .openFolder(path: path)
+                )
+                self.poll()
+                completion?(nil)
+            }
+        }
+    }
+
+    func chooseAndMoveStorage(for torrent: Torrent) {
+        let panel = OpenPanelFactory.directory(
+            startingAt: torrent.savePath,
+            prompt: L("Sposta")
+        )
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        moveStorage(torrent, to: url.path)
+    }
+
     /// Coalesces the edits of a settings field: applying on every keystroke
     /// rebinds the listening port (and resets the port mapping) for partial
     /// values like `6` or `68`. Closing the sheet still flushes immediately.
@@ -381,6 +468,14 @@ extension TorrentEngine {
                     L("Numero di torrent attivi non valido"),
                     kind: .error,
                     detail: L("Inserisci 0 (illimitato) o un valore tra 1 e 1000.")
+                )
+                return
+            }
+            guard Preferences.isValidSeedRatio(defaults.double(forKey: PrefKey.seedRatioLimit)) else {
+                showToast(
+                    L("Limite rapporto non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 (illimitato) o un valore positivo fino a 100.")
                 )
                 return
             }
@@ -437,6 +532,9 @@ extension TorrentEngine {
 
         guard downloadPathChanged || networkChanged || queueChanged || proxyChanged else {
             lastAppliedConfiguration = configuration
+            if configuration.seedRatioLimit > 0 {
+                poll()
+            }
             return
         }
 

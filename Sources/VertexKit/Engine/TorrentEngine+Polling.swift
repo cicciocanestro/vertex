@@ -21,6 +21,13 @@ extension TorrentEngine {
         }
     }
 
+    var currentSeedRatioLimit: Double {
+        if let configurationOverride {
+            return Preferences.clampedSeedRatio(configurationOverride.seedRatioLimit)
+        }
+        return Preferences.clampedSeedRatio(UserDefaults.standard.double(forKey: PrefKey.seedRatioLimit))
+    }
+
     func startPolling() {
         pollTask?.cancel()
         pollTask = Task { @MainActor [weak self] in
@@ -206,6 +213,40 @@ extension TorrentEngine {
         }
         unfinishedIDs = unfinished
         if !hasLoadedSnapshot { hasLoadedSnapshot = true }
+
+        // Enforce the automatic seed ratio limit (0 = unlimited). Once a finished
+        // torrent reaches the configured ratio we pause it once and remember its
+        // ID in `ratioLimitSatisfiedIDs`, so if the user manually resumes it later
+        // it is not immediately paused again on the next poll.
+        let ratioLimit = currentSeedRatioLimit
+        if ratioLimit > 0 {
+            let presentIDs = Set(snapshot.torrents.map(\.id))
+            ratioLimitSatisfiedIDs.formIntersection(presentIDs)
+            for torrent in snapshot.torrents {
+                if torrent.ratio < ratioLimit {
+                    ratioLimitSatisfiedIDs.remove(torrent.id)
+                    continue
+                }
+                guard torrent.finished, !torrent.paused else {
+                    if torrent.finished && torrent.paused {
+                        ratioLimitSatisfiedIDs.insert(torrent.id)
+                    }
+                    continue
+                }
+                guard !ratioLimitSatisfiedIDs.contains(torrent.id) else { continue }
+                ratioLimitSatisfiedIDs.insert(torrent.id)
+                let name = torrent.name
+                control("pause", id: torrent.id) { [weak self] in
+                    self?.showToast(
+                        L("Seed completato (limite rapporto raggiunto)"),
+                        kind: .info,
+                        detail: name
+                    )
+                }
+            }
+        } else if !ratioLimitSatisfiedIDs.isEmpty {
+            ratioLimitSatisfiedIDs.removeAll()
+        }
 
         var next = pollState
         next.torrents = snapshot.torrents

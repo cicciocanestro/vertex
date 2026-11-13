@@ -83,6 +83,12 @@ int vt_set_active_limit(vt_session* session, int max_active);
 int vt_set_trackers(vt_session* session, const char* torrent_id, const char* urls);
 int vt_set_file_priority(vt_session* session, const char* torrent_id, int file_index, int priority);
 int vt_set_all_file_priorities(vt_session* session, const char* torrent_id, int priority);
+
+/* Moves the downloaded files of an already-added torrent to `save_path`.
+   `save_path` is normalized with the session rules and must be a writable
+   directory; otherwise returns -1 with `last_error` set. The actual move runs
+   on libtorrent's disk thread and updates the resume data when completed. */
+int vt_move_storage(vt_session* session, const char* torrent_id, const char* save_path);
 /* Runtime settings update. Returns 0 on success. bind_address follows the same
    rules as vt_session_create_full: NULL or "" restores listening on every
    interface. Changing it rebinds the sockets and resets the UPnP/NAT-PMP state,

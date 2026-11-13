@@ -206,6 +206,18 @@ enum EngineTests {
                 "Il magnet URI deve essere disponibile per un torrent con metadati"
             )
 
+            // Test moveStorage through engine
+            let targetMoved = try workspace.directory("engine-moved")
+            let moveBox = onMain { AsyncBox<String>() }
+            onMain {
+                engine.moveStorage(torrent, to: targetMoved.path) { failure in
+                    moveBox.value = failure
+                    moveBox.isDone = true
+                }
+            }
+            try waitUntil("callback spostamento storage") { onMain { moveBox.isDone } }
+            try TestRunner.assertNil(onMain { moveBox.value })
+
             onMain { engine.remove(torrent, deleteFiles: false) }
             try waitUntil("rimozione asincrona del torrent") {
                 onMain {
@@ -384,6 +396,37 @@ enum EngineTests {
                         && engine.stats.listenError.isEmpty
                 }
             }
+
+            // Seed ratio limit: auto-pauses seeding torrent when ratio threshold is met.
+            var ratioConfig = automaticBind
+            ratioConfig.seedRatioLimit = 1.5
+            onMain {
+                engine.setConfigurationForTesting(ratioConfig)
+                engine.applySettings()
+            }
+            let seedingFinished = Torrent.test(
+                id: "seed-ratio-test",
+                name: "SeedRatioTorrent",
+                stateCode: 5,
+                progress: 1.0,
+                finished: true,
+                seeding: true,
+                paused: false,
+                ratio: 1.8
+            )
+            onMain {
+                var testStats = engine.stats
+                testStats.active = 1
+                let testSnapshot = VertexSnapshot.test(
+                    torrents: [seedingFinished],
+                    stats: testStats
+                )
+                engine.applySnapshotForTesting(testSnapshot)
+            }
+            try TestRunner.assertTrue(
+                onMain { engine.ratioLimitSatisfiedIDs.contains("seed-ratio-test") },
+                "Il torrent con ratio >= limite deve essere registrato nei ratioLimitSatisfiedIDs"
+            )
 
             // Changing PEX requires recreating the libtorrent session.
             var restarted = configuration

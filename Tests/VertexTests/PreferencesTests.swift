@@ -26,6 +26,21 @@ enum PreferencesTests {
             )
         }
 
+        TestRunner.run("Limite rapporto seed: validazione") {
+            try TestRunner.assertTrue(Preferences.isValidSeedRatio(0.0))
+            try TestRunner.assertTrue(Preferences.isValidSeedRatio(1.5))
+            try TestRunner.assertTrue(Preferences.isValidSeedRatio(Preferences.maximumSeedRatio))
+            try TestRunner.assertFalse(Preferences.isValidSeedRatio(-0.1))
+            try TestRunner.assertFalse(Preferences.isValidSeedRatio(Preferences.maximumSeedRatio + 1))
+            try TestRunner.assertFalse(Preferences.isValidSeedRatio(Double.nan))
+            try TestRunner.assertFalse(Preferences.isValidSeedRatio(Double.infinity))
+
+            try TestRunner.assertEqual(Preferences.clampedSeedRatio(1.5), 1.5)
+            try TestRunner.assertEqual(Preferences.clampedSeedRatio(-2), 0.0)
+            try TestRunner.assertEqual(Preferences.clampedSeedRatio(200), Preferences.maximumSeedRatio)
+            try TestRunner.assertEqual(Preferences.clampedSeedRatio(Double.nan), 0.0)
+        }
+
         TestRunner.run("Limiti KB/s: validazione dei valori ammessi") {
             try TestRunner.assertTrue(Preferences.isValidLimitKB(0))
             try TestRunner.assertTrue(Preferences.isValidLimitKB(1024))
@@ -88,6 +103,7 @@ enum PreferencesTests {
                 PrefKey.upnpEnabled,
                 PrefKey.startPaused,
                 PrefKey.sequentialDefault,
+                PrefKey.seedRatioLimit,
                 PrefKey.appearance,
                 PrefKey.proxyEnabled,
                 PrefKey.proxyHost,
@@ -106,6 +122,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(defaults[PrefKey.pexEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.upnpEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.startPaused] as? Bool, false)
+            try TestRunner.assertEqual(defaults[PrefKey.seedRatioLimit] as? Double, 0.0)
             try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "system")
             try TestRunner.assertEqual(defaults[PrefKey.proxyEnabled] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.proxyHost] as? String, "127.0.0.1")
@@ -138,7 +155,7 @@ enum PreferencesTests {
             let keys = [
                 PrefKey.listenPort, PrefKey.downloadLimitKB, PrefKey.uploadLimitKB,
                 PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath,
-                PrefKey.proxyPort, PrefKey.proxyHost
+                PrefKey.proxyPort, PrefKey.proxyHost, PrefKey.seedRatioLimit
             ]
             let backup: [String: Any?] = Dictionary(uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
             defer {
@@ -161,6 +178,7 @@ enum PreferencesTests {
             defaults.set("chartreuse", forKey: PrefKey.appearance)
             defaults.set(88888, forKey: PrefKey.proxyPort)
             defaults.set("  proxy.local  ", forKey: PrefKey.proxyHost)
+            defaults.set(-10.5, forKey: PrefKey.seedRatioLimit)
             // A .torrent file is a common mis-selection: the path must be resolved
             // to its parent directory rather than left pointing at the file.
             defaults.set("/tmp/corrupt-download.torrent", forKey: PrefKey.downloadPath)
@@ -182,6 +200,7 @@ enum PreferencesTests {
                 defaults.integer(forKey: PrefKey.maxActiveTorrents),
                 PrefDefault.maxActiveTorrents
             )
+            try TestRunner.assertEqual(defaults.double(forKey: PrefKey.seedRatioLimit), 0.0)
             try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 1080)
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")
             try TestRunner.assertEqual(

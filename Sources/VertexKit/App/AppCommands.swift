@@ -8,6 +8,7 @@ extension Notification.Name {
     static let vertexPauseResume = Notification.Name("vertex.pauseResume")
     static let vertexRemove = Notification.Name("vertex.remove")
     static let vertexReveal = Notification.Name("vertex.reveal")
+    static let vertexMoveStorage = Notification.Name("vertex.moveStorage")
     static let vertexCopyMagnet = Notification.Name("vertex.copyMagnet")
     static let vertexFind = Notification.Name("vertex.find")
     static let vertexToggleInspector = Notification.Name("vertex.toggleInspector")
@@ -25,6 +26,7 @@ enum AppCommand: Equatable {
     case pasteMagnet
     case pauseResume
     case reveal
+    case moveStorage
     case copyMagnet
     case remove
     case find
@@ -42,6 +44,7 @@ enum AppCommand: Equatable {
         .vertexPauseResume,
         .vertexRemove,
         .vertexReveal,
+        .vertexMoveStorage,
         .vertexCopyMagnet,
         .vertexFind,
         .vertexToggleInspector,
@@ -57,6 +60,7 @@ enum AppCommand: Equatable {
         case .pasteMagnet: return .vertexPasteMagnet
         case .pauseResume: return .vertexPauseResume
         case .reveal: return .vertexReveal
+        case .moveStorage: return .vertexMoveStorage
         case .copyMagnet: return .vertexCopyMagnet
         case .remove: return .vertexRemove
         case .find: return .vertexFind
@@ -111,6 +115,10 @@ package struct AppCommands: Commands {
                 post(.reveal)
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
+
+            Button("Sposta file…") {
+                post(.moveStorage)
+            }
 
             Button("Copia link magnet") {
                 post(.copyMagnet)

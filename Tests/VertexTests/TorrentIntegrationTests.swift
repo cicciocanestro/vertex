@@ -46,6 +46,10 @@ enum TorrentIntegrationTests {
             try trackerEditing()
         }
 
+        TestRunner.run("Spostamento storage: vt_move_storage su nuova cartella") {
+            try moveStoragePath()
+        }
+
         TestRunner.run("Fallimenti: torrent, peer e percorso non scrivibile") {
             try failurePaths()
         }
@@ -555,6 +559,44 @@ enum TorrentIntegrationTests {
         }
         try TestRunner.assertEqual(cleared, 0, "Una lista vuota deve essere accettata")
         try TestRunner.assertEqual(try session.detail(torrentID: torrent.id).trackers.count, 0)
+    }
+
+    private static func moveStoragePath() throws {
+        let fixture = IntegrationFixture.v1
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let seed = try IntegrationSwarm.makeSeed(fixture, workspace: workspace)
+        defer { seed.session.close() }
+
+        let leech = try IntegrationSwarm.makeLeech(
+            fixture,
+            workspace: workspace,
+            seedPort: seed.port
+        )
+        defer { leech.session.close() }
+
+        try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
+
+        let targetDir = try workspace.directory("moved-storage")
+        try leech.session.moveStorage(torrentID: leech.torrentID, destination: targetDir.path)
+
+        try TestsSupport.waitFor("spostamento completato e savePath aggiornato") {
+            guard let torrent = try leech.session.snapshot().torrents.first(where: { $0.id == leech.torrentID }) else {
+                return false
+            }
+            return torrent.savePath == targetDir.path
+        }
+
+        try TestsSupport.waitFor("file presenti nella nuova destinazione") {
+            fixture.files.allSatisfy {
+                fixture.isFullyWritten(in: targetDir, path: $0.path)
+            }
+        }
+        for file in fixture.files {
+            try fixture.assertDownloaded(in: targetDir, path: file.path)
+        }
     }
 
     private static func failurePaths() throws {

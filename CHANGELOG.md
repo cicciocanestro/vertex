@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.14.0] — 2026-11-13
+
+### Novità e Funzionalità
+- **Spostamento file su disco a download/seed iniziato (`move_storage`)**:
+  - Aggiunto il comando `vt_move_storage` nel bridge C++ e il supporto nativo a `storage_moved_alert`, con aggiornamento e persistenza immediata del resume data.
+  - Nuova opzione **"Sposta file…"** raggiungibile dal menu contestuale della riga, dal menu di sistema *Torrent* e dall'Inspector (pulsante dedicato con icona `folder.badge.gearshape`).
+  - L'operazione è asincrona, non blocca l'interfaccia utente e mostra una notifica toast con azione rapida per aprire la nuova cartella nel Finder.
+- **Limite di share ratio per fermare il seeding in automatico**:
+  - Nuova preferenza **Impostazioni → Comportamento → Ferma seed al rapporto** (`0.0 = mai`).
+  - Mette automaticamente in pausa i torrent completati una volta raggiunto il rapporto di condivisione target e notifica l'avvenuto completamento del seed.
+  - Rispetta le azioni manuali dell'utente: se un torrent oltre la soglia viene ripreso esplicitamente, non viene rimesso in pausa a ciclo continuo.
+
+### Migliorie e Test
+- Aggiornata la documentazione bilingue (`README.md`, `README.it.md`) riflettendo il supporto a spostamento file e limite di ratio.
+- Estesa la suite di test con 2 nuovi scenari (71 test totali): test di validazione preferenze per il limite di ratio e test d'integrazione di trasferimento su loopback con spostamento effettivo dello storage su disco e verifica bit-per-bit dei file.
+
 ## [1.13.0] — 2026-11-11
 
 ### Novità e Funzionalità

@@ -35,6 +35,7 @@ enum AppCommandsTests {
             (.pasteMagnet, .vertexPasteMagnet),
             (.pauseResume, .vertexPauseResume),
             (.reveal, .vertexReveal),
+            (.moveStorage, .vertexMoveStorage),
             (.copyMagnet, .vertexCopyMagnet),
             (.remove, .vertexRemove),
             (.find, .vertexFind),
@@ -54,6 +55,7 @@ enum AppCommandsTests {
             .pasteMagnet,
             .pauseResume,
             .reveal,
+            .moveStorage,
             .copyMagnet,
             .remove,
             .find,
@@ -99,6 +101,7 @@ enum AppCommandsTests {
             .pasteMagnet,
             .pauseResume,
             .reveal,
+            .moveStorage,
             .copyMagnet,
             .remove,
             .find,
@@ -128,6 +131,7 @@ enum AppCommandsTests {
         actions.onPauseResume = { recorder.actions.append("pauseResume") }
         actions.onRemove = { recorder.actions.append("remove") }
         actions.onReveal = { recorder.actions.append("reveal") }
+        actions.onMoveStorage = { recorder.actions.append("moveStorage") }
         actions.onCopyMagnet = { recorder.actions.append("copyMagnet") }
         actions.onFind = { recorder.actions.append("find") }
         actions.onToggleInspector = { recorder.actions.append("toggleInspector") }
@@ -142,6 +146,7 @@ enum AppCommandsTests {
             .vertexPauseResume,
             .vertexRemove,
             .vertexReveal,
+            .vertexMoveStorage,
             .vertexCopyMagnet,
             .vertexFind,
             .vertexToggleInspector,
@@ -161,6 +166,7 @@ enum AppCommandsTests {
                 "pauseResume",
                 "remove",
                 "reveal",
+                "moveStorage",
                 "copyMagnet",
                 "find",
                 "toggleInspector",

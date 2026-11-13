@@ -58,6 +58,10 @@ package final class TorrentEngine: ObservableObject {
     var toastTask: Task<Void, Never>?
     var settingsApplyTask: Task<Void, Never>?
     var unfinishedIDs: Set<String> = []
+    /// Finished torrents that have already been auto-paused by the seed ratio
+    /// limit (or manually resumed by the user while already >= the limit), so
+    /// the poll does not immediately pause a torrent the user just resumed.
+    var ratioLimitSatisfiedIDs: Set<String> = []
     var detailTick = 0
     var forceDetailRefresh = false
     /// True after the first snapshot has been applied. Published so the list
@@ -310,6 +314,7 @@ package final class TorrentEngine: ObservableObject {
         isReady = false
         hasLoadedSnapshot = false
         unfinishedIDs.removeAll()
+        ratioLimitSatisfiedIDs.removeAll()
         pollTask?.cancel()
         pollTask = nil
 

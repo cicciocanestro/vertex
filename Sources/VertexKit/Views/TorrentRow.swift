@@ -316,6 +316,10 @@ struct TorrentRow: View {
                 engine.reveal(torrent)
             }
 
+            Button("Sposta file…") {
+                engine.chooseAndMoveStorage(for: torrent)
+            }
+
             Button(L(torrent.sequential ? "Disattiva download sequenziale" : "Download sequenziale")) {
                 engine.toggleSequential(torrent)
             }
