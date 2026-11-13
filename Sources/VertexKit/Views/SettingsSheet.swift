@@ -132,6 +132,46 @@ struct SettingsSheet: View {
 
     var body: some View {
         let palette = Palette(scheme: scheme)
+        settingsContainer(palette)
+            .frame(width: 700, height: 540)
+            .onAppear {
+                interfaces.value = LocalNetwork.ipv4Interfaces()
+                let resolved = Preferences.resolvedDownloadPath(downloadPath)
+                if resolved != downloadPath {
+                    downloadPath = resolved
+                }
+                DispatchQueue.main.async {
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                }
+            }
+            .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
+            .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
+            .onChange(of: listenPort) { engine.applySettingsSoon() }
+            .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
+            .onChange(of: bindAddress) { engine.applySettingsNow() }
+            .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
+            .onChange(of: pexEnabled) { engine.applySettingsSoon() }
+            .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
+            .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
+            .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
+            .onChange(of: proxyEnabled) { _, enabled in
+                if enabled, proxyPasswordValue.value.isEmpty {
+                    proxyPasswordValue.value = Preferences.proxyPassword
+                }
+                engine.applySettingsNow()
+            }
+            .onChange(of: proxyHost) { engine.applySettingsSoon() }
+            .onChange(of: proxyPort) { engine.applySettingsSoon() }
+            .onChange(of: proxyUser) { engine.applySettingsSoon() }
+            .onChange(of: proxyPasswordValue.value) { scheduleProxyPasswordSave() }
+            .onChange(of: appearanceRaw) { AppAppearance.apply() }
+            .onDisappear {
+                flushProxyPassword()
+                engine.applySettingsNow()
+            }
+    }
+
+    private func settingsContainer(_ palette: Palette) -> some View {
         ZStack {
             AmbientBackground(ignoresSafeArea: false)
 
@@ -140,45 +180,6 @@ struct SettingsSheet: View {
                 settingsBody(palette)
                 modalFooter(palette)
             }
-        }
-        .frame(width: 700, height: 540)
-        .onAppear {
-            interfaces.value = LocalNetwork.ipv4Interfaces()
-            // Normalizing calls into the bridge, which stats the path. It runs
-            // once per presentation, so a single filesystem hit here is
-            // acceptable (the add flow validates the destination on every drop).
-            let resolved = Preferences.resolvedDownloadPath(downloadPath)
-            if resolved != downloadPath {
-                downloadPath = resolved
-            }
-            DispatchQueue.main.async {
-                NSApp.keyWindow?.makeFirstResponder(nil)
-            }
-        }
-        .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
-        .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
-        .onChange(of: listenPort) { engine.applySettingsSoon() }
-        .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
-        .onChange(of: bindAddress) { engine.applySettingsNow() }
-        .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
-        .onChange(of: pexEnabled) { engine.applySettingsSoon() }
-        .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
-        .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
-        .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
-        .onChange(of: proxyEnabled) { _, enabled in
-            if enabled, proxyPasswordValue.value.isEmpty {
-                proxyPasswordValue.value = Preferences.proxyPassword
-            }
-            engine.applySettingsNow()
-        }
-        .onChange(of: proxyHost) { engine.applySettingsSoon() }
-        .onChange(of: proxyPort) { engine.applySettingsSoon() }
-        .onChange(of: proxyUser) { engine.applySettingsSoon() }
-        .onChange(of: proxyPasswordValue.value) { scheduleProxyPasswordSave() }
-        .onChange(of: appearanceRaw) { AppAppearance.apply() }
-        .onDisappear {
-            flushProxyPassword()
-            engine.applySettingsNow()
         }
     }
 
