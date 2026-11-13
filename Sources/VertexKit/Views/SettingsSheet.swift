@@ -136,46 +136,9 @@ struct SettingsSheet: View {
             AmbientBackground(ignoresSafeArea: false)
 
             VStack(spacing: 0) {
-                ModalHeader(
-                    icon: "gearshape.fill",
-                    title: "Impostazioni",
-                    subtitle: L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)",
-                    iconSize: 36,
-                    onClose: onClose
-                )
-
-                HStack(spacing: 0) {
-                    settingsSidebar(palette)
-                        .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
-                        .fixedSize(horizontal: true, vertical: false)
-
-                    Hairline(palette: palette, axis: .vertical)
-
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            sectionContent(palette)
-                        }
-                        .padding(.horizontal, 22)
-                        .padding(.top, 12)
-                        .padding(.bottom, 16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .scrollIndicators(.automatic)
-                }
-
-                ModalFooterBar(palette: palette) {
-                    Text(engine.isRestartingSession
-                        ? L("Riavvio del motore BitTorrent…")
-                        : L("Le modifiche di rete vengono applicate automaticamente."))
-                        .font(Typography.microText)
-                        .foregroundStyle(palette.tertiary)
-                } trailing: {
-                    Button("Fine") {
-                        onClose()
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
-                }
+                modalHeader
+                settingsBody(palette)
+                modalFooter(palette)
             }
         }
         .frame(width: 700, height: 540)
@@ -216,6 +179,53 @@ struct SettingsSheet: View {
         .onDisappear {
             flushProxyPassword()
             engine.applySettingsNow()
+        }
+    }
+
+    private var modalHeader: some View {
+        ModalHeader(
+            icon: "gearshape.fill",
+            title: "Impostazioni",
+            subtitle: L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)",
+            iconSize: 36,
+            onClose: onClose
+        )
+    }
+
+    private func settingsBody(_ palette: Palette) -> some View {
+        HStack(spacing: 0) {
+            settingsSidebar(palette)
+                .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
+                .fixedSize(horizontal: true, vertical: false)
+
+            Hairline(palette: palette, axis: .vertical)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    sectionContent(palette)
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.automatic)
+        }
+    }
+
+    private func modalFooter(_ palette: Palette) -> some View {
+        ModalFooterBar(palette: palette) {
+            Text(engine.isRestartingSession
+                ? L("Riavvio del motore BitTorrent…")
+                : L("Le modifiche di rete vengono applicate automaticamente."))
+                .font(Typography.microText)
+                .foregroundStyle(palette.tertiary)
+        } trailing: {
+            Button("Fine") {
+                onClose()
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .keyboardShortcut(.defaultAction)
         }
     }
 
