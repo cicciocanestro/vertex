@@ -600,17 +600,13 @@ struct SettingsSheet: View {
             Spacer(minLength: 8)
 
             HStack(spacing: 4) {
-                TextField(
-                    "",
-                    value: value,
-                    format: .number.precision(.fractionLength(0...2)).grouping(.never)
-                )
-                .textFieldStyle(.plain)
-                .multilineTextAlignment(.trailing)
-                .font(Typography.smallRoundedMediumText)
-                .monospacedDigit()
-                .foregroundStyle(palette.text)
-                .frame(minWidth: 52, maxWidth: 72)
+                TextField("", value: value, format: .number.grouping(.never))
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .font(Typography.smallRoundedMediumText)
+                    .monospacedDigit()
+                    .foregroundStyle(palette.text)
+                    .frame(minWidth: 52, maxWidth: 72)
 
                 Text(suffix)
                     .font(Typography.microMediumText)
