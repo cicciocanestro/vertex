@@ -89,62 +89,62 @@ package struct AppCommands: Commands {
 
     package var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Aggiungi file .torrent…") {
+            Button(L("Aggiungi file .torrent…")) {
                 post(.addFile)
             }
             .keyboardShortcut("o", modifiers: .command)
 
-            Button("Aggiungi link magnet…") {
+            Button(L("Aggiungi link magnet…")) {
                 post(.addMagnet)
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button("Incolla magnet dagli appunti") {
+            Button(L("Incolla magnet dagli appunti")) {
                 post(.pasteMagnet)
             }
             .keyboardShortcut("v", modifiers: [.command, .shift])
         }
 
-        CommandMenu("Torrent") {
-            Button("Pausa / Riprendi") {
+        CommandMenu(L("Torrent")) {
+            Button(L("Pausa / Riprendi")) {
                 post(.pauseResume)
             }
             .keyboardShortcut("p", modifiers: .command)
 
-            Button("Mostra nel Finder") {
+            Button(L("Mostra nel Finder")) {
                 post(.reveal)
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
 
-            Button("Sposta file…") {
+            Button(L("Sposta file…")) {
                 post(.moveStorage)
             }
 
-            Button("Copia link magnet") {
+            Button(L("Copia link magnet")) {
                 post(.copyMagnet)
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
 
             Divider()
 
-            Button("Rimuovi…") {
+            Button(L("Rimuovi…")) {
                 post(.remove)
             }
             .keyboardShortcut(.delete, modifiers: .command)
         }
 
-        CommandMenu("Vista") {
-            Button("Cerca") {
+        CommandMenu(L("Vista")) {
+            Button(L("Cerca")) {
                 post(.find)
             }
             .keyboardShortcut("f", modifiers: .command)
 
-            Button("Mostra / nascondi dettagli") {
+            Button(L("Mostra / nascondi dettagli")) {
                 post(.toggleInspector)
             }
             .keyboardShortcut("i", modifiers: .command)
 
-            Button("Diagnostica rete…") {
+            Button(L("Diagnostica rete…")) {
                 post(.diagnostics)
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
@@ -161,17 +161,17 @@ package struct AppCommands: Commands {
         }
 
         CommandGroup(replacing: .appInfo) {
-            Button("Informazioni su Vertex") {
+            Button(L("Informazioni su Vertex")) {
                 NSApp.orderFrontStandardAboutPanel(nil)
             }
 
-            Button("Licenze open source") {
+            Button(L("Licenze open source")) {
                 openLicenses()
             }
         }
 
         CommandGroup(replacing: .appSettings) {
-            Button("Impostazioni…") {
+            Button(L("Impostazioni…")) {
                 post(.settings)
             }
             .keyboardShortcut(",", modifiers: .command)
