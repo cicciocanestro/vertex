@@ -696,7 +696,7 @@ vt_session* vt_session_create_full(const char* download_dir,
             return nullptr;
 
         lt::settings_pack settings;
-        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.14.0 libtorrent/" LIBTORRENT_VERSION);
+        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.14.1 libtorrent/" LIBTORRENT_VERSION);
         settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1E00-");
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |

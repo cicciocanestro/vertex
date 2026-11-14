@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.14.1] — 2026-11-15
+
+### English
+#### Localization & UI
+- **Complete bilingual localization coverage**: audited and localized all missing UI strings throughout the application, ensuring 100% parity between Italian and English interfaces:
+  - System menu bar (`AppCommands`): localized all menus (*Torrent*, *View*, *File*, *About*, *Settings*).
+  - Modal headers (`ModalHeader`): dynamically localized titles and subtitles across Settings, Network Diagnostics, and Add Torrent sheets.
+  - Initial and empty state views (`EmptyStateView`, `NoResultsView`, `DropOverlay`): localized all empty library prompts, search reset buttons, and drag-and-drop feedback.
+  - Contextual menus and inspector (`TorrentRow`, `InspectorView`): localized reannounce, reveal, magnet copy, storage move, details header, and error status banners.
+  - Settings sheet (`SettingsSheet`): localized active torrent limit suffix (`0 = all` / `0 = tutti`), folder selection prompt, and navigation buttons.
+  - Accessibility labels: mapped formatted VoiceOver share ratio strings (`LF("rapporto %@", ...)`).
+- **Fully bilingual changelog**: translated and formatted all 45 historical release entries in `CHANGELOG.md` with dedicated English and Italian sections.
+
+### Italiano
+#### Localizzazione e UI
+- **Copertura integrale della localizzazione bilingue**: revisionate e localizzate tutte le stringhe dell'interfaccia utente, garantendo parità al 100% tra italiano e inglese:
+  - Barra dei menu di sistema (`AppCommands`): localizzati tutti i menu (*Torrent*, *Vista*, *File*, *Informazioni*, *Impostazioni*).
+  - Intestazioni delle modali (`ModalHeader`): titoli e sottotitoli tradotti dinamicamente nelle schermate Impostazioni, Diagnostica rete e Aggiungi torrent.
+  - Viste di stato iniziale e vuoto (`EmptyStateView`, `NoResultsView`, `DropOverlay`): tradotti tutti i messaggi per libreria vuota, azzeramento filtri e overlay di rilascio drag-and-drop.
+  - Menu contestuali e inspector (`TorrentRow`, `InspectorView`): localizzati i comandi annuncia ai tracker, mostra nel Finder, copia magnet, sposta file, intestazione dettagli e banner di errore.
+  - Scheda Impostazioni (`SettingsSheet`): localizzato il suffisso per i torrent attivi (`0 = tutti` / `0 = all`), selezione cartella e pulsanti di navigazione.
+  - Etichette di accessibilità: mappate le stringhe formattate per VoiceOver del rapporto di condivisione (`LF("rapporto %@", ...)`).
+- **Changelog interamente bilingue**: tradotte e formattate tutte le 45 versioni storiche in `CHANGELOG.md` con sezioni dedicate in italiano e in inglese.
+
 ## [1.14.0] — 2026-11-13
 
 ### English
