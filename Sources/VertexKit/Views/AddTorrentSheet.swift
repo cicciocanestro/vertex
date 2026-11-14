@@ -209,7 +209,7 @@ struct AddTorrentSheet: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .help("Svuota il campo")
+                        .help(L("Svuota il campo"))
                         .padding(9)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     }

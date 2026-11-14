@@ -202,7 +202,7 @@ struct TorrentRow: View {
                         .foregroundStyle(palette.violetText)
                         .help(L("Rapporto"))
                         .accessibilityLabel(
-                            Text(verbatim: "\(L("Rapporto")) \(Fmt.ratio(torrent.ratio))")
+                            Text(LF("rapporto %@", Fmt.ratio(torrent.ratio)))
                         )
                 }
             }

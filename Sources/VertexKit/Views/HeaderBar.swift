@@ -42,7 +42,7 @@ struct HeaderBar: View {
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
-            .help("Aggiungi un torrent")
+            .help(L("Aggiungi un torrent"))
             .disabled(!engine.isReady || engine.isRestartingSession)
 
             IconButton(icon: "gearshape", help: "Impostazioni", size: 30, action: onSettings)
@@ -177,7 +177,7 @@ struct FilterBar: View {
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .help("Inverti ordine")
+            .help(L("Inverti ordine"))
             .accessibilityLabel(Text(L("Inverti ordine")))
         }
         .padding(.horizontal, 18)

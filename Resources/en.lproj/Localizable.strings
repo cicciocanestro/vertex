@@ -94,7 +94,7 @@
 /* Status bar */
 "DHT disattivato" = "DHT disabled";
 "DHT · connessione" = "DHT · connecting";
-"DHT · %ld nodi" = "DHT · %ld node(s)";
+"DHT · %ld nodi" = "DHT · %ld nodes";
 "%ld attivi" = "Active: %ld";
 "%ld torrent" = "Torrents: %ld";
 "Porta %ld" = "Port %ld";
@@ -307,10 +307,11 @@
 "In coda" = "Queued";
 "Torrent attivi" = "Active torrents";
 "Gli altri restano in coda" = "The others wait in the queue";
+"0 = tutti" = "0 = all";
 "Escludi dalla coda" = "Remove from queue";
 "Avvia ora (ignora coda)" = "Start now (ignore queue)";
 "Avvia ora" = "Start now";
-"Escludi" = "Remove";
+"Escludi" = "Remove from queue";
 "Avvia subito ignorando i limiti della coda" = "Start immediately ignoring queue limits";
 "Numero di torrent attivi non valido" = "Invalid active-torrent count";
 "Inserisci 0 (illimitato) o un valore tra 1 e 1000." = "Enter 0 (unlimited) or a value between 1 and 1000.";

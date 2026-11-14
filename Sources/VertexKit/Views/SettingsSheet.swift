@@ -303,7 +303,7 @@ struct SettingsSheet: View {
                     title: "Torrent attivi",
                     subtitle: "Gli altri restano in coda",
                     value: $maxActiveTorrents,
-                    suffix: "0 = tutti",
+                    suffix: L("0 = tutti"),
                     palette: palette
                 )
             }
