@@ -302,21 +302,21 @@ struct TorrentRow: View {
                 engine.togglePause(torrent)
             }
 
-            Button("Annuncia ai tracker") {
+            Button(L("Annuncia ai tracker")) {
                 engine.reannounce(torrent)
             }
 
             Divider()
 
-            Button("Copia link magnet") {
+            Button(L("Copia link magnet")) {
                 engine.copyMagnet(for: torrent)
             }
 
-            Button("Mostra nel Finder") {
+            Button(L("Mostra nel Finder")) {
                 engine.reveal(torrent)
             }
 
-            Button("Sposta file…") {
+            Button(L("Sposta file…")) {
                 engine.chooseAndMoveStorage(for: torrent)
             }
 

@@ -59,7 +59,7 @@ struct HeaderBar: View {
                 .font(Typography.smallMediumText)
                 .foregroundStyle(searchFocused.wrappedValue ? Theme.mint : palette.tertiary)
 
-            TextField("Cerca torrent…", text: $search)
+            TextField(L("Cerca torrent…"), text: $search)
                 .textFieldStyle(.plain)
                 .font(Typography.bodyLargeRegularText)
                 .foregroundStyle(palette.text)

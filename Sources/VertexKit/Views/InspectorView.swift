@@ -32,7 +32,7 @@ struct InspectorView: View {
                     Image(systemName: "sidebar.right")
                         .font(Typography.captionMediumText)
                         .foregroundStyle(palette.tertiary)
-                    Text("Dettagli")
+                    Text(L("Dettagli"))
                         .font(Typography.bodySemiboldText)
                         .foregroundStyle(palette.secondary)
                 }
@@ -186,7 +186,7 @@ struct InspectorView: View {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(Typography.captionText)
-                Text("Errore del torrent")
+                Text(L("Errore del torrent"))
                     .font(Typography.smallSemiboldText)
             }
             .foregroundStyle(palette.coralText)

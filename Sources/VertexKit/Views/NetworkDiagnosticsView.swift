@@ -330,7 +330,7 @@ struct NetworkDiagnosticsView: View {
                             .background(Capsule().fill(Theme.green.opacity(0.12)))
                     }
                 } else {
-                    Text("non mappata")
+                    Text(L("non mappata"))
                         .font(Typography.captionMediumText)
                         .foregroundStyle(palette.tertiary)
                 }
@@ -416,7 +416,7 @@ struct NetworkDiagnosticsView: View {
                             .font(Typography.captionTinyNarrowText)
                             .foregroundStyle(palette.tertiary)
                     } else if case .idle = tester.state {
-                        Text("Test TCP tramite check-host.net")
+                        Text(L("Test TCP tramite check-host.net"))
                             .font(Typography.captionTinyNarrowText)
                             .foregroundStyle(palette.tertiary)
                     }
