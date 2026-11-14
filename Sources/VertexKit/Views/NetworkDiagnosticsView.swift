@@ -392,7 +392,7 @@ struct NetworkDiagnosticsView: View {
                             NSPasteboard.general.setString(endpoint, forType: .string)
                             engine.showToast(L("Indirizzo copiato"), kind: .info)
                         } label: {
-                            Label("Copia", systemImage: "doc.on.doc")
+                            Label(L("Copia"), systemImage: "doc.on.doc")
                         }
                         .buttonStyle(SmallButtonStyle())
                     }

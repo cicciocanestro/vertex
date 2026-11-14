@@ -38,7 +38,7 @@ struct HeaderBar: View {
                 HStack(spacing: 5) {
                     Image(systemName: "plus")
                         .font(Typography.microSemiboldText)
-                    Text("Aggiungi")
+                    Text(L("Aggiungi"))
                 }
             }
             .buttonStyle(PrimaryButtonStyle())

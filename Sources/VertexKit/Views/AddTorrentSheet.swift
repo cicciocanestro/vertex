@@ -87,13 +87,13 @@ struct AddTorrentSheet: View {
             ModalFooterBar(palette: palette) {
                 EmptyView()
             } trailing: {
-                Button("Annulla") {
+                Button(L("Annulla")) {
                     onClose()
                 }
                 .buttonStyle(SecondaryButtonStyle())
                 .keyboardShortcut(.cancelAction)
 
-                Button("Aggiungi") {
+                Button(L("Aggiungi")) {
                     add()
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -117,7 +117,7 @@ struct AddTorrentSheet: View {
                         Image(systemName: "arrow.down.doc.fill")
                             .font(Typography.iconLarge)
                             .foregroundStyle(Theme.mint)
-                        Text("Rilascia il file .torrent")
+                        Text(L("Rilascia il file .torrent"))
                             .font(Typography.bodyLargeSemiboldText)
                             .foregroundStyle(palette.text)
                     }
@@ -222,7 +222,7 @@ struct AddTorrentSheet: View {
                             errorMessage.value = nil
                         }
                     } label: {
-                        Label("Incolla", systemImage: "doc.on.clipboard")
+                        Label(L("Incolla"), systemImage: "doc.on.clipboard")
                             .font(Typography.microMediumText)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3)
@@ -234,7 +234,7 @@ struct AddTorrentSheet: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(palette.secondary)
 
-                    Text("Oppure trascina qui un file .torrent")
+                    Text(L("Oppure trascina qui un file .torrent"))
                         .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
 
@@ -264,7 +264,7 @@ struct AddTorrentSheet: View {
                     .padding(.horizontal, 24)
 
                 HStack(spacing: 10) {
-                    Button("Cambia file…") {
+                    Button(L("Cambia file…")) {
                         chooseFile()
                     }
                     .buttonStyle(SmallButtonStyle())
@@ -280,11 +280,11 @@ struct AddTorrentSheet: View {
                     .font(Typography.iconSmall)
                     .foregroundStyle(dropTargeted.value ? Theme.mint : palette.secondary)
 
-                Text("Trascina qui un file .torrent")
+                Text(L("Trascina qui un file .torrent"))
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.secondary)
 
-                Button("Scegli file…") {
+                Button(L("Scegli file…")) {
                     chooseFile()
                 }
                 .buttonStyle(SmallButtonStyle())
@@ -325,7 +325,7 @@ struct AddTorrentSheet: View {
 
             Spacer(minLength: 8)
 
-            Button("Cartella…") {
+            Button(L("Cartella…")) {
                 chooseDestination()
             }
             .buttonStyle(SmallButtonStyle())
@@ -337,8 +337,8 @@ struct AddTorrentSheet: View {
 
     private func toggles(_ palette: Palette) -> some View {
         HStack(spacing: 22) {
-            Toggle("Avvia in pausa", isOn: $startPaused.value)
-            Toggle("Download sequenziale", isOn: $sequential.value)
+            Toggle(L("Avvia in pausa"), isOn: $startPaused.value)
+            Toggle(L("Download sequenziale"), isOn: $sequential.value)
             Spacer()
         }
         .toggleStyle(.switch)
