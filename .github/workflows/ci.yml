@@ -152,6 +152,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Download verified artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -173,3 +176,12 @@ jobs:
             dist/Vertex-*.dmg.sha256 \
             --title "Vertex ${GITHUB_REF_NAME#v}" \
             --generate-notes
+
+      - name: Update Homebrew Tap (optional)
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./Scripts/update-homebrew-tap.sh "${GITHUB_REF_NAME}"

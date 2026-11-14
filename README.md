@@ -14,6 +14,23 @@ No Electron, no ads, no telemetry. Open source under the MIT license.
 
 ## Download
 
+### Homebrew (recommended)
+
+```bash
+brew install --cask cicciocanestro/tap/vertex
+```
+
+*(On Homebrew 7+, if prompted when using the tap for the first time, run `brew trust cicciocanestro/tap` first).*
+The Cask automatically clears the quarantine attribute on installation, so Vertex launches immediately without the Gatekeeper confirmation dialog.
+
+To upgrade to a newer release:
+
+```bash
+brew upgrade --cask cicciocanestro/tap/vertex
+```
+
+### Direct DMG
+
 [**Download the latest DMG**](https://github.com/cicciocanestro/vertex/releases/latest)
 
 1. Open the DMG.
