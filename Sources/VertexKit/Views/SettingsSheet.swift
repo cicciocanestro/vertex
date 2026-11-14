@@ -212,7 +212,7 @@ struct SettingsSheet: View {
                 .font(Typography.microText)
                 .foregroundStyle(palette.tertiary)
         } trailing: {
-            Button("Fine") {
+            Button(L("Fine")) {
                 onClose()
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -500,7 +500,7 @@ struct SettingsSheet: View {
 
             Spacer(minLength: 8)
 
-            Button("Scegli…") {
+            Button(L("Scegli…")) {
                 chooseFolder()
             }
             .buttonStyle(SmallButtonStyle())

@@ -18,11 +18,11 @@ struct EmptyStateView: View {
             }
 
             VStack(spacing: 7) {
-                Text("Nessun torrent")
+                Text(L("Nessun torrent"))
                     .font(Typography.heroText)
                     .foregroundStyle(palette.text)
 
-                Text("Aggiungi un file .torrent o incolla un link magnet per iniziare.")
+                Text(L("Aggiungi un file .torrent o incolla un link magnet per iniziare."))
                     .font(Typography.bodyLargeRegularText)
                     .foregroundStyle(palette.secondary)
                     .multilineTextAlignment(.center)
@@ -30,11 +30,11 @@ struct EmptyStateView: View {
             }
 
             HStack(spacing: 9) {
-                Button("Aggiungi torrent", action: onAdd)
+                Button(L("Aggiungi torrent"), action: onAdd)
                     .buttonStyle(PrimaryButtonStyle())
 
                 Button(action: onPasteMagnet) {
-                    Label("Incolla magnet", systemImage: "doc.on.clipboard")
+                    Label(L("Incolla magnet"), systemImage: "doc.on.clipboard")
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -42,7 +42,7 @@ struct EmptyStateView: View {
             HStack(spacing: 7) {
                 Image(systemName: "arrow.down.doc")
                     .font(Typography.captionMediumText)
-                Text("Trascina qui i file .torrent")
+                Text(L("Trascina qui i file .torrent"))
                     .font(Typography.smallMediumText)
             }
             .foregroundStyle(palette.tertiary)
@@ -136,7 +136,7 @@ struct NoResultsView: View {
                 .font(Typography.iconMedium)
                 .foregroundStyle(palette.tertiary)
 
-            Text("Nessun risultato")
+            Text(L("Nessun risultato"))
                 .font(Typography.sectionTitleText)
                 .foregroundStyle(palette.text)
 
@@ -146,7 +146,7 @@ struct NoResultsView: View {
                 .font(Typography.bodyLargeText)
                 .foregroundStyle(palette.secondary)
 
-            Button("Azzera filtri", action: onReset)
+            Button(L("Azzera filtri"), action: onReset)
                 .buttonStyle(SecondaryButtonStyle())
                 .padding(.top, 4)
         }
@@ -168,10 +168,10 @@ struct DropOverlay: View {
                     .font(Typography.iconDrop)
                     .foregroundStyle(Theme.mint)
 
-                Text("Rilascia per aggiungere")
+                Text(L("Rilascia per aggiungere"))
                     .font(Typography.modalTitleText)
 
-                Text(".torrent o link magnet")
+                Text(L(".torrent o link magnet"))
                     .font(Typography.bodyText)
                     .foregroundStyle(.secondary)
             }

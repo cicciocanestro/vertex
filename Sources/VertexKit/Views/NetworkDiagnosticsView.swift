@@ -63,12 +63,12 @@ struct NetworkDiagnosticsView: View {
             .scrollIndicators(.hidden)
 
             ModalFooterBar(palette: palette) {
-                Button("Impostazioni rete") {
+                Button(L("Impostazioni rete")) {
                     onOpenSettings()
                 }
                 .buttonStyle(SecondaryButtonStyle())
             } trailing: {
-                Button("Chiudi") {
+                Button(L("Chiudi")) {
                     onClose()
                 }
                 .buttonStyle(PrimaryButtonStyle())
