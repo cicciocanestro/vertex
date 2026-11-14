@@ -24,10 +24,10 @@ struct ModalHeader: View {
                 .shadow(color: Theme.mint.opacity(0.2), radius: 10, y: 4)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
+                Text(L(title))
                     .font(Typography.modalTitleText)
                     .foregroundStyle(palette.text)
-                Text(subtitle)
+                Text(L(subtitle))
                     .font(Typography.smallText)
                     .foregroundStyle(palette.secondary)
             }

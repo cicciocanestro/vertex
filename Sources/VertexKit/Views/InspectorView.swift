@@ -119,7 +119,7 @@ struct InspectorView: View {
                 Button {
                     engine.resume(torrent)
                 } label: {
-                    Label("Riprendi", systemImage: "play.fill")
+                    Label(L("Riprendi"), systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -138,7 +138,7 @@ struct InspectorView: View {
                 Button {
                     engine.togglePause(torrent)
                 } label: {
-                    Label("Escludi", systemImage: "pause.fill")
+                    Label(L("Escludi"), systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryButtonStyle())
@@ -148,7 +148,7 @@ struct InspectorView: View {
                 Button {
                     engine.pause(torrent)
                 } label: {
-                    Label("Pausa", systemImage: "pause.fill")
+                    Label(L("Pausa"), systemImage: "pause.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(SecondaryButtonStyle())

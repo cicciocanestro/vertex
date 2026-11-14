@@ -486,7 +486,7 @@ struct SettingsSheet: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cartella di download")
+                Text(L("Cartella di download"))
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(downloadPath)
@@ -628,7 +628,7 @@ struct SettingsSheet: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("Interfaccia di rete")
+                Text(L("Interfaccia di rete"))
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
                 Text(L("Il traffico esce solo da questo indirizzo"))
@@ -720,10 +720,10 @@ struct SettingsSheet: View {
                     .frame(width: 18)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Diagnostica rete")
+                    Text(L("Diagnostica rete"))
                         .font(Typography.bodyLargeMediumText)
                         .foregroundStyle(palette.text)
-                    Text("Porta effettiva, mapping e test esterno")
+                    Text(L("Porta effettiva, mapping e test esterno"))
                         .font(Typography.microText)
                         .foregroundStyle(palette.tertiary)
                 }
