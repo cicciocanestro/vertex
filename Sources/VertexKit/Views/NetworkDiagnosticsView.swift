@@ -190,7 +190,7 @@ struct NetworkDiagnosticsView: View {
                             }
                         }
                         if hasError {
-                            Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.error))
+                            Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.localizedError))
                                 .font(Typography.microText)
                                 .foregroundStyle(palette.coralText)
                         } else {
@@ -284,7 +284,7 @@ struct NetworkDiagnosticsView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.captionTinyText)
                         .foregroundStyle(palette.coralText)
-                    Text(engine.stats.portmap.error)
+                    Text(engine.stats.portmap.localizedError)
                         .font(Typography.captionSmallText)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -341,7 +341,7 @@ struct NetworkDiagnosticsView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.captionTinyText)
                         .foregroundStyle(palette.coralText)
-                    Text(info.error)
+                    Text(info.localizedError)
                         .font(Typography.captionSmallText)
                         .foregroundStyle(palette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -447,13 +447,21 @@ struct NetworkDiagnosticsView: View {
         }
         switch tester.state {
         case .idle:
-            return L("Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test.")
+            return L("Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test.")
         case .running:
             return L("Test in corso: attendo la risposta dei nodi esterni…")
         case .open(let open, let total):
+            if total == 1 {
+                return LF("Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico.", open, total)
+            }
+            if open == 1 {
+                return LF("Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico.", open, total)
+            }
             return LF("Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico.", open, total)
         case .closed(let total):
-            return LF("Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.", total)
+            return total == 1
+                ? LF("Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router.", total)
+                : LF("Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.", total)
         case .failed(let message):
             return message
         }
@@ -492,7 +500,7 @@ struct NetworkDiagnosticsView: View {
                 instruction(L("In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel."), palette)
             } else {
                 instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
-                instruction(L("Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
+                instruction(L("Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
             }
             instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }

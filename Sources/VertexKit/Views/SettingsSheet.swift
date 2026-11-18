@@ -177,7 +177,8 @@ struct SettingsSheet: View {
         ModalHeader(
             icon: "gearshape.fill",
             title: "Impostazioni",
-            subtitle: L("Preferenze dell'app e della rete") + "  ·  v\(AppInfo.version)",
+            subtitle: "Preferenze dell'app e della rete",
+            versionSuffix: "  ·  v\(AppInfo.version)",
             iconSize: 36,
             onClose: onClose
         )
@@ -542,6 +543,7 @@ struct SettingsSheet: View {
                     .monospacedDigit()
                     .foregroundStyle(palette.text)
                     .frame(minWidth: 62, maxWidth: 84)
+                    .accessibilityLabel(Text(L(title)))
 
                 Text(suffix)
                     .font(Typography.microMediumText)
@@ -598,6 +600,7 @@ struct SettingsSheet: View {
                     .monospacedDigit()
                     .foregroundStyle(palette.text)
                     .frame(minWidth: 52, maxWidth: 72)
+                    .accessibilityLabel(Text(L(title)))
 
                 Text(suffix)
                     .font(Typography.microMediumText)
@@ -879,7 +882,7 @@ struct SettingsSheet: View {
 
             Spacer(minLength: 8)
 
-            Toggle("", isOn: isOn)
+            Toggle(L(title), isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.mini)

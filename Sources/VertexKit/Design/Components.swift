@@ -181,7 +181,7 @@ struct IconButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hover.value = $0 }
-        .help(L(help))
+        .help(help.isEmpty ? "" : L(help))
         .accessibilityLabel(Text(help.isEmpty ? icon : L(help)))
     }
 }
@@ -199,7 +199,7 @@ struct FilterChip: View {
         let palette = Palette(scheme: scheme)
         Button(action: action) {
             HStack(spacing: 6) {
-                Text(L(title))
+                Text(title)
                 // Always render the badge, including zero: a chip that grows or
                 // shrinks whenever a torrent changes category makes the whole
                 // filter bar jitter, and a missing number is ambiguous.
@@ -408,6 +408,8 @@ struct ToastView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .help(L("Chiudi"))
+            .accessibilityLabel(Text(L("Chiudi")))
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 9)

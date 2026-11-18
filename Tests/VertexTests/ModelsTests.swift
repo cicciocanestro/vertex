@@ -508,5 +508,30 @@ enum ModelsTests {
             try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 1, count: 3, delta: -1), 0)
             try TestRunner.assertEqual(TorrentListNavigation.nextIndex(current: 1, count: 3, delta: 1), 2)
         }
+
+        TestRunner.run("RuntimeErrorLocalizer: traduzione errori torrent, proxy e portmap") {
+            let diskFull = Torrent.test(id: "1", name: "Disk", error: "No space left on device")
+            try TestRunner.assertEqual(diskFull.error, "No space left on device")
+            try TestRunner.assertEqual(diskFull.localizedError, L("Spazio su disco insufficiente."))
+
+            let hashErr = Torrent.test(id: "2", name: "Hash", error: "hash check failed")
+            try TestRunner.assertEqual(hashErr.localizedError, L("Verifica dati non riuscita (pezzi corrotti)."))
+
+            let socksAuth = ProxyInfo(enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, auth: true, error: "SOCKS authentication error")
+            try TestRunner.assertEqual(socksAuth.localizedError, L("Autenticazione SOCKS5 rifiutata"))
+
+            let socksGeneral = ProxyInfo(enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, error: "SOCKS general failure")
+            try TestRunner.assertEqual(socksGeneral.localizedError, L("Errore generale del proxy SOCKS5"))
+
+            let upnpTimeout = PortMapInfo(error: "UPnP: timeout")
+            try TestRunner.assertEqual(upnpTimeout.error, "UPnP: timeout")
+            try TestRunner.assertEqual(upnpTimeout.localizedError, "UPnP: " + L("tempo scaduto"))
+
+            let natpmpAuth = PortMapInfo(error: "NAT-PMP: not authorized to create port map (enable NAT-PMP on your router)")
+            try TestRunner.assertEqual(
+                natpmpAuth.localizedError,
+                "NAT-PMP: " + L("non autorizzato (abilita NAT-PMP sul router)")
+            )
+        }
     }
 }

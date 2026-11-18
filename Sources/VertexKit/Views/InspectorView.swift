@@ -102,6 +102,8 @@ struct InspectorView: View {
                     Text(L("· In pausa"))
                         .foregroundStyle(Color.primary.opacity(0.5))
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(torrent.phase.label))
             } else {
                 Text(torrent.phase.label)
                     .foregroundStyle(color)
@@ -191,7 +193,7 @@ struct InspectorView: View {
             }
             .foregroundStyle(palette.coralText)
 
-            Text(torrent.error)
+            Text(torrent.localizedError)
                 .font(Typography.captionText)
                 .foregroundStyle(palette.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -324,7 +326,9 @@ struct InspectorView: View {
         let noneWanted = wantedCount == 0
 
         return HStack(spacing: 6) {
-            Text(LF("%ld di %ld selezionati", wantedCount, files.count))
+            Text(wantedCount == 1
+                ? LF("%ld di %ld selezionato", wantedCount, files.count)
+                : LF("%ld di %ld selezionati", wantedCount, files.count))
                 .font(Typography.captionText)
                 .foregroundStyle(palette.tertiary)
 

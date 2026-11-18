@@ -98,7 +98,7 @@ struct TorrentRow: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.microText)
                             .foregroundStyle(Theme.coral)
-                            .help(torrent.error)
+                            .help(torrent.localizedError)
                     }
 
                     if torrent.sequential {
@@ -126,7 +126,7 @@ struct TorrentRow: View {
                 }
 
                 if torrent.hasError {
-                    Text(torrent.error)
+                    Text(torrent.localizedError)
                         .font(Typography.microMediumText)
                         .foregroundStyle(palette.coralText)
                         .lineLimit(1)
@@ -346,6 +346,8 @@ struct TorrentRow: View {
                     Text(L("· In pausa"))
                         .foregroundStyle(Color.primary.opacity(0.5))
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(torrent.phase.label))
             } else {
                 Text(torrent.phase.label)
                     .foregroundStyle(color)

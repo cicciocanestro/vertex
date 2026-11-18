@@ -499,6 +499,32 @@ enum EngineTests {
                     "La variante \(name) non ha prodotto un'immagine"
                 )
             }
+
+            // Verify libtorrent error localization and absence of false positives
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("missing info-hash from URI") },
+                L("Link o file non valido.")
+            )
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("expected value (list, dict, int or string) in bencoded string") },
+                L("Link o file non valido.")
+            )
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("torrent file is not a dictionary") },
+                L("Link o file non valido.")
+            )
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("torrent already exists in session") },
+                L("Questo torrent è già presente.")
+            )
+            try TestRunner.assertFalse(
+                onMain { engine.localizedError("File already exists") } == L("Questo torrent è già presente."),
+                "Un errore generico di filesystem non deve essere segnalato come torrent duplicato"
+            )
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("Parametri non validi") },
+                L("Parametri non validi.")
+            )
         }
     }
 

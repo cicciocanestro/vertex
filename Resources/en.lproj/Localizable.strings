@@ -4,6 +4,7 @@
 
 /* Models */
 "Download" = "Download";
+"Upload" = "Upload";
 "Metadati" = "Metadata";
 "Verifica" = "Checking";
 "In seed" = "Seeding";
@@ -19,7 +20,6 @@
 "Dimensione" = "Size";
 "Progresso" = "Progress";
 "Velocità" = "Speed";
-"Errore" = "Error";
 
 /* Formatters */
 "g" = "d";
@@ -59,7 +59,6 @@
 "Raggiungibilità esterna" = "External reachability";
 "Se la porta risulta chiusa" = "If the port appears closed";
 "Cartelle" = "Folders";
-"Sezioni" = "Sections";
 "Prestazioni" = "Performance";
 "Rete" = "Network";
 "Comportamento" = "Behavior";
@@ -77,7 +76,6 @@
 "Riprendi" = "Resume";
 "Pausa" = "Pause";
 "Rimuovi" = "Remove";
-"Rimuovi e cancella i file…" = "Remove and delete files…";
 "Annuncia ai tracker" = "Reannounce to trackers";
 "Disattiva download sequenziale" = "Disable sequential download";
 "Download sequenziale" = "Sequential download";
@@ -85,8 +83,6 @@
 /* Torrent row meta */
 "%@ di %@" = "%@ of %@";
 "%@ di %@ · %@" = "%@ of %@ · %@";
-"Recupero metadati" = "Fetching metadata";
-"Verifica in corso" = "Checking";
 "ETA %@" = "ETA %@";
 "%ld peer" = "Peers: %ld";
 "rapporto %@" = "ratio %@";
@@ -95,7 +91,9 @@
 "DHT disattivato" = "DHT disabled";
 "DHT · connessione" = "DHT · connecting";
 "DHT · %ld nodi" = "DHT · %ld nodes";
+"DHT · %ld nodo" = "DHT · %ld node";
 "%ld attivi" = "Active: %ld";
+"%ld attivo" = "Active: %ld";
 "%ld torrent" = "Torrents: %ld";
 "Porta %ld" = "Port %ld";
 "Diagnostica rete" = "Network diagnostics";
@@ -125,7 +123,6 @@
 "Cartella…" = "Folder…";
 "Avvia in pausa" = "Start paused";
 "Annulla" = "Cancel";
-"Rilascia il file .torrent" = "Drop the .torrent file";
 "Chiudi" = "Close";
 "Cartella di download" = "Download folder";
 "Scegli…" = "Choose…";
@@ -160,9 +157,8 @@
 "In attesa dei metadati…" = "Waiting for metadata…";
 "Nessun file disponibile" = "No files available";
 "Nessun tracker disponibile" = "No trackers available";
-"Non scaricare questo file" = "Don't download this file";
-"Scarica questo file" = "Download this file";
 "%ld di %ld selezionati" = "%ld of %ld selected";
+"%ld di %ld selezionato" = "%ld of %ld selected";
 "Nessuno" = "None";
 "Inverti ordine" = "Reverse sort order";
 
@@ -191,15 +187,18 @@
 "Copia" = "Copy";
 "Testa porta" = "Test port";
 "Riprova" = "Retry";
-"Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test." = "Check whether the TCP port is reachable from the Internet. Your public IP is sent to check-host.net only when you start the test.";
+"Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test." = "Check whether the TCP port is reachable from the Internet. Your public IP is sent to check-host.net only when you start the test.";
 "Test in corso: attendo la risposta dei nodi esterni…" = "Test running: waiting for external nodes…";
 "Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico." = "Port reachable (%ld of %ld external nodes). The NAT/router forwards traffic correctly.";
+"Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico." = "Port reachable (%ld of %ld external nodes). The NAT/router forwards traffic correctly.";
+"Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico." = "Port reachable (%ld of %ld external node). The NAT/router forwards traffic correctly.";
 "Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router." = "No external node reached the port (%ld checked). Check port forwarding, UPnP and the router firewall.";
+"Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router." = "No external node reached the port (%ld checked). Check port forwarding, UPnP and the router firewall.";
 "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@." = "Enable UPnP/NAT-PMP on the router, or forward TCP and UDP %ld to %@.";
-"Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT." = "Check that the router's WAN IP matches the public IP: if they differ, you may be behind CGNAT.";
+"Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT." = "Check that the router's WAN IP matches the public IP: if they differ, you may be behind CGNAT.";
 "Il test copre solo il TCP; il traffico UDP/uTP non è verificato." = "The test only covers TCP; UDP/uTP traffic is not checked.";
 "Test non disponibile con proxy SOCKS5 attivo" = "Test not available with active SOCKS5 proxy";
-"Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5." = "External reachability test does not apply when traffic is routed through SOCKS5 proxy.";
+"Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5." = "The external reachability test does not apply when traffic is routed through the SOCKS5 proxy.";
 "In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel." = "In split-tunneling configurations, verify that the port test reflects the tunnel gateway IP.";
 "Impostazioni rete" = "Network settings";
 
@@ -218,11 +217,9 @@
 "Rimuovi solo dalla lista" = "Remove from list only";
 "Rimuovi e cancella i file" = "Remove and delete files";
 "“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent." = "“%@”\nDownloaded files stay on disk if you choose to remove only the torrent.";
-"Nessun link magnet negli appunti" = "No magnet link in the clipboard";
 "Seleziona un torrent" = "Select a torrent";
 
 /* Engine and errors */
-"Impossibile avviare il motore BitTorrent" = "Unable to start the BitTorrent engine";
 "Motore BitTorrent non disponibile" = "BitTorrent engine unavailable";
 "Impossibile salvare la password nel Portachiavi" = "Could not save the password in the Keychain";
 "Impossibile riavviare il motore BitTorrent" = "Unable to restart the BitTorrent engine";
@@ -236,7 +233,6 @@
 "Limite non valido" = "Invalid limit";
 "Inserisci 0 o un valore positivo entro il massimo consentito." = "Enter 0 or a positive value within the allowed maximum.";
 "Impostazioni non applicate" = "Settings not applied";
-"Il motore BitTorrent ha rifiutato la configurazione." = "The BitTorrent engine rejected the configuration.";
 "Motore non disponibile." = "Engine unavailable.";
 "Il link magnet non è valido." = "The magnet link is not valid.";
 "Cartella di destinazione non valida." = "Invalid destination folder.";
@@ -252,6 +248,14 @@
 "File non trovato." = "File not found.";
 "Permesso negato." = "Permission denied.";
 "Link o file non valido." = "Invalid link or file.";
+"Parametri non validi." = "Invalid parameters.";
+"Spazio su disco insufficiente." = "Not enough disk space.";
+"File o cartella non trovati." = "File or folder not found.";
+"Disco in sola lettura." = "Read-only disk.";
+"Errore di lettura o scrittura sul disco." = "Disk read or write error.";
+"Conflitto di file con un altro torrent." = "File conflict with another torrent.";
+"Verifica dati non riuscita (pezzi corrotti)." = "Data verification failed (corrupt pieces).";
+"File incompleto o modificato esternamente." = "File incomplete or modified externally.";
 "Errore sconosciuto." = "Unknown error.";
 "Errore sconosciuto" = "Unknown error";
 "Torrent non trovato" = "Torrent not found";
@@ -276,7 +280,7 @@
 "Proxy SOCKS5" = "SOCKS5 Proxy";
 "Usa proxy SOCKS5" = "Use SOCKS5 proxy";
 "Instrada tracker e peer attraverso un proxy anonimo" = "Route trackers and peers through an anonymous proxy";
-"Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale." = "All connections to trackers and peers route through SOCKS5 proxy. UPnP and NAT-PMP are disabled to prevent local IP leaks.";
+"Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale." = "All connections to trackers and peers route through the SOCKS5 proxy. UPnP and NAT-PMP are disabled to prevent local IP leaks.";
 "Server e porta" = "Server and port";
 "Host proxy SOCKS5 e porta" = "SOCKS5 proxy host and port";
 "Autenticazione" = "Authentication";
@@ -294,6 +298,14 @@
 "Magnet" = "Magnet";
 "Porta proxy non valida" = "Invalid proxy port";
 "Connessione rifiutata" = "Connection refused";
+"Autenticazione SOCKS5 rifiutata" = "SOCKS5 authentication failed";
+"Protocollo SOCKS5 non supportato" = "Unsupported SOCKS5 protocol";
+"Errore generale del proxy SOCKS5" = "General SOCKS5 proxy error";
+"Connessione fuori tempo massimo" = "Connection timed out";
+"Host non raggiungibile" = "Host unreachable";
+"nessun router compatibile rilevato" = "no compatible router found";
+"non autorizzato (abilita NAT-PMP sul router)" = "not authorized (enable NAT-PMP on your router)";
+"tempo scaduto" = "timed out";
 
 /* Inspector trackers and drag and drop feedback */
 "File ignorato: serve un file .torrent o un link magnet" = "File ignored: drop a .torrent file or a magnet link";

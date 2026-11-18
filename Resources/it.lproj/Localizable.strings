@@ -1,6 +1,7 @@
 /* Vertex — Italian localization (identity: Italian is the source language). */
 
 "Download" = "Download";
+"Upload" = "Upload";
 "Metadati" = "Metadati";
 "Verifica" = "Verifica";
 "In seed" = "In seed";
@@ -16,7 +17,6 @@
 "Dimensione" = "Dimensione";
 "Progresso" = "Progresso";
 "Velocità" = "Velocità";
-"Errore" = "Errore";
 "g" = "g";
 "Cerca torrent…" = "Cerca torrent…";
 "Aggiungi" = "Aggiungi";
@@ -50,7 +50,6 @@
 "Raggiungibilità esterna" = "Raggiungibilità esterna";
 "Se la porta risulta chiusa" = "Se la porta risulta chiusa";
 "Cartelle" = "Cartelle";
-"Sezioni" = "Sezioni";
 "Prestazioni" = "Prestazioni";
 "Rete" = "Rete";
 "Comportamento" = "Comportamento";
@@ -66,21 +65,20 @@
 "Riprendi" = "Riprendi";
 "Pausa" = "Pausa";
 "Rimuovi" = "Rimuovi";
-"Rimuovi e cancella i file…" = "Rimuovi e cancella i file…";
 "Annuncia ai tracker" = "Annuncia ai tracker";
 "Disattiva download sequenziale" = "Disattiva download sequenziale";
 "Download sequenziale" = "Download sequenziale";
 "%@ di %@" = "%@ di %@";
 "%@ di %@ · %@" = "%@ di %@ · %@";
-"Recupero metadati" = "Recupero metadati";
-"Verifica in corso" = "Verifica in corso";
 "ETA %@" = "ETA %@";
 "%ld peer" = "%ld peer";
 "rapporto %@" = "rapporto %@";
 "DHT disattivato" = "DHT disattivato";
 "DHT · connessione" = "DHT · connessione";
 "DHT · %ld nodi" = "DHT · %ld nodi";
+"DHT · %ld nodo" = "DHT · %ld nodo";
 "%ld attivi" = "%ld attivi";
+"%ld attivo" = "%ld attivo";
 "%ld torrent" = "%ld torrent";
 "Porta %ld" = "Porta %ld";
 "Diagnostica rete" = "Diagnostica rete";
@@ -106,7 +104,6 @@
 "Cartella…" = "Cartella…";
 "Avvia in pausa" = "Avvia in pausa";
 "Annulla" = "Annulla";
-"Rilascia il file .torrent" = "Rilascia il file .torrent";
 "Chiudi" = "Chiudi";
 "Cartella di download" = "Cartella di download";
 "Scegli…" = "Scegli…";
@@ -137,13 +134,12 @@
 "In attesa dei metadati…" = "In attesa dei metadati…";
 "Nessun file disponibile" = "Nessun file disponibile";
 "Nessun tracker disponibile" = "Nessun tracker disponibile";
-"Non scaricare questo file" = "Non scaricare questo file";
 "Non scaricare" = "Non scaricare";
 "Normale" = "Normale";
 "Alta" = "Alta";
 "Priorità del file" = "Priorità del file";
-"Scarica questo file" = "Scarica questo file";
 "%ld di %ld selezionati" = "%ld di %ld selezionati";
+"%ld di %ld selezionato" = "%ld di %ld selezionato";
 "Nessuno" = "Nessuno";
 "Inverti ordine" = "Inverti ordine";
 "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna" = "Porta, mapping UPnP/NAT-PMP e raggiungibilità esterna";
@@ -166,12 +162,15 @@
 "Copia" = "Copia";
 "Testa porta" = "Testa porta";
 "Riprova" = "Riprova";
-"Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test." = "Verifica se la porta TCP è raggiungibile da Internet. L’IP pubblico viene inviato a check-host.net solo quando avvii il test.";
+"Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test." = "Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test.";
 "Test in corso: attendo la risposta dei nodi esterni…" = "Test in corso: attendo la risposta dei nodi esterni…";
 "Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico." = "Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico.";
+"Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico." = "Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico.";
+"Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico." = "Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico.";
 "Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router." = "Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.";
+"Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router." = "Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router.";
 "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@." = "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.";
-"Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT." = "Verifica che l’IP WAN del router coincida con l’IP pubblico: se è diverso potresti essere dietro CGNAT.";
+"Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT." = "Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT.";
 "Il test copre solo il TCP; il traffico UDP/uTP non è verificato." = "Il test copre solo il TCP; il traffico UDP/uTP non è verificato.";
 "Test non disponibile con proxy SOCKS5 attivo" = "Test non disponibile con proxy SOCKS5 attivo";
 "Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5." = "Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5.";
@@ -189,9 +188,7 @@
 "Rimuovi solo dalla lista" = "Rimuovi solo dalla lista";
 "Rimuovi e cancella i file" = "Rimuovi e cancella i file";
 "“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent." = "“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.";
-"Nessun link magnet negli appunti" = "Nessun link magnet negli appunti";
 "Seleziona un torrent" = "Seleziona un torrent";
-"Impossibile avviare il motore BitTorrent" = "Impossibile avviare il motore BitTorrent";
 "Motore BitTorrent non disponibile" = "Motore BitTorrent non disponibile";
 "Impossibile salvare la password nel Portachiavi" = "Impossibile salvare la password nel Portachiavi";
 "Impossibile riavviare il motore BitTorrent" = "Impossibile riavviare il motore BitTorrent";
@@ -205,7 +202,6 @@
 "Limite non valido" = "Limite non valido";
 "Inserisci 0 o un valore positivo entro il massimo consentito." = "Inserisci 0 o un valore positivo entro il massimo consentito.";
 "Impostazioni non applicate" = "Impostazioni non applicate";
-"Il motore BitTorrent ha rifiutato la configurazione." = "Il motore BitTorrent ha rifiutato la configurazione.";
 "Motore non disponibile." = "Motore non disponibile.";
 "Il link magnet non è valido." = "Il link magnet non è valido.";
 "Cartella di destinazione non valida." = "Cartella di destinazione non valida.";
@@ -221,6 +217,14 @@
 "File non trovato." = "File non trovato.";
 "Permesso negato." = "Permesso negato.";
 "Link o file non valido." = "Link o file non valido.";
+"Parametri non validi." = "Parametri non validi.";
+"Spazio su disco insufficiente." = "Spazio su disco insufficiente.";
+"File o cartella non trovati." = "File o cartella non trovati.";
+"Disco in sola lettura." = "Disco in sola lettura.";
+"Errore di lettura o scrittura sul disco." = "Errore di lettura o scrittura sul disco.";
+"Conflitto di file con un altro torrent." = "Conflitto di file con un altro torrent.";
+"Verifica dati non riuscita (pezzi corrotti)." = "Verifica dati non riuscita (pezzi corrotti).";
+"File incompleto o modificato esternamente." = "File incompleto o modificato esternamente.";
 "Errore sconosciuto." = "Errore sconosciuto.";
 "Errore sconosciuto" = "Errore sconosciuto";
 "Torrent non trovato" = "Torrent non trovato";
@@ -263,6 +267,14 @@
 "Magnet" = "Magnet";
 "Porta proxy non valida" = "Porta proxy non valida";
 "Connessione rifiutata" = "Connessione rifiutata";
+"Autenticazione SOCKS5 rifiutata" = "Autenticazione SOCKS5 rifiutata";
+"Protocollo SOCKS5 non supportato" = "Protocollo SOCKS5 non supportato";
+"Errore generale del proxy SOCKS5" = "Errore generale del proxy SOCKS5";
+"Connessione fuori tempo massimo" = "Connessione fuori tempo massimo";
+"Host non raggiungibile" = "Host non raggiungibile";
+"nessun router compatibile rilevato" = "nessun router compatibile rilevato";
+"non autorizzato (abilita NAT-PMP sul router)" = "non autorizzato (abilita NAT-PMP sul router)";
+"tempo scaduto" = "tempo scaduto";
 
 /* Inspector trackers and drag and drop feedback */
 "File ignorato: serve un file .torrent o un link magnet" = "File ignorato: serve un file .torrent o un link magnet";

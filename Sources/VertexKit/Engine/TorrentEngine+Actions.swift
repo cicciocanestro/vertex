@@ -674,11 +674,33 @@ extension TorrentEngine {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.isEmpty { return L("Operazione non riuscita.") }
         let lower = value.lowercased()
-        if lower.contains("already exists") || lower.contains("duplicate") { return L("Questo torrent è già presente.") }
+        if lower.contains("torrent already exists") || lower.contains("duplicate") {
+            return L("Questo torrent è già presente.")
+        }
         if lower.contains("no such file") || lower.contains("cannot stat") { return L("File non trovato.") }
-        if lower.contains("permission") { return L("Permesso negato.") }
+        if lower.contains("permission") || lower.contains("operation not permitted") { return L("Permesso negato.") }
         if lower.contains("invalid")
             || lower.contains("parse")
+            || lower.contains("missing info-hash")
+            || lower.contains("mismatching info-hash")
+            || lower.contains("missing or invalid 'info'")
+            || lower.contains("missing info-dictionary")
+            || lower.contains("not a dictionary")
+            || lower.contains("missing name in torrent")
+            || lower.contains("no files in torrent")
+            || lower.contains("incorrect number of piece hashes")
+            || lower.contains("too many pieces in torrent")
+            || lower.contains("bencoded")
+            || lower.contains("bencoding")
+            || lower.contains("unsupported url protocol")
+            || lower.contains("unknown meta version")
+            || lower.contains("no file tree")
+            || lower.contains("meta version 2")
+            || lower.contains("file metadata does not match")
+            || lower.contains("missing piece layer hashes")
+            || lower.contains("no root hash")
+            || lower.contains("do not describe the same data")
+            || lower.contains("exceeds depth limit")
             || lower.contains("exceeds maximum size")
             || lower.contains("not a regular file") {
             return L("Link o file non valido.")
@@ -687,14 +709,14 @@ extension TorrentEngine {
         case "Torrent non trovato": return L("Torrent non trovato")
         case "Metadati non disponibili": return L("In attesa dei metadati…")
         case "Comando non supportato": return L("Comando non supportato")
-        case "Parametri non validi": return L("Link o file non valido.")
+        case "Parametri non validi": return L("Parametri non validi.")
         case "La destinazione non è una cartella.": return L("La destinazione non è una cartella.")
         case "La cartella di destinazione non è scrivibile.": return L("La cartella di destinazione non è scrivibile.")
         case "URL del tracker troppo lungo": return L("URL del tracker troppo lungo")
         case "URL del tracker non valido": return L("URL del tracker non valido")
         case "Troppi tracker": return L("Troppi tracker")
         case "Errore sconosciuto": return L("Errore sconosciuto")
-        default: return value
+        default: return RuntimeErrorLocalizer.torrent(value)
         }
     }
 }

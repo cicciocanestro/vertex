@@ -5,6 +5,7 @@ struct ModalHeader: View {
     let icon: String
     let title: String
     let subtitle: String
+    var versionSuffix: String = ""
     var iconSize: CGFloat = 38
     let onClose: () -> Void
 
@@ -27,7 +28,7 @@ struct ModalHeader: View {
                 Text(L(title))
                     .font(Typography.modalTitleText)
                     .foregroundStyle(palette.text)
-                Text(L(subtitle))
+                Text(L(subtitle) + versionSuffix)
                     .font(Typography.smallText)
                     .foregroundStyle(palette.secondary)
             }

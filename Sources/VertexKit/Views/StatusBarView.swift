@@ -69,7 +69,7 @@ struct StatusBarView: View {
                     .lineLimit(1)
                 }
 
-                Text(LF("%ld attivi", engine.stats.active))
+                Text(engine.stats.active == 1 ? LF("%ld attivo", engine.stats.active) : LF("%ld attivi", engine.stats.active))
                     .font(Typography.smallMediumText)
                     .foregroundStyle(palette.secondary)
                     .lineLimit(1)
@@ -95,7 +95,7 @@ struct StatusBarView: View {
                 }
                 .foregroundStyle(hasProxyError ? palette.coralText : palette.mintText)
                 .help(hasProxyError
-                    ? LF("Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname, engine.stats.proxy.port, engine.stats.proxy.error)
+                    ? LF("Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname, engine.stats.proxy.port, engine.stats.proxy.localizedError)
                     : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port))
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -143,7 +143,11 @@ struct StatusBarView: View {
 
     private var dhtLabel: String {
         if !dhtEnabled { return L("DHT disattivato") }
-        if engine.stats.dhtNodes > 0 { return LF("DHT · %ld nodi", engine.stats.dhtNodes) }
+        if engine.stats.dhtNodes > 0 {
+            return engine.stats.dhtNodes == 1
+                ? LF("DHT · %ld nodo", engine.stats.dhtNodes)
+                : LF("DHT · %ld nodi", engine.stats.dhtNodes)
+        }
         return L("DHT · connessione")
     }
 

@@ -76,6 +76,8 @@ struct HeaderBar: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(L("Svuota il campo"))
+                .accessibilityLabel(Text(L("Svuota il campo")))
             }
         }
         .padding(.horizontal, 10)

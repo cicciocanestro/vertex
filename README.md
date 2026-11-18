@@ -68,7 +68,7 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **libtorrent 2.1** engine: DHT, PEX, LSD, UPnP/NAT-PMP, HTTP/UDP trackers, magnet links,
   v1 and v2 torrents.
 - Add from magnet links, `.torrent` files, drag and drop, clipboard, Finder or browser.
-- Search, filters, sorting and an inspector with statistics, files (Skip/Normal/High priorities) and trackers.
+- Search, filters, sorting and an inspector with statistics, files (Do not download/Normal/High priorities) and trackers.
 - Pause/resume, sequential download, resume data and visible error details.
 - Global speed limits, active torrent queue, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
 - **Refreshed UI**: settings sidebar, resizable inspector, per-row state pills (including queued and completed states), wide-window
@@ -228,12 +228,12 @@ valid bind address and verifies download completion:
 | Add `.torrent` file | `⌘O` |
 | Add magnet link | `⌘N` |
 | Paste magnet from clipboard | `⌘⇧V` |
-| Search | `⌘F` |
+| Find | `⌘F` |
 | Pause / resume | `⌘P` |
 | Remove torrent | `⌘⌫` |
 | Show in Finder | `⌘⇧R` |
 | Copy magnet link | `⌘⇧C` |
-| Show / hide inspector | `⌘I` |
+| Show / hide details | `⌘I` |
 | Network diagnostics | `⌘⇧D` |
 | Filters | `⌘1` … `⌘5` |
 | Navigate the list (when the list has focus) | `↑` / `↓` |

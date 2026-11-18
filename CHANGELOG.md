@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.14.2] — 2026-11-18
+
+### English
+#### Localization, Accessibility & Fixes
+- **Grammar & agreement**: fixed plural/singular concordances across the application when counts equal 1:
+  - Active torrents in status bar (`Active: 1` / `1 attivo` instead of `1 attivi`).
+  - DHT node counter (`DHT · 1 node` / `DHT · 1 nodo` instead of `1 nodes` / `1 nodi`).
+  - Network reachability external node checks (`Port reachable (%ld of %ld external node)` / `Porta raggiungibile da 1 nodo esterno...`).
+  - Multi-file inspector selection counter (`1 of %ld selected` / `1 di %ld selezionato`).
+- **Runtime error translation**:
+  - Introduced `RuntimeErrorLocalizer` mapping POSIX disk errors (space, permissions, I/O), libtorrent data verification failures, SOCKS5 proxy handshake alerts, and UPnP/NAT-PMP router errors to the active UI language.
+  - Eliminated false positive duplicate errors in `localizedError` (filesystem errors are no longer flagged as duplicate torrents) and mapped `"Parametri non validi."` properly.
+  - Intercepted raw libtorrent bdecode and metadata errors (`missing info-hash`, `missing info-dictionary`, `not a dictionary`, `bencoded`, etc.) into localized user-friendly messages.
+- **Accessibility & VoiceOver**:
+  - Added localized accessibility labels and tooltips to the search field clear button, toast dismissal button, and add sheet clear button.
+  - Accessible labels for settings numeric/decimal inputs and toggles.
+  - Unified accessibility element reading for the `"Completed · Paused"` state pill.
+- **Table cleanup & Info.plist**:
+  - Removed 11 dead/orphaned keys from `Localizable.strings`.
+  - Added document type UTI mapping (`org.bittorrent.torrent`) in `InfoPlist.strings` and synchronized base values in `Info.plist`.
+  - Upgraded `Scripts/check-localization.sh` to enforce format specifier parity, identity mapping, and absence of orphaned keys.
+  - Fully bilingual `README.txt` (Licenses) and `THIRD_PARTY_NOTICES.md`.
+
+### Italiano
+#### Localizzazione, Accessibilità e Correzioni
+- **Grammatica e concordanze**: corrette le concordanze singolare/plurale in tutta l'applicazione per valori unitari:
+  - Torrent attivi nella barra di stato (`1 attivo` anziché `1 attivi`).
+  - Contatore nodi DHT (`DHT · 1 nodo` anziché `DHT · 1 nodi`).
+  - Diagnostica raggiungibilità porta (`Porta raggiungibile da 1 nodo esterno...` e `Nessun nodo esterno ha raggiunto la porta (1 verificato)...`).
+  - Contatore selezione file nell'inspector (`1 di %ld selezionato` anziché `selezionati`).
+- **Traduzione errori a runtime**:
+  - Introdotto `RuntimeErrorLocalizer` che traduce gli errori POSIX su disco (spazio esaurito, permessi, I/O), fallimenti di verifica hash/pezzi corrotti, alert di handshake SOCKS5 ed errori UPnP/NAT-PMP nella lingua dell'interfaccia.
+  - Eliminati i falsi positivi per torrent duplicato in `localizedError` (errori generici di filesystem non vengono più scambiati per torrent duplicati) e tradotti correttamente `"Parametri non validi."`.
+  - Intercettati gli errori grezzi di bdecode e metadati di libtorrent (`missing info-hash`, `missing info-dictionary`, `not a dictionary`, `bencoded`, ecc.) traducendoli in messaggi comprensibili.
+- **Accessibilità e VoiceOver**:
+  - Aggiunte etichette VoiceOver e tooltip localizzati ai pulsanti di svuotamento ricerca, chiusura toast e svuotamento campo magnet.
+  - Etichette accessibili per campi numerici/decimali e interruttori nelle Impostazioni.
+  - Lettura unificata della pillola di stato `"Completato · In pausa"` per VoiceOver.
+- **Pulizia tabelle e Info.plist**:
+  - Rimosse 11 chiavi orfane da `Localizable.strings`.
+  - Mappato l'UTI dei documenti (`org.bittorrent.torrent`) in `InfoPlist.strings` e sincronizzati i valori base in `Info.plist`.
+  - Potenziato `Scripts/check-localization.sh` con verifica di corrispondenza specifier, identità chiavi italiane e rifiuto chiavi orfane.
+  - Resi bilingui `README.txt` (Licenze) e `THIRD_PARTY_NOTICES.md`.
+
 ## [1.14.1] — 2026-11-15
 
 ### English

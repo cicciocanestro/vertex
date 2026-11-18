@@ -69,7 +69,7 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - Motore **libtorrent 2.1**: DHT, PEX, LSD, UPnP/NAT-PMP, tracker HTTP/UDP, magnet link,
   torrent v1 e v2.
 - Aggiunta da magnet, file `.torrent`, trascinamento, appunti, Finder o browser.
-- Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file (priorità Skip/Normale/Alta) e tracker.
+- Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file (priorità Non scaricare/Normale/Alta) e tracker.
 - Pausa/ripresa, download sequenziale, resume data ed errori visibili.
 - Limiti globali di velocità, coda dei torrent attivi, porta, DHT, PEX, LSD e UPnP/NAT-PMP.
 - **Interfaccia rinnovata**: sidebar delle impostazioni, inspector ridimensionabile, pill di

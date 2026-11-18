@@ -198,6 +198,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     }
 
     package var hasError: Bool { !error.isEmpty }
+    package var localizedError: String { RuntimeErrorLocalizer.torrent(error) }
 
     /// Waiting for an active slot inside the queue.
     package var isQueued: Bool { phase == .queued }
@@ -222,6 +223,7 @@ package struct PortMapInfo: Decodable, Equatable {
     }
 
     package var hasError: Bool { !error.isEmpty }
+    package var localizedError: String { RuntimeErrorLocalizer.portmap(error) }
 
     enum CodingKeys: String, CodingKey {
         case mapped
@@ -243,6 +245,7 @@ package struct PortMapSnapshot: Decodable, Equatable {
     }
 
     package var hasError: Bool { tcp.hasError || udp.hasError || !error.isEmpty }
+    package var localizedError: String { RuntimeErrorLocalizer.portmap(error) }
 }
 
 package struct ProxyInfo: Decodable, Equatable {
@@ -256,6 +259,7 @@ package struct ProxyInfo: Decodable, Equatable {
     package var error: String = ""
 
     package var hasError: Bool { !error.isEmpty }
+    package var localizedError: String { RuntimeErrorLocalizer.proxy(error) }
 
     package init(
         enabled: Bool = false,

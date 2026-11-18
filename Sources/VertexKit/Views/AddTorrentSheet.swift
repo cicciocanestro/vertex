@@ -117,7 +117,7 @@ struct AddTorrentSheet: View {
                         Image(systemName: "arrow.down.doc.fill")
                             .font(Typography.iconLarge)
                             .foregroundStyle(Theme.mint)
-                        Text(L("Rilascia il file .torrent"))
+                        Text(L("Rilascia per aggiungere"))
                             .font(Typography.bodyLargeSemiboldText)
                             .foregroundStyle(palette.text)
                     }
@@ -210,6 +210,7 @@ struct AddTorrentSheet: View {
                         }
                         .buttonStyle(.plain)
                         .help(L("Svuota il campo"))
+                        .accessibilityLabel(Text(L("Svuota il campo")))
                         .padding(9)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     }

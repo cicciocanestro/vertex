@@ -53,7 +53,8 @@ in coda appartiene al bucket in cui girerà (`Download` o `Seed`), così "In pau
 - I contatori dello snapshot contano i torrent in coda come `paused` (`active`/`paused_count`
   restano complementari); non c'è un contatore dedicato.
 - Sul track il pulsante di pausa, per un torrent in coda, significa **Escludi dalla coda**.
-  Non esiste ancora un "riprendi subito ignorando il limite": per farlo, alzare il limite.
+  Per avviare subito ignorando il limite è disponibile l'opzione **Avvia ora (ignora coda)** nel menu
+  contestuale e nell'Inspector.
 - Il ricalcolo periodico di libtorrent resta a 30 s; il nudge copre i casi interattivi, ma un
   torrent che *finisce* di scaricare libera il suo slot solo al passaggio successivo (il
   torrent resta comunque attivo come seed).
