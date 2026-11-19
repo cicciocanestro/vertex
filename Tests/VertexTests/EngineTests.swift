@@ -492,7 +492,7 @@ enum EngineTests {
             let variants = onMain {
                 ViewRenderingSupport.renderStateVariants(engine: engine, torrents: engine.torrents)
             }
-            try TestRunner.assertEqual(variants.count, 16)
+            try TestRunner.assertEqual(variants.count, 17)
             for (name, area) in variants {
                 try TestRunner.assertTrue(
                     area > 0,
@@ -525,6 +525,36 @@ enum EngineTests {
                 onMain { engine.localizedError("Parametri non validi") },
                 L("Parametri non validi.")
             )
+            try TestRunner.assertEqual(
+                onMain { engine.localizedError("Esiste già un file con lo stesso nome nella cartella di destinazione.") },
+                L("Esiste già un file con lo stesso nome nella cartella di destinazione.")
+            )
+
+            // Multi-selection and completion notification hook
+            let notified = onMain { AsyncBox<[String]>() }
+            onMain {
+                engine.completionNotification = { names in
+                    notified.value = names
+                }
+                let t1 = Torrent.test(id: "m1", name: "Multi1.iso", stateCode: 3, progress: 0.5, finished: false)
+                let t2 = Torrent.test(id: "m2", name: "Multi2.iso", stateCode: 3, progress: 0.5, finished: false)
+                engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [t1, t2]))
+                engine.selectClick("m1", visibleIDs: ["m1", "m2"], command: false, shift: false)
+                engine.selectClick("m2", visibleIDs: ["m1", "m2"], command: true, shift: false)
+            }
+            try TestRunner.assertEqual(onMain { engine.selectedIDs }, ["m1", "m2"])
+            try TestRunner.assertNil(
+                onMain { engine.selectedID },
+                "L'inspector singolo deve chiudersi quando sono selezionati più torrent"
+            )
+            try TestRunner.assertEqual(onMain { engine.selectedTorrents.count }, 2)
+
+            onMain {
+                let t1Done = Torrent.test(id: "m1", name: "Multi1.iso", stateCode: 5, progress: 1.0, finished: true, seeding: true)
+                let t2 = Torrent.test(id: "m2", name: "Multi2.iso", stateCode: 3, progress: 0.6, finished: false)
+                engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [t1Done, t2]))
+            }
+            try TestRunner.assertEqual(onMain { notified.value }, ["Multi1.iso"])
         }
     }
 

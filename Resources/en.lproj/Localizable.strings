@@ -338,3 +338,30 @@
 "Sposta file…" = "Move files…";
 "Sposta" = "Move";
 "File spostati" = "Files moved";
+"Esiste già un file con lo stesso nome nella cartella di destinazione." = "A file with the same name already exists in the destination folder.";
+
+/* Multi-selection, inspector peers and completion notifications */
+"Rimuovere %ld torrent?" = "Remove %ld torrents?";
+"I file scaricati restano sul disco se scegli di rimuovere solo dalla lista." = "Downloaded files stay on disk if you choose to remove from the list only.";
+"%ld selezionati" = "%ld selected";
+"Deseleziona" = "Deselect";
+"Riprendi selezionati (%ld)" = "Resume selected (%ld)";
+"Metti in pausa selezionati (%ld)" = "Pause selected (%ld)";
+"Rimuovi selezionati (%ld)…" = "Remove selected (%ld)…";
+"%ld torrent e file rimossi" = "%ld torrents and files removed";
+"%ld torrent rimossi" = "%ld torrents removed";
+"Peer" = "Peers";
+"Nessun peer connesso" = "No peers connected";
+"Handshake…" = "Handshake…";
+"Download attivo" = "Active download";
+"In attesa di sblocco" = "Waiting for unchoke";
+"Upload attivo" = "Active upload";
+"Richiede pezzi" = "Interested in pieces";
+"Sblocco ottimistico" = "Optimistic unchoke";
+"Seed completo" = "Complete seed";
+"Connessione in ingresso" = "Incoming connection";
+"Trasporto uTP" = "uTP transport";
+"Connessione cifrata" = "Encrypted connection";
+"Notifiche di completamento" = "Completion notifications";
+"Mostra una notifica di macOS al termine di un download" = "Show a macOS notification when a download finishes";
+"Richiede un bundle firmato con Developer ID" = "Requires a Developer ID signed bundle";

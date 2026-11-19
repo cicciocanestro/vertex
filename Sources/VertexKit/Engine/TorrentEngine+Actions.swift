@@ -214,28 +214,187 @@ extension TorrentEngine {
     }
 
     func remove(_ torrent: Torrent, deleteFiles: Bool) {
-        let torrentID = torrent.id
-        let torrentName = torrent.name
-        control(deleteFiles ? "remove_files" : "remove", id: torrentID) { [weak self] in
-            guard let self else { return }
-            if self.selectedID == torrentID {
-                self.select(nil)
+        remove([torrent], deleteFiles: deleteFiles)
+    }
+
+    func remove(_ list: [Torrent], deleteFiles: Bool) {
+        guard !list.isEmpty else { return }
+        if list.count == 1, let single = list.first {
+            let torrentID = single.id
+            let torrentName = single.name
+            control(deleteFiles ? "remove_files" : "remove", id: torrentID) { [weak self] in
+                guard let self else { return }
+                if self.selectedIDs.contains(torrentID) {
+                    var remaining = self.selectedIDs
+                    remaining.remove(torrentID)
+                    self.setSelection(TorrentListSelection.State(selectedIDs: remaining, anchorID: remaining.first))
+                }
+                self.showToast(
+                    L(deleteFiles ? "Torrent e file rimossi" : "Torrent rimosso"),
+                    kind: .info,
+                    detail: torrentName
+                )
             }
+            return
+        }
+
+        let ids = list.map(\.id)
+        let action = deleteFiles ? "remove_files" : "remove"
+        enqueueSessionOperation { session in
+            var result: Int32 = 0
+            for id in ids {
+                let code = id.withCString { idPointer in
+                    action.withCString { actionPointer in
+                        vt_control(session, idPointer, actionPointer)
+                    }
+                }
+                if code != 0 { result = code }
+            }
+            return result
+        } onSuccess: { [weak self] in
+            guard let self else { return }
+            let remaining = self.selectedIDs.subtracting(ids)
+            self.setSelection(TorrentListSelection.State(selectedIDs: remaining, anchorID: remaining.first))
             self.showToast(
-                L(deleteFiles ? "Torrent e file rimossi" : "Torrent rimosso"),
-                kind: .info,
-                detail: torrentName
+                deleteFiles
+                    ? LF("%ld torrent e file rimossi", ids.count)
+                    : LF("%ld torrent rimossi", ids.count),
+                kind: .info
             )
+            self.poll()
         }
     }
 
-    func select(_ id: String?) {
-        selectedID = id
-        detailTick = 0
-        detail = nil
-        if let id {
-            loadDetail(id)
+    func pause(_ list: [Torrent]) {
+        guard !list.isEmpty else { return }
+        if list.count == 1, let single = list.first {
+            if single.isQueued {
+                control("dequeue", id: single.id)
+            } else {
+                pause(single)
+            }
+            return
         }
+        let commands = list.map { ($0.id, $0.isQueued ? "dequeue" : "pause") }
+        enqueueSessionOperation { session in
+            for (id, action) in commands {
+                _ = id.withCString { idPtr in
+                    action.withCString { actPtr in vt_control(session, idPtr, actPtr) }
+                }
+            }
+            return 0
+        } onSuccess: { [weak self] in
+            self?.poll()
+        }
+    }
+
+    func resume(_ list: [Torrent]) {
+        guard !list.isEmpty else { return }
+        if list.count == 1, let single = list.first {
+            resume(single)
+            return
+        }
+        let ids = list.map(\.id)
+        enqueueSessionOperation { session in
+            for id in ids {
+                _ = id.withCString { idPtr in
+                    "resume".withCString { actPtr in vt_control(session, idPtr, actPtr) }
+                }
+            }
+            return 0
+        } onSuccess: { [weak self] in
+            self?.poll()
+        }
+    }
+
+    func togglePause(_ list: [Torrent]) {
+        guard !list.isEmpty else { return }
+        if list.count == 1, let single = list.first {
+            togglePause(single)
+            return
+        }
+        let anyActiveOrQueued = list.contains { !$0.paused || $0.isQueued }
+        if anyActiveOrQueued {
+            pause(list)
+        } else {
+            resume(list)
+        }
+    }
+
+    func reannounce(_ list: [Torrent]) {
+        guard !list.isEmpty else { return }
+        if list.count == 1, let single = list.first {
+            reannounce(single)
+            return
+        }
+        let ids = list.map(\.id)
+        enqueueSessionOperation { session in
+            for id in ids {
+                _ = id.withCString { idPtr in
+                    "reannounce".withCString { actPtr in vt_control(session, idPtr, actPtr) }
+                }
+            }
+            return 0
+        } onSuccess: { [weak self] in
+            self?.showToast(L("Annuncio inviato ai tracker"), kind: .info)
+            self?.poll()
+        }
+    }
+
+    package var selectedTorrents: [Torrent] {
+        guard !selectedIDs.isEmpty else { return [] }
+        return torrents.filter { selectedIDs.contains($0.id) }
+    }
+
+    func select(_ id: String?) {
+        if let id {
+            setSelection(TorrentListSelection.State(selectedIDs: [id], anchorID: id))
+        } else {
+            setSelection(TorrentListSelection.State())
+        }
+    }
+
+    package func setSelection(_ state: TorrentListSelection.State) {
+        selectedIDs = state.selectedIDs
+        selectionAnchorID = state.anchorID
+        let singleID = state.selectedIDs.count == 1 ? state.selectedIDs.first : nil
+        if let singleID {
+            if selectedID != singleID || detail == nil {
+                selectedID = singleID
+                detailTick = 0
+                detail = nil
+                loadDetail(singleID)
+            }
+        } else {
+            selectedID = nil
+            detailTick = 0
+            detail = nil
+        }
+    }
+
+    package func selectClick(
+        _ id: String,
+        visibleIDs: [String],
+        command: Bool,
+        shift: Bool
+    ) {
+        let next = TorrentListSelection.handleClick(
+            on: id,
+            in: visibleIDs,
+            current: selectedIDs,
+            anchor: selectionAnchorID ?? selectedID,
+            command: command,
+            shift: shift
+        )
+        setSelection(next)
+    }
+
+    package func selectAll(visibleIDs: [String]) {
+        let next = TorrentListSelection.selectAll(
+            in: visibleIDs,
+            currentAnchor: selectionAnchorID ?? selectedID
+        )
+        setSelection(next)
     }
 
     func setFilePriority(_ file: TorrentFile, priority: FilePriority, torrentID: String) {
@@ -677,6 +836,9 @@ extension TorrentEngine {
         if lower.contains("torrent already exists") || lower.contains("duplicate") {
             return L("Questo torrent è già presente.")
         }
+        if lower.contains("file exists") {
+            return L("Esiste già un file con lo stesso nome nella cartella di destinazione.")
+        }
         if lower.contains("no such file") || lower.contains("cannot stat") { return L("File non trovato.") }
         if lower.contains("permission") || lower.contains("operation not permitted") { return L("Permesso negato.") }
         if lower.contains("invalid")
@@ -712,6 +874,8 @@ extension TorrentEngine {
         case "Parametri non validi": return L("Parametri non validi.")
         case "La destinazione non è una cartella.": return L("La destinazione non è una cartella.")
         case "La cartella di destinazione non è scrivibile.": return L("La cartella di destinazione non è scrivibile.")
+        case "Esiste già un file con lo stesso nome nella cartella di destinazione.":
+            return L("Esiste già un file con lo stesso nome nella cartella di destinazione.")
         case "URL del tracker troppo lungo": return L("URL del tracker troppo lungo")
         case "URL del tracker non valido": return L("URL del tracker non valido")
         case "Troppi tracker": return L("Troppi tracker")

@@ -265,6 +265,35 @@ enum ModelsTests {
             try TestRunner.assertEqual(detail.files[0].path, "ubuntu-24.04-desktop-arm64.iso")
             try TestRunner.assertEqual(detail.files[0].priority, 4)
             try TestRunner.assertEqual(detail.files[0].isWanted, true)
+            try TestRunner.assertEqual(detail.peers.count, 0)
+
+            let withPeersJSON = """
+            {
+                "files": [],
+                "trackers": [],
+                "peers": [
+                    {
+                        "endpoint": "198.51.100.12:51413",
+                        "client": "Vertex/1.14.2",
+                        "progress": 0.85,
+                        "download_rate": 262144,
+                        "upload_rate": 65536,
+                        "flags": "DUPE",
+                        "source": "DHT"
+                    }
+                ],
+                "metadata": true
+            }
+            """
+            let withPeers = try JSONDecoder().decode(TorrentDetail.self, from: Data(withPeersJSON.utf8))
+            try TestRunner.assertEqual(withPeers.peers.count, 1)
+            try TestRunner.assertEqual(withPeers.peers[0].endpoint, "198.51.100.12:51413")
+            try TestRunner.assertEqual(withPeers.peers[0].client, "Vertex/1.14.2")
+            try TestRunner.assertEqual(withPeers.peers[0].progress, 0.85)
+            try TestRunner.assertEqual(withPeers.peers[0].downloadRate, 262144)
+            try TestRunner.assertEqual(withPeers.peers[0].uploadRate, 65536)
+            try TestRunner.assertEqual(withPeers.peers[0].flags, "DUPE")
+            try TestRunner.assertEqual(withPeers.peers[0].source, "DHT")
         }
 
         TestRunner.run("TorrentFilter: logica di filtraggio") {
@@ -532,6 +561,47 @@ enum ModelsTests {
                 natpmpAuth.localizedError,
                 "NAT-PMP: " + L("non autorizzato (abilita NAT-PMP sul router)")
             )
+        }
+
+        TestRunner.run("TorrentListSelection: clic singolo, Cmd-clic, Shift-clic e Cmd-A") {
+            let visible = ["t1", "t2", "t3", "t4", "t5"]
+
+            let first = TorrentListSelection.handleClick(
+                on: "t2", in: visible, current: [], anchor: nil, command: false, shift: false
+            )
+            try TestRunner.assertEqual(first.selectedIDs, ["t2"])
+            try TestRunner.assertEqual(first.anchorID, "t2")
+
+            // Cmd-click adds without clearing
+            let cmdAdd = TorrentListSelection.handleClick(
+                on: "t4", in: visible, current: first.selectedIDs, anchor: first.anchorID, command: true, shift: false
+            )
+            try TestRunner.assertEqual(cmdAdd.selectedIDs, ["t2", "t4"])
+            try TestRunner.assertEqual(cmdAdd.anchorID, "t4")
+
+            // Cmd-click on an already selected item removes it
+            let cmdRemove = TorrentListSelection.handleClick(
+                on: "t4", in: visible, current: cmdAdd.selectedIDs, anchor: cmdAdd.anchorID, command: true, shift: false
+            )
+            try TestRunner.assertEqual(cmdRemove.selectedIDs, ["t2"])
+
+            // Shift-click selects contiguous range from anchor ("t2" -> "t5")
+            let shiftRange = TorrentListSelection.handleClick(
+                on: "t5", in: visible, current: ["t2"], anchor: "t2", command: false, shift: true
+            )
+            try TestRunner.assertEqual(shiftRange.selectedIDs, ["t2", "t3", "t4", "t5"])
+            try TestRunner.assertEqual(shiftRange.anchorID, "t2")
+
+            // Reverse Shift-click ("t2" -> "t1")
+            let reverseRange = TorrentListSelection.handleClick(
+                on: "t1", in: visible, current: shiftRange.selectedIDs, anchor: shiftRange.anchorID, command: false, shift: true
+            )
+            try TestRunner.assertEqual(reverseRange.selectedIDs, ["t1", "t2"])
+
+            // Select All
+            let all = TorrentListSelection.selectAll(in: visible, currentAnchor: "t2")
+            try TestRunner.assertEqual(all.selectedIDs, Set(visible))
+            try TestRunner.assertEqual(all.anchorID, "t2")
         }
     }
 }

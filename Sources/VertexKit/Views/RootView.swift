@@ -60,7 +60,7 @@ package struct RootView: View {
         _search = StateObject(wrappedValue: UIState(search))
         _activeModal = StateObject(wrappedValue: UIState(modal))
         _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
-        _pendingDeletion = StateObject(wrappedValue: UIState(pendingDeletion))
+        _pendingDeletions = StateObject(wrappedValue: UIState(pendingDeletion.map { [$0] } ?? []))
         _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
     }
     #endif
@@ -79,7 +79,7 @@ package struct RootView: View {
     @StateObject private var search = UIState("")
     @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
-    @StateObject private var pendingDeletion = UIState<Torrent?>(nil)
+    @StateObject private var pendingDeletions = UIState<[Torrent]>([])
     @StateObject private var showDeleteConfirmation = UIState(false)
 
     @FocusState private var searchFocused: Bool
@@ -120,24 +120,29 @@ package struct RootView: View {
             .dynamicTypeSize(debugDynamicTypeSize)
             #endif
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: engine.selectedID)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: engine.selectedIDs.count > 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: activeModal.value)
             .alert(
-                L("Rimuovere il torrent?"),
+                pendingDeletions.value.count > 1
+                    ? LF("Rimuovere %ld torrent?", pendingDeletions.value.count)
+                    : L("Rimuovere il torrent?"),
                 isPresented: $showDeleteConfirmation.value,
-                presenting: pendingDeletion.value
-            ) { torrent in
+                presenting: pendingDeletions.value.isEmpty ? nil : pendingDeletions.value
+            ) { targets in
                 Button(L("Rimuovi solo dalla lista")) {
-                    engine.remove(torrent, deleteFiles: false)
-                    clearSelectionIfNeeded(torrent)
+                    engine.remove(targets, deleteFiles: false)
                 }
                 Button(L("Rimuovi e cancella i file"), role: .destructive) {
-                    engine.remove(torrent, deleteFiles: true)
-                    clearSelectionIfNeeded(torrent)
+                    engine.remove(targets, deleteFiles: true)
                 }
                 Button(L("Annulla"), role: .cancel) {}
-            } message: { torrent in
-                Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", torrent.name))
+            } message: { targets in
+                if targets.count == 1, let single = targets.first {
+                    Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", single.name))
+                } else {
+                    Text(L("I file scaricati restano sul disco se scegli di rimuovere solo dalla lista."))
+                }
             }
             .sheet(isPresented: addSheetPresented) {
                 AddTorrentSheet(
@@ -162,11 +167,12 @@ package struct RootView: View {
                     },
                     onRemove: {
                         guard !hasModalOverlay else { return }
-                        guard let torrent = selectedTorrent else {
+                        let selected = engine.selectedTorrents
+                        guard !selected.isEmpty else {
                             engine.showToast(L("Seleziona un torrent"), kind: .info)
                             return
                         }
-                        requestDeletion(torrent)
+                        requestDeletion(selected)
                     },
                     onReveal: {
                         guard !hasModalOverlay else { return }
@@ -327,6 +333,9 @@ package struct RootView: View {
         return VStack(spacing: 0) {
             headerBar
             filterBar(counts: result.counts)
+            if engine.selectedTorrents.count > 1 {
+                multiSelectionBar
+            }
 
             HStack(spacing: 0) {
                 content(torrents: visible)
@@ -344,6 +353,53 @@ package struct RootView: View {
                 onOpenDiagnostics: { activeModal.value = .diagnostics }
             )
         }
+    }
+
+    private var multiSelectionBar: some View {
+        let palette = Palette(scheme: scheme)
+        let batch = engine.selectedTorrents
+        return HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(Typography.captionMediumText)
+                .foregroundStyle(Theme.mint)
+
+            Text(LF("%ld selezionati", batch.count))
+                .font(Typography.smallSemiboldText)
+                .foregroundStyle(palette.text)
+
+            Spacer()
+
+            Button {
+                engine.resume(batch)
+            } label: {
+                Label(L("Riprendi"), systemImage: "play.fill")
+            }
+            .buttonStyle(SmallButtonStyle())
+
+            Button {
+                engine.pause(batch)
+            } label: {
+                Label(L("Pausa"), systemImage: "pause.fill")
+            }
+            .buttonStyle(SmallButtonStyle())
+
+            Button {
+                requestDeletion(batch)
+            } label: {
+                Label(L("Rimuovi…"), systemImage: "trash")
+            }
+            .buttonStyle(SmallButtonStyle())
+
+            IconButton(icon: "xmark", help: "Deseleziona", size: 22) {
+                select(nil)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .vertexCard(palette, radius: 10)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private var headerBar: some View {
@@ -370,7 +426,7 @@ package struct RootView: View {
             engine: engine,
             torrent: torrent,
             onClose: { select(nil) },
-            onDeleteWithFiles: { requestDeletion($0) }
+            onDeleteWithFiles: { requestDeletion([$0]) }
         )
         .frame(width: inspectorWidthValue)
         .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -420,12 +476,25 @@ package struct RootView: View {
                 filterRaw = TorrentFilter.all.rawValue
             }
         } else {
+            let visibleIDs = torrents.map(\.id)
             TorrentListView(
                 engine: engine,
                 torrents: torrents,
-                selectedID: engine.selectedID,
-                onSelect: { select($0) },
-                onDeleteWithFiles: { requestDeletion($0) }
+                selectedIDs: engine.selectedIDs,
+                onSelectClick: { clicked, command, shift in
+                    engine.selectClick(
+                        clicked.id,
+                        visibleIDs: visibleIDs,
+                        command: command,
+                        shift: shift
+                    )
+                },
+                onSelectAll: {
+                    engine.selectAll(visibleIDs: visibleIDs)
+                },
+                onDeleteSelection: { targets in
+                    requestDeletion(targets)
+                }
             )
         }
     }
@@ -476,27 +545,23 @@ package struct RootView: View {
         engine.select(torrent?.id)
     }
 
-    private func requestDeletion(_ torrent: Torrent) {
-        pendingDeletion.value = torrent
+    private func requestDeletion(_ torrents: [Torrent]) {
+        guard !torrents.isEmpty else { return }
+        pendingDeletions.value = torrents
         showDeleteConfirmation.value = true
     }
 
-    private func clearSelectionIfNeeded(_ torrent: Torrent) {
-        if engine.selectedID == torrent.id {
-            engine.select(nil)
-        }
-    }
-
     private func togglePauseSelected() {
-        guard let torrent = selectedTorrent else {
+        let selected = engine.selectedTorrents
+        guard !selected.isEmpty else {
             engine.showToast(L("Seleziona un torrent"), kind: .info)
             return
         }
-        engine.togglePause(torrent)
+        engine.togglePause(selected)
     }
 
     private func toggleInspector() {
-        if engine.selectedID != nil {
+        if !engine.selectedIDs.isEmpty {
             select(nil)
         } else if let first = listResult.torrents.first {
             select(first)

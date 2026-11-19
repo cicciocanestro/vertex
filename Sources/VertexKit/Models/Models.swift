@@ -450,10 +450,82 @@ package struct TorrentTracker: Decodable, Identifiable, Equatable {
     package var id: String { url }
 }
 
+package struct TorrentPeer: Decodable, Identifiable, Equatable {
+    package let endpoint: String
+    package let client: String
+    package let progress: Double
+    package let downloadRate: Int64
+    package let uploadRate: Int64
+    package let flags: String
+    package let source: String
+
+    package var id: String { endpoint }
+
+    package init(
+        endpoint: String,
+        client: String,
+        progress: Double,
+        downloadRate: Int64,
+        uploadRate: Int64,
+        flags: String,
+        source: String
+    ) {
+        self.endpoint = endpoint
+        self.client = client
+        self.progress = min(max(progress, 0), 1)
+        self.downloadRate = max(downloadRate, 0)
+        self.uploadRate = max(uploadRate, 0)
+        self.flags = flags
+        self.source = source
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case endpoint, client, progress, flags, source
+        case downloadRate = "download_rate"
+        case uploadRate = "upload_rate"
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        endpoint = try c.decode(String.self, forKey: .endpoint)
+        client = try c.decodeIfPresent(String.self, forKey: .client) ?? ""
+        progress = min(max(try c.decodeIfPresent(Double.self, forKey: .progress) ?? 0, 0), 1)
+        downloadRate = max(try c.decodeIfPresent(Int64.self, forKey: .downloadRate) ?? 0, 0)
+        uploadRate = max(try c.decodeIfPresent(Int64.self, forKey: .uploadRate) ?? 0, 0)
+        flags = try c.decodeIfPresent(String.self, forKey: .flags) ?? ""
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? ""
+    }
+}
+
 package struct TorrentDetail: Decodable, Equatable {
     package let files: [TorrentFile]
     package let trackers: [TorrentTracker]
+    package let peers: [TorrentPeer]
     package let metadata: Bool
+
+    package init(
+        files: [TorrentFile],
+        trackers: [TorrentTracker],
+        peers: [TorrentPeer] = [],
+        metadata: Bool
+    ) {
+        self.files = files
+        self.trackers = trackers
+        self.peers = peers
+        self.metadata = metadata
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case files, trackers, peers, metadata
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        files = try c.decode([TorrentFile].self, forKey: .files)
+        trackers = try c.decode([TorrentTracker].self, forKey: .trackers)
+        peers = try c.decodeIfPresent([TorrentPeer].self, forKey: .peers) ?? []
+        metadata = try c.decode(Bool.self, forKey: .metadata)
+    }
 }
 
 package enum TorrentFilter: String, CaseIterable, Identifiable {
@@ -570,6 +642,62 @@ package enum TorrentListNavigation {
         guard count > 0 else { return nil }
         guard let current else { return 0 }
         return min(max(current + delta, 0), count - 1)
+    }
+}
+
+/// Multi-selection state transitions (`Click`, `⌘-Click`, `⇧-Click`, `⌘A`).
+/// Pure value logic so selection invariants are unit-testable without AppKit.
+package enum TorrentListSelection {
+    package struct State: Equatable {
+        package var selectedIDs: Set<String>
+        package var anchorID: String?
+
+        package init(selectedIDs: Set<String> = [], anchorID: String? = nil) {
+            self.selectedIDs = selectedIDs
+            self.anchorID = anchorID
+        }
+    }
+
+    package static func handleClick(
+        on clickedID: String,
+        in visibleIDs: [String],
+        current: Set<String>,
+        anchor: String?,
+        command: Bool,
+        shift: Bool
+    ) -> State {
+        if shift,
+           let anchor,
+           let anchorIndex = visibleIDs.firstIndex(of: anchor),
+           let clickedIndex = visibleIDs.firstIndex(of: clickedID) {
+            let lower = min(anchorIndex, clickedIndex)
+            let upper = max(anchorIndex, clickedIndex)
+            let range = Set(visibleIDs[lower...upper])
+            let combined = command ? current.union(range) : range
+            return State(selectedIDs: combined, anchorID: anchor)
+        }
+
+        if command {
+            var next = current
+            if next.contains(clickedID) {
+                next.remove(clickedID)
+                let nextAnchor = (anchor == clickedID) ? next.first : anchor
+                return State(selectedIDs: next, anchorID: nextAnchor)
+            } else {
+                next.insert(clickedID)
+                return State(selectedIDs: next, anchorID: clickedID)
+            }
+        }
+
+        return State(selectedIDs: [clickedID], anchorID: clickedID)
+    }
+
+    package static func selectAll(in visibleIDs: [String], currentAnchor: String?) -> State {
+        guard !visibleIDs.isEmpty else { return State() }
+        let anchor = (currentAnchor != nil && visibleIDs.contains(currentAnchor!))
+            ? currentAnchor
+            : visibleIDs.first
+        return State(selectedIDs: Set(visibleIDs), anchorID: anchor)
     }
 }
 

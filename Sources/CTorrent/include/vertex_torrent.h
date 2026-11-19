@@ -34,6 +34,28 @@ vt_session* vt_session_create_full(const char* download_dir,
                                    const char* bind_address,
                                    char** error_message);
 
+/* Creates the session with optional SOCKS5 proxy settings applied to the
+   initial settings_pack BEFORE the network thread starts and before resume
+   files are loaded, preventing any startup clearnet leak window. `app_version`
+   sets the Vertex/<version> User-Agent string dynamically. */
+vt_session* vt_session_create_configured(const char* download_dir,
+                                         const char* resume_dir,
+                                         int listen_port,
+                                         int download_limit_bytes,
+                                         int upload_limit_bytes,
+                                         int enable_dht,
+                                         int enable_pex,
+                                         int enable_lsd,
+                                         int enable_upnp,
+                                         const char* bind_address,
+                                         int proxy_type,
+                                         const char* proxy_host,
+                                         int proxy_port,
+                                         const char* proxy_user,
+                                         const char* proxy_password,
+                                         const char* app_version,
+                                         char** error_message);
+
 /* Saves resume data and destroys the session. It can wait up to ~3 seconds:
    callers must invoke it off the main/UI thread. */
 void vt_session_destroy(vt_session* session);

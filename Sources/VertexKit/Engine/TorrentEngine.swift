@@ -49,9 +49,11 @@ package final class TorrentEngine: ObservableObject {
     @Published var isStarting = false
     @Published var startupError: String?
     @Published var isRestartingSession = false
-    /// Torrent shown in the inspector. It is the single source of truth for
-    /// the selection: `RootView` reads it instead of keeping a parallel copy.
+    /// Torrent shown in the inspector (non-nil iff exactly one row is selected).
     @Published var selectedID: String?
+    /// Full set of selected torrent IDs (`⌘-Click`, `⇧-Click`, `⌘A`).
+    @Published package var selectedIDs: Set<String> = []
+    var selectionAnchorID: String?
 
     var session: OpaquePointer?
     var pollTask: Task<Void, Never>?
@@ -101,6 +103,14 @@ package final class TorrentEngine: ObservableObject {
         // processes without a run loop.
         guard let app = NSApp, app.isRunning, !app.isActive else { return }
         app.requestUserAttention(.informationalRequest)
+    }
+
+    /// Dispatches an optional native macOS notification when downloads finish.
+    /// Injected so tests can observe completion events without touching
+    /// `UNUserNotificationCenter`.
+    var completionNotification: ([String]) -> Void = { names in
+        guard UserDefaults.standard.bool(forKey: PrefKey.notificationsEnabled) else { return }
+        SystemNotifications.postDownloadCompleted(names: names)
     }
 
     var recentErrorToasts: [String: Date] = [:]
@@ -218,22 +228,37 @@ package final class TorrentEngine: ObservableObject {
         }
 
         var errorPointer: UnsafeMutablePointer<CChar>?
+        let version = AppInfo.version == "—" ? "" : AppInfo.version
         let pointer = configuration.downloadPath.withCString { downloadPath in
             configuration.resumePath.withCString { resumePath in
                 configuration.bindAddress.withCString { bindAddress in
-                    vt_session_create_full(
-                        downloadPath,
-                        resumePath,
-                        configuration.port,
-                        configuration.downloadLimit,
-                        configuration.uploadLimit,
-                        configuration.dht ? 1 : 0,
-                        configuration.pex ? 1 : 0,
-                        configuration.lsd ? 1 : 0,
-                        configuration.upnp ? 1 : 0,
-                        bindAddress,
-                        &errorPointer
-                    )
+                    configuration.proxyHost.withCString { hostPointer in
+                        configuration.proxyUser.withCString { userPointer in
+                            configuration.proxyPassword.withCString { passPointer in
+                                version.withCString { versionPointer in
+                                    vt_session_create_configured(
+                                        downloadPath,
+                                        resumePath,
+                                        configuration.port,
+                                        configuration.downloadLimit,
+                                        configuration.uploadLimit,
+                                        configuration.dht ? 1 : 0,
+                                        configuration.pex ? 1 : 0,
+                                        configuration.lsd ? 1 : 0,
+                                        configuration.upnp ? 1 : 0,
+                                        bindAddress,
+                                        configuration.proxyEnabled ? 1 : 0,
+                                        hostPointer,
+                                        configuration.proxyPort,
+                                        userPointer,
+                                        passPointer,
+                                        versionPointer,
+                                        &errorPointer
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -248,23 +273,6 @@ package final class TorrentEngine: ObservableObject {
             // is 3 downloads + 5 seeds, which would silently queue the torrents of
             // a user who never asked for a queue.
             _ = vt_set_active_limit(pointer, configuration.maxActive)
-        }
-
-        if let pointer, configuration.proxyEnabled {
-            configuration.proxyHost.withCString { hostPointer in
-                configuration.proxyUser.withCString { userPointer in
-                    configuration.proxyPassword.withCString { passPointer in
-                        _ = vt_apply_proxy_settings(
-                            pointer,
-                            1,
-                            hostPointer,
-                            configuration.proxyPort,
-                            userPointer,
-                            passPointer
-                        )
-                    }
-                }
-            }
         }
 
         return SessionCreationResult(pointer: pointer, error: error)
@@ -400,6 +408,8 @@ package final class TorrentEngine: ObservableObject {
             pollState = PollState()
             detail = nil
             selectedID = nil
+            selectedIDs = []
+            selectionAnchorID = nil
             showToast(
                 L("Impossibile riavviare il motore BitTorrent"),
                 kind: .error,

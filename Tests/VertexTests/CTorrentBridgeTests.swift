@@ -431,6 +431,89 @@ enum CTorrentBridgeTests {
             }
         }
 
+        TestRunner.run("Bridge: avvio sessione con proxy SOCKS5 preconfigurato e flush resume immediato") {
+            let workspace = try IntegrationWorkspace()
+            defer { workspace.cleanup() }
+            let download = try workspace.directory("downloads")
+            let resume = try workspace.directory("resume")
+            let port = Int32(try TestsSupport.freeTCPPort())
+
+            // Create session with SOCKS5 proxy already configured at startup
+            let session = download.path.withCString { dlPath in
+                resume.path.withCString { resPath in
+                    "127.0.0.1".withCString { hostPtr in
+                        "user".withCString { userPtr in
+                            "pass".withCString { passPtr in
+                                "1.14.2".withCString { verPtr in
+                                    vt_session_create_configured(
+                                        dlPath, resPath, port, 0, 0, 0, 0, 0, 1, nil,
+                                        1, hostPtr, 9050, userPtr, passPtr, verPtr, nil
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let validSession = try TestRunner.assertNotNil(session)
+            let snap = try sessionSnapshot(of: validSession)
+            try TestRunner.assertTrue(snap.stats.isProxyActive, "Il proxy deve essere già attivo dalla creazione")
+            try TestRunner.assertEqual(snap.proxy.port, 9050)
+            try TestRunner.assertTrue(snap.proxy.auth)
+            try TestRunner.assertFalse(snap.portmap.tcp.mapped)
+
+            // Add fixture torrent, create initial resume file via destroy, reload,
+            // change file priority and immediately destroy WITHOUT polling in between
+            // to verify vt_session_destroy drains pre-queued save_resume_data_alert.
+            let fixture = IntegrationFixture.v1
+            let added = fixture.torrentURL.path.withCString { pathPtr in
+                download.path.withCString { dlPtr in
+                    vt_add_torrent_file(validSession, pathPtr, dlPtr, 1, 0)
+                }
+            }
+            try TestRunner.assertEqual(added, 0)
+            let addedSnap = try sessionSnapshot(of: validSession)
+            let torrentID = try TestRunner.assertNotNil(addedSnap.torrents.first?.id)
+            vt_session_destroy(validSession)
+
+            // Second session: priority change followed immediately by destroy (no poll!)
+            let second = download.path.withCString { dlPath in
+                resume.path.withCString { resPath in
+                    vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, nil)
+                }
+            }
+            let validSecond = try TestRunner.assertNotNil(second)
+            let prioSet = torrentID.withCString { idPtr in
+                vt_set_file_priority(validSecond, idPtr, 0, 0)
+            }
+            try TestRunner.assertEqual(prioSet, 0)
+            // Wait a few milliseconds so libtorrent posts save_resume_data_alert and
+            // clears need_save_resume_data() BEFORE vt_session_destroy runs.
+            Thread.sleep(forTimeInterval: 0.05)
+            vt_session_destroy(validSecond)
+
+            // Third session: verify priority 0 was persisted despite no poll before destroy
+            let third = download.path.withCString { dlPath in
+                resume.path.withCString { resPath in
+                    vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, nil)
+                }
+            }
+            let validThird = try TestRunner.assertNotNil(third)
+            defer { vt_session_destroy(validThird) }
+            guard let detailPtr = torrentID.withCString({ vt_detail_json(validThird, $0) }) else {
+                try TestRunner.assertTrue(false, "vt_detail_json non deve restituire nil")
+                return
+            }
+            let detailJSON = String(cString: detailPtr)
+            vt_free_string(detailPtr)
+            let detail = try JSONDecoder().decode(TorrentDetail.self, from: Data(detailJSON.utf8))
+            try TestRunner.assertEqual(
+                detail.files.first?.priority,
+                0,
+                "La priorità modificata subito prima di vt_session_destroy deve sopravvivere al riavvio"
+            )
+        }
+
         TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
             try upnpSmoke()
         }

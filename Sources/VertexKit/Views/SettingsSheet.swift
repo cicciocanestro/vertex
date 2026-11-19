@@ -84,6 +84,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.startPaused) private var startPaused = PrefDefault.startPaused
     @AppStorage(PrefKey.sequentialDefault) private var sequentialDefault = PrefDefault.sequentialDefault
     @AppStorage(PrefKey.seedRatioLimit) private var seedRatioLimit = PrefDefault.seedRatioLimit
+    @AppStorage(PrefKey.notificationsEnabled) private var notificationsEnabled = PrefDefault.notificationsEnabled
     @AppStorage(PrefKey.proxyEnabled) private var proxyEnabled = PrefDefault.proxyEnabled
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
@@ -405,6 +406,17 @@ struct SettingsSheet: View {
                     suffix: L("0 = mai"),
                     palette: palette
                 )
+                Hairline(palette: palette).padding(.leading, 28)
+                toggleRow(
+                    icon: "bell.badge",
+                    title: "Notifiche di completamento",
+                    subtitle: SystemNotifications.isBundleSignedWithIdentity
+                        ? "Mostra una notifica di macOS al termine di un download"
+                        : "Richiede un bundle firmato con Developer ID",
+                    isOn: $notificationsEnabled,
+                    palette: palette
+                )
+                .disabled(!SystemNotifications.isBundleSignedWithIdentity)
             }
         case .appearance:
             section(.appearance, palette) {
@@ -965,6 +977,7 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
     @AppStorage(PrefKey.lsdEnabled) private var lsdEnabled = PrefDefault.lsdEnabled
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
     @AppStorage(PrefKey.seedRatioLimit) private var seedRatioLimit = PrefDefault.seedRatioLimit
+    @AppStorage(PrefKey.notificationsEnabled) private var notificationsEnabled = PrefDefault.notificationsEnabled
     @AppStorage(PrefKey.proxyEnabled) private var proxyEnabled = PrefDefault.proxyEnabled
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
@@ -983,6 +996,11 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
             .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
             .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
             .onChange(of: seedRatioLimit) { engine.applySettingsSoon() }
+            .onChange(of: notificationsEnabled) { _, enabled in
+                if enabled {
+                    SystemNotifications.requestAuthorizationIfNeeded()
+                }
+            }
             .onChange(of: proxyEnabled) { _, enabled in
                 if enabled, proxyPasswordValue.value.isEmpty {
                     proxyPasswordValue.value = Preferences.proxyPassword

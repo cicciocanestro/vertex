@@ -16,6 +16,7 @@ package enum PrefKey {
     package static let startPaused = "startPaused"
     package static let sequentialDefault = "sequentialDefault"
     package static let seedRatioLimit = "seedRatioLimit"
+    package static let notificationsEnabled = "notificationsEnabled"
     package static let appearance = "appearance"
     package static let proxyEnabled = "proxyEnabled"
     package static let proxyHost = "proxyHost"
@@ -266,6 +267,9 @@ package enum PrefDefault {
     /// 0 = seed indefinitely; a positive value pauses a finished torrent once
     /// its share ratio reaches this threshold.
     package static let seedRatioLimit = 0.0
+    /// Optional native macOS notification when a download finishes (active when
+    /// the app bundle is signed with a non-adhoc identity).
+    package static let notificationsEnabled = false
     /// Follow the system appearance unless the user chose otherwise: opening a
     /// light-mode Mac into a dark window is a surprising default.
     package static let appearance = "system"
@@ -290,6 +294,7 @@ package enum PrefDefault {
             PrefKey.startPaused: startPaused,
             PrefKey.sequentialDefault: sequentialDefault,
             PrefKey.seedRatioLimit: seedRatioLimit,
+            PrefKey.notificationsEnabled: notificationsEnabled,
             PrefKey.appearance: appearance,
             PrefKey.proxyEnabled: proxyEnabled,
             PrefKey.proxyHost: proxyHost,

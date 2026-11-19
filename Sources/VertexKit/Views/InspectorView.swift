@@ -2,6 +2,7 @@ import SwiftUI
 
 private enum DetailTab: String, CaseIterable, Identifiable {
     case files = "files"
+    case peers = "peers"
     case trackers = "trackers"
 
     var id: String { rawValue }
@@ -9,6 +10,7 @@ private enum DetailTab: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .files: return L("File")
+        case .peers: return L("Peer")
         case .trackers: return L("Tracker")
         }
     }
@@ -281,6 +283,12 @@ struct InspectorView: View {
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Color.primary.opacity(0.07)))
+            } else if option == .peers, let count = engine.detail?.peers.count, count > 0 {
+                Text(verbatim: "\(count)")
+                    .font(Typography.microRoundedSemiboldText)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.07)))
             }
         }
     }
@@ -290,6 +298,8 @@ struct InspectorView: View {
         switch tab.value {
         case .files:
             filesContent(palette)
+        case .peers:
+            peersContent(palette)
         case .trackers:
             trackersContent(palette)
         }
@@ -550,6 +560,98 @@ struct InspectorView: View {
             }
         }
         .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private func peersContent(_ palette: Palette) -> some View {
+        if let peers = engine.detail?.peers, !peers.isEmpty {
+            LazyVStack(spacing: 0) {
+                ForEach(peers) { peer in
+                    peerRow(peer, palette)
+                    if peer.id != peers.last?.id {
+                        Hairline(palette: palette)
+                    }
+                }
+            }
+        } else {
+            waiting(palette, text: "Nessun peer connesso")
+        }
+    }
+
+    private func peerRow(_ peer: TorrentPeer, _ palette: Palette) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(peer.client.isEmpty ? L("Handshake…") : peer.client)
+                    .font(Typography.smallMediumText)
+                    .foregroundStyle(peer.client.isEmpty ? palette.tertiary : palette.text)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                if !peer.flags.isEmpty {
+                    Text(verbatim: peer.flags)
+                        .font(Typography.captionTinyMonoText)
+                        .foregroundStyle(palette.mintText)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Theme.mint.opacity(0.11)))
+                        .help(peerFlagsHelp(peer.flags))
+                }
+
+                if !peer.source.isEmpty {
+                    Text(verbatim: peer.source)
+                        .font(Typography.captionMicroSemiboldText)
+                        .foregroundStyle(palette.tertiary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                }
+
+                Spacer(minLength: 4)
+
+                Text(Fmt.percent(peer.progress))
+                    .font(Typography.microRoundedMediumText)
+                    .monospacedDigit()
+                    .foregroundStyle(palette.secondary)
+            }
+
+            HStack(spacing: 8) {
+                Text(verbatim: peer.endpoint)
+                    .font(Typography.captionTinyMonoText)
+                    .foregroundStyle(palette.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+
+                Spacer(minLength: 4)
+
+                if peer.downloadRate > 0 {
+                    SpeedText(value: peer.downloadRate, upload: false, compact: true)
+                }
+                if peer.uploadRate > 0 {
+                    SpeedText(value: peer.uploadRate, upload: true, compact: true)
+                }
+            }
+        }
+        .padding(.vertical, 7)
+    }
+
+    private func peerFlagsHelp(_ flags: String) -> String {
+        var parts: [String] = []
+        for ch in flags {
+            switch ch {
+            case "D": parts.append(L("Download attivo"))
+            case "d": parts.append(L("In attesa di sblocco"))
+            case "U": parts.append(L("Upload attivo"))
+            case "u": parts.append(L("Richiede pezzi"))
+            case "O": parts.append(L("Sblocco ottimistico"))
+            case "S": parts.append(L("Seed completo"))
+            case "I": parts.append(L("Connessione in ingresso"))
+            case "P": parts.append(L("Trasporto uTP"))
+            case "E": parts.append(L("Connessione cifrata"))
+            default: break
+            }
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func waiting(_ palette: Palette, text: String) -> some View {

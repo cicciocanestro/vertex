@@ -1,29 +1,41 @@
+import AppKit
 import SwiftUI
 
 struct TorrentListView: View {
     let engine: TorrentEngine
     let torrents: [Torrent]
-    let selectedID: String?
-    let onSelect: (Torrent) -> Void
-    let onDeleteWithFiles: (Torrent) -> Void
+    let selectedIDs: Set<String>
+    let onSelectClick: (Torrent, Bool, Bool) -> Void
+    let onSelectAll: () -> Void
+    let onDeleteSelection: ([Torrent]) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var listFocused: Bool
+    @StateObject private var navigationHeadID = UIState<String?>(nil)
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 7) {
                     ForEach(torrents) { torrent in
+                        let isSelected = selectedIDs.contains(torrent.id)
                         TorrentRow(
                             engine: engine,
                             torrent: torrent,
-                            selected: selectedID == torrent.id,
-                            onSelect: {
-                                onSelect(torrent)
+                            selected: isSelected,
+                            multiSelectionCount: isSelected ? selectedIDs.count : 1,
+                            onSelect: { command, shift in
+                                navigationHeadID.value = torrent.id
+                                onSelectClick(torrent, command, shift)
                                 listFocused = true
                             },
-                            onDeleteWithFiles: { onDeleteWithFiles(torrent) }
+                            onDeleteWithFiles: {
+                                if isSelected && selectedIDs.count > 1 {
+                                    onDeleteSelection(engine.selectedTorrents)
+                                } else {
+                                    onDeleteSelection([torrent])
+                                }
+                            }
                         )
                         .id(torrent.id)
                     }
@@ -42,14 +54,24 @@ struct TorrentListView: View {
             .onMoveCommand { direction in
                 move(direction, proxy: proxy)
             }
+            .onCommand(#selector(NSStandardKeyBindingResponding.selectAll(_:))) {
+                onSelectAll()
+                listFocused = true
+            }
         }
     }
 
-    /// Up/Down moves the selection through the visible list. The selected row
-    /// is scrolled into view without animating when Reduce Motion is enabled.
+    /// Up/Down moves the selection through the visible list (`⇧` extends the
+    /// range from the anchor). The target row is scrolled into view without
+    /// animating when Reduce Motion is enabled.
     private func move(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
         guard direction == .up || direction == .down, !torrents.isEmpty else { return }
-        let current = torrents.firstIndex { $0.id == selectedID }
+        let shift = (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift)
+        let cursorID = (shift ? navigationHeadID.value : nil)
+            ?? engine.selectedID
+            ?? navigationHeadID.value
+            ?? selectedIDs.first
+        let current = torrents.firstIndex { $0.id == cursorID }
         guard let next = TorrentListNavigation.nextIndex(
             current: current,
             count: torrents.count,
@@ -59,10 +81,12 @@ struct TorrentListView: View {
         }
         if let current, current == next { return }
 
-        onSelect(torrents[next])
+        let target = torrents[next]
+        navigationHeadID.value = target.id
+        onSelectClick(target, false, shift)
         listFocused = true
         withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-            proxy.scrollTo(torrents[next].id, anchor: .center)
+            proxy.scrollTo(target.id, anchor: .center)
         }
     }
 }
@@ -71,7 +95,8 @@ struct TorrentRow: View {
     let engine: TorrentEngine
     let torrent: Torrent
     let selected: Bool
-    let onSelect: () -> Void
+    var multiSelectionCount: Int = 1
+    let onSelect: (_ command: Bool, _ shift: Bool) -> Void
     let onDeleteWithFiles: () -> Void
 
     @Environment(\.colorScheme) private var scheme
@@ -278,7 +303,8 @@ struct TorrentRow: View {
             engine.reveal(torrent)
         }
         .onTapGesture {
-            onSelect()
+            let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+            onSelect(flags.contains(.command), flags.contains(.shift))
         }
         .onHover { value in
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
@@ -287,50 +313,67 @@ struct TorrentRow: View {
         }
         .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selected)
         .onGeometryChange(for: Bool.self) { proxy in
-            proxy.size.width > 1180
+            proxy.size.width >= 780
         } action: { value in
             if wide.value != value { wide.value = value }
         }
         .contextMenu {
-            if torrent.isQueued {
-                Button(L("Avvia ora (ignora coda)")) {
-                    engine.forceStart(torrent)
+            if selected && multiSelectionCount > 1 {
+                let batch = engine.selectedTorrents
+                Button(LF("Riprendi selezionati (%ld)", batch.count)) {
+                    engine.resume(batch)
                 }
-            }
+                Button(LF("Metti in pausa selezionati (%ld)", batch.count)) {
+                    engine.pause(batch)
+                }
+                Button(L("Annuncia ai tracker")) {
+                    engine.reannounce(batch)
+                }
+                Divider()
+                Button(LF("Rimuovi selezionati (%ld)…", batch.count)) {
+                    onDeleteWithFiles()
+                }
+            } else {
+                if torrent.isQueued {
+                    Button(L("Avvia ora (ignora coda)")) {
+                        engine.forceStart(torrent)
+                    }
+                }
 
-            Button(L(torrent.isQueued ? "Escludi dalla coda" : (torrent.paused ? "Riprendi" : "Pausa"))) {
-                engine.togglePause(torrent)
-            }
+                Button(L(torrent.isQueued ? "Escludi dalla coda" : (torrent.paused ? "Riprendi" : "Pausa"))) {
+                    engine.togglePause(torrent)
+                }
 
-            Button(L("Annuncia ai tracker")) {
-                engine.reannounce(torrent)
-            }
+                Button(L("Annuncia ai tracker")) {
+                    engine.reannounce(torrent)
+                }
 
-            Divider()
+                Divider()
 
-            Button(L("Copia link magnet")) {
-                engine.copyMagnet(for: torrent)
-            }
+                Button(L("Copia link magnet")) {
+                    engine.copyMagnet(for: torrent)
+                }
 
-            Button(L("Mostra nel Finder")) {
-                engine.reveal(torrent)
-            }
+                Button(L("Mostra nel Finder")) {
+                    engine.reveal(torrent)
+                }
 
-            Button(L("Sposta file…")) {
-                engine.chooseAndMoveStorage(for: torrent)
-            }
+                Button(L("Sposta file…")) {
+                    engine.chooseAndMoveStorage(for: torrent)
+                }
 
-            Button(L(torrent.sequential ? "Disattiva download sequenziale" : "Download sequenziale")) {
-                engine.toggleSequential(torrent)
-            }
+                Button(L(torrent.sequential ? "Disattiva download sequenziale" : "Download sequenziale")) {
+                    engine.toggleSequential(torrent)
+                }
 
-            Divider()
+                Divider()
 
-            // Same confirmation flow as the row's trash button: removing a
-            // torrent from the context menu used to happen immediately, with no
-            // way to choose between keeping and deleting the files.
-            Button(L("Rimuovi…")) {
-                onDeleteWithFiles()
+                // Same confirmation flow as the row's trash button: removing a
+                // torrent from the context menu used to happen immediately, with no
+                // way to choose between keeping and deleting the files.
+                Button(L("Rimuovi…")) {
+                    onDeleteWithFiles()
+                }
             }
         }
     }

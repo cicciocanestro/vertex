@@ -576,8 +576,55 @@ enum TorrentIntegrationTests {
         )
         defer { leech.session.close() }
 
+        // Connect two incomplete leeches (0% <-> 0%) on loopback to deterministically
+        // verify `vt_detail_json`'s live `peers` array without racing a fast seed.
+        let peerA = try BridgeSession(
+            downloadDirectory: try workspace.directory("peer-a"),
+            resumeDirectory: try workspace.directory("peer-a-resume"),
+            port: try TestsSupport.freeTCPPort()
+        )
+        defer { peerA.close() }
+        let peerBPort = try TestsSupport.freeTCPPort()
+        let peerB = try BridgeSession(
+            downloadDirectory: try workspace.directory("peer-b"),
+            resumeDirectory: try workspace.directory("peer-b-resume"),
+            port: peerBPort
+        )
+        defer { peerB.close() }
+        try peerA.addTorrentFile(fixture.torrentURL.path, savePath: peerA.downloadDirectory.path)
+        try peerB.addTorrentFile(fixture.torrentURL.path, savePath: peerB.downloadDirectory.path)
+        let torrentA = try peerA.waitForTorrent(fixture.rootName)
+        _ = try peerB.waitForTorrent(fixture.rootName)
+        try TestsSupport.waitFor("peerB in ascolto") {
+            try peerB.snapshot().listenActualPort > 0
+        }
+        let actualPeerBPort = try peerB.snapshot().listenActualPort
+        try peerA.addPeer(torrentID: torrentA.id, port: actualPeerBPort)
+        try TestsSupport.waitFor("peer connesso visibile in vt_detail_json") {
+            let peers = try peerA.detail(torrentID: torrentA.id).peers
+            return peers.contains { $0.endpoint.hasPrefix("127.0.0.1:") && $0.client.contains("Vertex/") }
+        }
+
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
+
+        // Moving to a folder that already has a file with the same name must fail
+        // without overwriting the existing file.
+        let conflictDir = try workspace.directory("conflict-storage")
+        let existingFile = fixture.downloadedURL(in: conflictDir, path: fixture.files[0].path)
+        try FileManager.default.createDirectory(
+            at: existingFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let sentinel = Data("do-not-overwrite".utf8)
+        try sentinel.write(to: existingFile)
+        let conflictCode = leech.torrentID.withCString { idPtr in
+            conflictDir.path.withCString { pathPtr in
+                vt_move_storage(leech.session.pointer, idPtr, pathPtr)
+            }
+        }
+        try TestRunner.assertTrue(conflictCode != 0, "vt_move_storage deve rifiutare la sovrascrittura di file esistenti")
+        try TestRunner.assertEqual(try Data(contentsOf: existingFile), sentinel)
 
         let targetDir = try workspace.directory("moved-storage")
         try leech.session.moveStorage(torrentID: leech.torrentID, destination: targetDir.path)

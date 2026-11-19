@@ -195,6 +195,7 @@ extension TorrentEngine {
                 // background is exactly the event the user wants to know about.
                 completionAttention()
                 let completed = snapshot.torrents.filter { newlyFinished.contains($0.id) }
+                completionNotification(completed.map(\.name))
                 if completed.count == 1, let torrent = completed.first {
                     let path = URL(fileURLWithPath: torrent.savePath)
                         .appendingPathComponent(torrent.name)
@@ -281,6 +282,14 @@ extension TorrentEngine {
             pollState = next
         }
 
+        if !selectedIDs.isEmpty {
+            let validSelected = selectedIDs.intersection(Set(next.torrentsByID.keys))
+            if validSelected != selectedIDs {
+                let nextAnchor = validSelected.contains(selectionAnchorID ?? "") ? selectionAnchorID : validSelected.first
+                setSelection(TorrentListSelection.State(selectedIDs: validSelected, anchorID: nextAnchor))
+            }
+        }
+
         if let id = selectedID {
             if next.torrentsByID[id] != nil {
                 detailTick += 1
@@ -291,8 +300,7 @@ extension TorrentEngine {
                     loadDetail(id)
                 }
             } else {
-                selectedID = nil
-                detail = nil
+                select(nil)
             }
         }
     }

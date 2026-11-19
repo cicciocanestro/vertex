@@ -104,6 +104,7 @@ enum PreferencesTests {
                 PrefKey.startPaused,
                 PrefKey.sequentialDefault,
                 PrefKey.seedRatioLimit,
+                PrefKey.notificationsEnabled,
                 PrefKey.appearance,
                 PrefKey.proxyEnabled,
                 PrefKey.proxyHost,
@@ -123,6 +124,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(defaults[PrefKey.upnpEnabled] as? Bool, true)
             try TestRunner.assertEqual(defaults[PrefKey.startPaused] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.seedRatioLimit] as? Double, 0.0)
+            try TestRunner.assertEqual(defaults[PrefKey.notificationsEnabled] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "system")
             try TestRunner.assertEqual(defaults[PrefKey.proxyEnabled] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.proxyHost] as? String, "127.0.0.1")

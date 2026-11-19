@@ -68,7 +68,8 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **libtorrent 2.1** engine: DHT, PEX, LSD, UPnP/NAT-PMP, HTTP/UDP trackers, magnet links,
   v1 and v2 torrents.
 - Add from magnet links, `.torrent` files, drag and drop, clipboard, Finder or browser.
-- Search, filters, sorting and an inspector with statistics, files (Do not download/Normal/High priorities) and trackers.
+- Search, filters, sorting and an inspector with statistics, files (Do not download/Normal/High priorities), live peers and trackers.
+- Multi-selection (`⌘`-click, `⇧`-click, `⌘A`) with batch pause/resume and removal, plus optional macOS completion notifications (when signed with a Developer ID).
 - Pause/resume, sequential download, resume data and visible error details.
 - Global speed limits, active torrent queue, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
 - **Refreshed UI**: settings sidebar, resizable inspector, per-row state pills (including queued and completed states), wide-window
@@ -236,10 +237,11 @@ valid bind address and verifies download completion:
 | Show / hide details | `⌘I` |
 | Network diagnostics | `⌘⇧D` |
 | Filters | `⌘1` … `⌘5` |
-| Navigate the list (when the list has focus) | `↑` / `↓` |
+| Navigate the list (when the list has focus) | `↑` / `↓` (`⇧↑` / `⇧↓` extends selection) |
+| Select all visible torrents (when the list has focus) | `⌘A` |
 | Settings | `⌘,` |
 
-Pause/Resume and Remove act on the selected torrent; without a selection they show a
+Pause/Resume and Remove act on all selected torrents; without a selection they show a
 notice.
 
 ### Where data is stored

@@ -105,9 +105,10 @@ package enum ViewRenderingSupport {
                 TorrentListView(
                     engine: engine,
                     torrents: torrents,
-                    selectedID: torrent.id,
-                    onSelect: { _ in },
-                    onDeleteWithFiles: { _ in }
+                    selectedIDs: [torrent.id],
+                    onSelectClick: { _, _, _ in },
+                    onSelectAll: {},
+                    onDeleteSelection: { _ in }
                 ),
                 width: 640,
                 height: 420
@@ -177,6 +178,44 @@ package enum ViewRenderingSupport {
         ]
 
         if let torrent = torrents.first {
+            let synthetic = Torrent(
+                id: "synthetic-second-id",
+                name: "Second.mkv",
+                stateCode: 3,
+                progress: 0.4,
+                size: 1024,
+                downloaded: 400,
+                uploaded: 0,
+                downloadRate: 0,
+                uploadRate: 0,
+                peers: 1,
+                seeds: 1,
+                eta: 10,
+                finished: false,
+                seeding: false,
+                paused: false,
+                sequential: false,
+                hasMetadata: true,
+                savePath: torrent.savePath,
+                ratio: 0,
+                added: 0,
+                error: ""
+            )
+            var state = engine.pollState
+            state.torrents = [torrent, synthetic]
+            state.torrentsByID[synthetic.id] = synthetic
+            engine.pollState = state
+            engine.setSelection(TorrentListSelection.State(selectedIDs: [torrent.id, synthetic.id], anchorID: torrent.id))
+            results["RootViewMultiSelection"] = render(
+                RootView(engine: engine),
+                width: 1180,
+                height: 760
+            )
+            state.torrents = torrents
+            state.torrentsByID = Dictionary(torrents.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+            engine.pollState = state
+            engine.select(torrent.id)
+
             results["RootViewInspector"] = render(
                 RootView(engine: engine, selectedID: torrent.id),
                 width: 1180,

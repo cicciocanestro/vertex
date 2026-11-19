@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.15.0] — 2026-11-19
+
+### English
+#### Features
+- **Multi-selection & batch actions**: select multiple torrents in the list with `⌘`-click (toggle), `⇧`-click / `⇧↑`/`⇧↓` (contiguous range), or `⌘A` (select all visible rows when the list has focus). Includes a contextual batch bar above the list, multi-row context menus, and batch `⌘P` (pause/resume) and `⌘⌫` (remove with confirmation).
+- **Live Peers tab in Inspector**: new **Peers** tab alongside *Files* and *Trackers* showing connected peers' client software, selectable `IP:port`, completion percentage, discovery source (`DHT`, `PEX`, `LSD`, `Tracker`), BitTorrent state flags (`D`, `d`, `U`, `u`, `O`, `S`, `I`, `P`, `E` with localized tooltips), and live download/upload rates.
+- **Optional macOS completion notifications**: new **Settings → Behavior → Completion notifications** toggle (`UNUserNotificationCenter`). Verifies the app bundle's code signature via `Security` (`SecStaticCode`), safely staying disabled on ad-hoc/CLI builds and activating automatically when signed with a Developer ID.
+
+#### Security, Persistence & Fixes
+- **Zero-window SOCKS5 startup configuration**: added `vt_session_create_configured`, applying SOCKS5 proxy settings and `anonymous_mode` directly inside the initial `lt::settings_pack` before `lt::session` starts and before `.resume` files are loaded, eliminating any startup clearnet window.
+- **Race-free resume flush on quit**: `vt_session_destroy` now drains and writes any `save_resume_data_alert` already queued prior to shutdown (fixing the `need_save_resume_data()` race on rapid `⌘Q`), and `vt_control` triggers immediate resume persistence on pause/resume/dequeue/sequential changes.
+- **Safe storage relocation**: `vt_move_storage` checks for existing target files beforehand and uses `fail_if_exist` instead of `always_replace_files`, preventing silent overwrites.
+- **Dynamic User-Agent version**: `Vertex/<version>` is now passed dynamically from `AppInfo.version` at session startup.
+- **Row layout & release script**: calibrated `TorrentRow` wide-metrics threshold on row width (`>= 780 pt`) and hardened `Scripts/update-homebrew-tap.sh` to always fetch the canonical GitHub Release `.sha256` when run locally.
+
+### Italiano
+#### Novità e Funzionalità
+- **Selezione multipla e azioni di gruppo**: seleziona più torrent nella lista con `⌘`-clic (aggiungi/rimuovi), `⇧`-clic / `⇧↑`/`⇧↓` (intervallo contiguo) o `⌘A` (seleziona tutti i torrent visibili quando la lista ha il focus). Include barra contestuale rapida sopra la lista, menu contestuale multiplo e supporto batch per `⌘P` (pausa/riprendi) e `⌘⌫` (rimozione con conferma).
+- **Tab *Peer* in tempo reale nell'Inspector**: nuovo terzo tab **Peer** accanto a *File* e *Tracker* con software client remoto, `IP:porta` copiabile, percentuale di completamento, sorgente (`DHT`, `PEX`, `LSD`, `Tracker`), flag di stato BitTorrent (`D`, `d`, `U`, `u`, `O`, `S`, `I`, `P`, `E` con tooltip localizzato) e velocità `↓`/`↑` in tempo reale.
+- **Notifiche native macOS opzionali al completamento**: nuova preferenza **Impostazioni → Comportamento → Notifiche di completamento** (`UNUserNotificationCenter`). Verifica staticamente la firma del bundle tramite `Security` (`SecStaticCode`), restando disattivata in sicurezza sulle build ad-hoc/CLI e attivandosi automaticamente sui bundle firmati con Developer ID.
+
+#### Sicurezza, Persistenza e Correzioni
+- **Configurazione SOCKS5 fin dal primo istante d'avvio**: introdotta `vt_session_create_configured`, che applica proxy SOCKS5 e `anonymous_mode` direttamente nella `lt::settings_pack` iniziale prima dell'avvio di `lt::session` e del caricamento dei `.resume`, azzerando qualsiasi finestra di traffico in chiaro all'avvio.
+- **Flush `.resume` senza race condition in chiusura**: `vt_session_destroy` drena e salva su disco anche i `save_resume_data_alert` già accodati prima dello shutdown (risolvendo la race su `need_save_resume_data()` in caso di `⌘Q` immediato), e `vt_control` avvia il salvataggio immediato su pausa/ripresa/coda/sequenziale.
+- **Spostamento file sicuro**: `vt_move_storage` controlla preventivamente la presenza di file omonimi nella cartella di destinazione e usa `fail_if_exist` al posto di `always_replace_files`, evitando sovrascritture silenziose.
+- **User-Agent dinamico**: la versione `Vertex/<version>` viene ora passata dinamicamente da `AppInfo.version` alla creazione della sessione.
+- **Layout riga e script di rilascio**: ricalibrata la soglia delle colonne estese di `TorrentRow` sulla larghezza effettiva della riga (`>= 780 pt`) e messo in sicurezza `Scripts/update-homebrew-tap.sh` affinché in locale scarichi sempre il `.sha256` canonico dalla GitHub Release.
+
 ## [1.14.2] — 2026-11-18
 
 ### English

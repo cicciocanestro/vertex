@@ -5,6 +5,7 @@
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/announce_entry.hpp>
 #include <libtorrent/load_torrent.hpp>
+#include <libtorrent/peer_info.hpp>
 #include <libtorrent/portmap.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/read_resume_data.hpp>
@@ -495,6 +496,111 @@ void apply_link_settings(lt::settings_pack& settings,
     settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
 }
 
+void configure_proxy_pack(vt_session* session,
+                          lt::settings_pack& settings,
+                          int proxy_type,
+                          const char* hostname,
+                          int port,
+                          const char* username,
+                          const char* password)
+{
+    if (proxy_type == 1 && hostname && *hostname)
+    {
+        session->proxy_type = 1;
+        session->proxy_host = hostname;
+        session->proxy_port = port > 0 ? port : 1080;
+        session->proxy_error.clear();
+
+        // libtorrent offers username/password authentication only when the
+        // proxy type is socks5_pw AND the username is non-empty
+        // (socks5_stream.hpp sends the no-auth method when m_user is empty).
+        // A password without a username therefore cannot authenticate.
+        session->proxy_auth = username && *username;
+        settings.set_int(lt::settings_pack::proxy_type,
+                         session->proxy_auth ? lt::settings_pack::socks5_pw
+                                             : lt::settings_pack::socks5);
+        settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
+        settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
+        settings.set_str(lt::settings_pack::proxy_username,
+                         (username && *username) ? username : "");
+        settings.set_str(lt::settings_pack::proxy_password,
+                         (password && *password) ? password : "");
+
+        // Leak prevention: all tracker and peer traffic routed through SOCKS5 proxy
+        settings.set_bool(lt::settings_pack::proxy_tracker_connections, true);
+        settings.set_bool(lt::settings_pack::proxy_peer_connections, true);
+        settings.set_bool(lt::settings_pack::proxy_hostnames, true);
+
+        // Enforce strict anonymous mode: if the proxy fails, connections are never
+        // fallen back to the clearnet adapter and active connections drop.
+        settings.set_bool(lt::settings_pack::anonymous_mode, true);
+
+        // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
+        settings.set_bool(lt::settings_pack::enable_upnp, false);
+        settings.set_bool(lt::settings_pack::enable_natpmp, false);
+        reset_portmap_state(session);
+    }
+    else
+    {
+        session->proxy_type = 0;
+        session->proxy_auth = false;
+        session->proxy_host.clear();
+        session->proxy_port = 0;
+        session->proxy_error.clear();
+
+        settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+        settings.set_str(lt::settings_pack::proxy_hostname, "");
+        settings.set_str(lt::settings_pack::proxy_username, "");
+        settings.set_str(lt::settings_pack::proxy_password, "");
+        settings.set_bool(lt::settings_pack::anonymous_mode, false);
+
+        // Restore UPnP / NAT-PMP setting according to session preference
+        settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
+        settings.set_bool(lt::settings_pack::enable_natpmp, session->upnp_enabled);
+        reset_portmap_state(session);
+    }
+}
+
+std::string format_peer_flags(lt::peer_info const& peer)
+{
+    std::string flags;
+    bool const interesting = bool(peer.flags & lt::peer_info::interesting);
+    bool const remote_choked = bool(peer.flags & lt::peer_info::remote_choked);
+    bool const remote_interested = bool(peer.flags & lt::peer_info::remote_interested);
+    bool const choked = bool(peer.flags & lt::peer_info::choked);
+
+    if (interesting)
+        flags += remote_choked ? 'd' : 'D';
+    if (remote_interested)
+        flags += choked ? 'u' : 'U';
+    if (bool(peer.flags & lt::peer_info::optimistic_unchoke))
+        flags += 'O';
+    if (bool(peer.flags & lt::peer_info::seed))
+        flags += 'S';
+    if (!bool(peer.flags & lt::peer_info::outgoing_connection))
+        flags += 'I';
+    if (bool(peer.flags & lt::peer_info::utp_socket))
+        flags += 'P';
+    if (bool(peer.flags & (lt::peer_info::rc4_encrypted
+                           | lt::peer_info::plaintext_encrypted
+                           | lt::peer_info::ssl_socket)))
+        flags += 'E';
+    return flags;
+}
+
+std::string format_peer_source(lt::peer_info const& peer)
+{
+    if (bool(peer.source & lt::peer_info::lsd))
+        return "LSD";
+    if (bool(peer.source & lt::peer_info::pex))
+        return "PEX";
+    if (bool(peer.source & lt::peer_info::dht))
+        return "DHT";
+    if (bool(peer.source & lt::peer_info::tracker))
+        return "Tracker";
+    return "";
+}
+
 int add_torrent_common(vt_session* session,
                        lt::add_torrent_params& params,
                        const char* save_path,
@@ -652,17 +758,23 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
 
 extern "C" {
 
-vt_session* vt_session_create_full(const char* download_dir,
-                                   const char* resume_dir,
-                                   int listen_port,
-                                   int download_limit_bytes,
-                                   int upload_limit_bytes,
-                                   int enable_dht,
-                                   int enable_pex,
-                                   int enable_lsd,
-                                   int enable_upnp,
-                                   const char* bind_address,
-                                   char** error_message)
+vt_session* vt_session_create_configured(const char* download_dir,
+                                         const char* resume_dir,
+                                         int listen_port,
+                                         int download_limit_bytes,
+                                         int upload_limit_bytes,
+                                         int enable_dht,
+                                         int enable_pex,
+                                         int enable_lsd,
+                                         int enable_upnp,
+                                         const char* bind_address,
+                                         int proxy_type,
+                                         const char* proxy_host,
+                                         int proxy_port,
+                                         const char* proxy_user,
+                                         const char* proxy_password,
+                                         const char* app_version,
+                                         char** error_message)
 {
     if (error_message)
         *error_message = nullptr;
@@ -695,8 +807,10 @@ vt_session* vt_session_create_full(const char* download_dir,
             && !ensure_directory(session->resume_dir))
             return nullptr;
 
+        std::string const version_str = (app_version && *app_version) ? app_version : "1.15.0";
         lt::settings_pack settings;
-        settings.set_str(lt::settings_pack::user_agent, "Vertex/1.14.1 libtorrent/" LIBTORRENT_VERSION);
+        settings.set_str(lt::settings_pack::user_agent,
+                         "Vertex/" + version_str + " libtorrent/" LIBTORRENT_VERSION);
         settings.set_str(lt::settings_pack::peer_fingerprint, "-VT1E00-");
         settings.set_int(lt::settings_pack::alert_mask,
                          int(static_cast<std::uint32_t>(lt::alert_category::error |
@@ -711,6 +825,14 @@ vt_session* vt_session_create_full(const char* download_dir,
         }
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             enable_dht, enable_upnp, enable_lsd);
+        if (proxy_type == 1 && proxy_host && *proxy_host)
+        {
+            // Configure SOCKS5 and anonymous_mode in the initial settings_pack
+            // BEFORE starting lt::session and loading resume files, so no packet
+            // can leave over clearnet during startup.
+            configure_proxy_pack(session.get(), settings, proxy_type, proxy_host,
+                                 proxy_port, proxy_user, proxy_password);
+        }
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
                          "dht.transmissionbt.com:6881,router.utorrent.com:6881");
@@ -787,6 +909,39 @@ vt_session* vt_session_create_full(const char* download_dir,
     }
 }
 
+vt_session* vt_session_create_full(const char* download_dir,
+                                   const char* resume_dir,
+                                   int listen_port,
+                                   int download_limit_bytes,
+                                   int upload_limit_bytes,
+                                   int enable_dht,
+                                   int enable_pex,
+                                   int enable_lsd,
+                                   int enable_upnp,
+                                   const char* bind_address,
+                                   char** error_message)
+{
+    return vt_session_create_configured(
+        download_dir,
+        resume_dir,
+        listen_port,
+        download_limit_bytes,
+        upload_limit_bytes,
+        enable_dht,
+        enable_pex,
+        enable_lsd,
+        enable_upnp,
+        bind_address,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        nullptr,
+        error_message
+    );
+}
+
 void vt_session_destroy(vt_session* session)
 {
     if (!session)
@@ -794,6 +949,25 @@ void vt_session_destroy(vt_session* session)
 
     try
     {
+        // Drain any save_resume_data_alert already posted before shutdown
+        // (for instance by vt_set_file_priority, vt_set_trackers, vt_control or
+        // the periodic timer). libtorrent clears need_save_resume_data() as soon
+        // as the alert is posted, so skipping this drain would lose updates made
+        // right before Cmd-Q.
+        {
+            std::vector<lt::alert*> pre_alerts;
+            session->session->pop_alerts(&pre_alerts);
+            for (auto* alert : pre_alerts)
+            {
+                if (auto* saved = lt::alert_cast<lt::save_resume_data_alert>(alert))
+                {
+                    auto const id = to_hex(saved->params.info_hashes.get_best());
+                    if (!id.empty() && !is_removed(session, id) && saved->handle.is_valid())
+                        write_resume_impl(session->resume_dir, saved->params);
+                }
+            }
+        }
+
         // Only wait for resume data of torrents that are still in the session
         // and either need saving or do not yet have a resume file on disk.
         // Stale alerts from removed torrents must neither recreate their files
@@ -851,12 +1025,10 @@ void vt_session_destroy(vt_session* session)
                 if (auto* saved = lt::alert_cast<lt::save_resume_data_alert>(alert))
                 {
                     auto const id = to_hex(saved->params.info_hashes.get_best());
-                    if (requested_ids.erase(id) == 0)
-                        continue;
-
-                    if (!is_removed(session, id) && saved->handle.is_valid())
+                    if (!id.empty() && !is_removed(session, id) && saved->handle.is_valid())
                         write_resume_impl(session->resume_dir, saved->params);
-                    --pending;
+                    if (requested_ids.erase(id) > 0)
+                        --pending;
                 }
                 else if (auto* failed = lt::alert_cast<lt::save_resume_data_failed_alert>(alert))
                 {
@@ -1281,6 +1453,54 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
             }
         }
 
+        out << "],\"peers\":[";
+
+        if (handle.is_valid())
+        {
+            std::vector<lt::peer_info> peers;
+            handle.get_peer_info(peers);
+            bool first = true;
+            for (auto const& peer : peers)
+            {
+                if (bool(peer.flags & lt::peer_info::connecting))
+                    continue;
+
+                std::string endpoint_str;
+                if (bool(peer.flags & lt::peer_info::i2p_socket))
+                {
+                    endpoint_str = "i2p";
+                }
+                else
+                {
+                    auto const ep = peer.remote_endpoint();
+                    auto const addr = ep.address();
+                    if (addr.is_v6())
+                        endpoint_str = "[" + addr.to_string() + "]:" + std::to_string(ep.port());
+                    else
+                        endpoint_str = addr.to_string() + ":" + std::to_string(ep.port());
+                }
+
+                double const progress = (std::min)((std::max)(double(peer.progress), 0.0), 1.0);
+                std::int64_t const down_rate = (std::max)(0, peer.payload_down_speed);
+                std::int64_t const up_rate = (std::max)(0, peer.payload_up_speed);
+                std::string const flags = format_peer_flags(peer);
+                std::string const source = format_peer_source(peer);
+
+                if (!first)
+                    out << ",";
+                first = false;
+                out << "{";
+                out << "\"endpoint\":\"" << json_escape(endpoint_str) << "\",";
+                out << "\"client\":\"" << json_escape(peer.client) << "\",";
+                out << "\"progress\":" << std::fixed << std::setprecision(4) << progress << ",";
+                out << "\"download_rate\":" << down_rate << ",";
+                out << "\"upload_rate\":" << up_rate << ",";
+                out << "\"flags\":\"" << json_escape(flags) << "\",";
+                out << "\"source\":\"" << json_escape(source) << "\"";
+                out << "}";
+            }
+        }
+
         out << "],\"metadata\":" << (has_metadata ? "true" : "false");
         out << "}";
 
@@ -1523,6 +1743,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // manager would restart the torrent on the next recalculation.
             handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.pause();
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::resume:
@@ -1533,6 +1754,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // the decision of when it actually starts.
             handle.set_flags(lt::torrent_flags::auto_managed);
             handle.resume();
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::forceStart:
@@ -1542,12 +1764,14 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
                 handle.clear_error();
             handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.resume();
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::dequeue:
             // Leave the queue without starting: the torrent stays paused but
             // stops competing for an active slot.
             handle.unset_flags(lt::torrent_flags::auto_managed);
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::reannounce:
@@ -1556,10 +1780,12 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
         case ControlAction::sequentialOn:
             handle.set_flags(lt::torrent_flags::sequential_download);
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::sequentialOff:
             handle.unset_flags(lt::torrent_flags::sequential_download);
+            handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::remove:
@@ -1735,7 +1961,22 @@ int vt_move_storage(vt_session* session, const char* torrent_id_value, const cha
             return -1;
         }
 
-        handle.move_storage(destination, lt::move_flags_t::always_replace_files);
+        if (auto info = handle.torrent_file())
+        {
+            auto const& storage = info->layout();
+            std::error_code ec;
+            for (int i = 0; i < storage.num_files(); ++i)
+            {
+                fs::path target_file = fs::path(destination) / storage.file_path(lt::file_index_t(i));
+                if (fs::exists(target_file, ec) && !ec)
+                {
+                    session->last_error = "Esiste già un file con lo stesso nome nella cartella di destinazione.";
+                    return -1;
+                }
+            }
+        }
+
+        handle.move_storage(destination, lt::move_flags_t::fail_if_exist);
         return 0;
     }
     VT_CATCH_ALL(session, -1)
@@ -1827,68 +2068,7 @@ int vt_apply_proxy_settings(vt_session* session,
     try
     {
         lt::settings_pack settings;
-        if (proxy_type == 1 && hostname && *hostname)
-        {
-            session->proxy_type = 1;
-            session->proxy_host = hostname;
-            session->proxy_port = port > 0 ? port : 1080;
-            session->proxy_error.clear();
-
-            // libtorrent offers username/password authentication only when the
-            // proxy type is socks5_pw AND the username is non-empty
-            // (socks5_stream.hpp sends the no-auth method when m_user is empty).
-            // A password without a username therefore cannot authenticate.
-            session->proxy_auth = username && *username;
-            settings.set_int(lt::settings_pack::proxy_type,
-                             session->proxy_auth ? lt::settings_pack::socks5_pw
-                                                 : lt::settings_pack::socks5);
-            settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
-            settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
-
-            if (username && *username)
-                settings.set_str(lt::settings_pack::proxy_username, username);
-            else
-                settings.set_str(lt::settings_pack::proxy_username, "");
-
-            if (password && *password)
-                settings.set_str(lt::settings_pack::proxy_password, password);
-            else
-                settings.set_str(lt::settings_pack::proxy_password, "");
-
-            // Leak prevention: all tracker and peer traffic routed through SOCKS5 proxy
-            settings.set_bool(lt::settings_pack::proxy_tracker_connections, true);
-            settings.set_bool(lt::settings_pack::proxy_peer_connections, true);
-            settings.set_bool(lt::settings_pack::proxy_hostnames, true);
-
-            // Enforce strict anonymous mode: if the proxy fails, connections are never
-            // fallen back to the clearnet adapter and active connections drop.
-            settings.set_bool(lt::settings_pack::anonymous_mode, true);
-
-            // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
-            settings.set_bool(lt::settings_pack::enable_upnp, false);
-            settings.set_bool(lt::settings_pack::enable_natpmp, false);
-            reset_portmap_state(session);
-        }
-        else
-        {
-            session->proxy_type = 0;
-            session->proxy_auth = false;
-            session->proxy_host.clear();
-            session->proxy_port = 0;
-            session->proxy_error.clear();
-
-            settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
-            settings.set_str(lt::settings_pack::proxy_hostname, "");
-            settings.set_str(lt::settings_pack::proxy_username, "");
-            settings.set_str(lt::settings_pack::proxy_password, "");
-            settings.set_bool(lt::settings_pack::anonymous_mode, false);
-
-            // Restore UPnP / NAT-PMP setting according to session preference
-            settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
-            settings.set_bool(lt::settings_pack::enable_natpmp, session->upnp_enabled);
-            reset_portmap_state(session);
-        }
-
+        configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password);
         session->session->apply_settings(settings);
         return 0;
     }

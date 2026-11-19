@@ -307,3 +307,30 @@
 "Sposta file…" = "Sposta file…";
 "Sposta" = "Sposta";
 "File spostati" = "File spostati";
+"Esiste già un file con lo stesso nome nella cartella di destinazione." = "Esiste già un file con lo stesso nome nella cartella di destinazione.";
+
+/* Multi-selection, inspector peers and completion notifications */
+"Rimuovere %ld torrent?" = "Rimuovere %ld torrent?";
+"I file scaricati restano sul disco se scegli di rimuovere solo dalla lista." = "I file scaricati restano sul disco se scegli di rimuovere solo dalla lista.";
+"%ld selezionati" = "%ld selezionati";
+"Deseleziona" = "Deseleziona";
+"Riprendi selezionati (%ld)" = "Riprendi selezionati (%ld)";
+"Metti in pausa selezionati (%ld)" = "Metti in pausa selezionati (%ld)";
+"Rimuovi selezionati (%ld)…" = "Rimuovi selezionati (%ld)…";
+"%ld torrent e file rimossi" = "%ld torrent e file rimossi";
+"%ld torrent rimossi" = "%ld torrent rimossi";
+"Peer" = "Peer";
+"Nessun peer connesso" = "Nessun peer connesso";
+"Handshake…" = "Handshake…";
+"Download attivo" = "Download attivo";
+"In attesa di sblocco" = "In attesa di sblocco";
+"Upload attivo" = "Upload attivo";
+"Richiede pezzi" = "Richiede pezzi";
+"Sblocco ottimistico" = "Sblocco ottimistico";
+"Seed completo" = "Seed completo";
+"Connessione in ingresso" = "Connessione in ingresso";
+"Trasporto uTP" = "Trasporto uTP";
+"Connessione cifrata" = "Connessione cifrata";
+"Notifiche di completamento" = "Notifiche di completamento";
+"Mostra una notifica di macOS al termine di un download" = "Mostra una notifica di macOS al termine di un download";
+"Richiede un bundle firmato con Developer ID" = "Richiede un bundle firmato con Developer ID";

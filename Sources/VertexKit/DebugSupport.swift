@@ -183,6 +183,10 @@ extension DemoData {
                 TorrentTracker(url: "https://tracker2.ctix.cn:443/announce", verified: true, fails: 0, message: "", peers: 84, seeds: 31),
                 TorrentTracker(url: "udp://open.stealth.si:80/announce", verified: false, fails: 1, message: "Connection timed out", peers: -1, seeds: -1)
             ],
+            peers: [
+                TorrentPeer(endpoint: "185.220.101.42:51413", client: "qBittorrent 5.0.4", progress: 1.0, downloadRate: 4_820_000, uploadRate: 0, flags: "DSE", source: "DHT"),
+                TorrentPeer(endpoint: "91.198.174.192:6881", client: "Transmission 4.0.6", progress: 0.74, downloadRate: 2_310_000, uploadRate: 420_000, flags: "DUPE", source: "PEX")
+            ],
             metadata: true
         )
     }

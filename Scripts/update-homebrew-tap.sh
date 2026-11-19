@@ -36,7 +36,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "→ Recupero checksum canonico per ${TAG} (${DMG_NAME})…"
-if [ -f "dist/${SHA_FILE}" ]; then
+if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -f "dist/${SHA_FILE}" ]; then
     SHA256="$(awk '{print $1}' "dist/${SHA_FILE}")"
 else
     gh release download "$TAG" --repo "cicciocanestro/vertex" --pattern "$SHA_FILE" --dir "$TMP_DIR"
