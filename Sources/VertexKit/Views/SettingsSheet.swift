@@ -985,13 +985,15 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
     @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
 
     func body(content: Content) -> some View {
-        content
+        let v1 = content
             .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
             .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
             .onChange(of: listenPort) { engine.applySettingsSoon() }
             .onChange(of: maxActiveTorrents) { engine.applySettingsSoon() }
             .onChange(of: bindAddress) { engine.applySettingsNow() }
             .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
+
+        let v2 = v1
             .onChange(of: pexEnabled) { engine.applySettingsSoon() }
             .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
             .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
@@ -1001,6 +1003,8 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
                     SystemNotifications.requestAuthorizationIfNeeded()
                 }
             }
+
+        return v2
             .onChange(of: proxyEnabled) { _, enabled in
                 if enabled, proxyPasswordValue.value.isEmpty {
                     proxyPasswordValue.value = Preferences.proxyPassword
