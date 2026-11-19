@@ -71,16 +71,37 @@ printf '  Runner:              %s\n' "${ImageOS:-locale}"
 printf '  Immagine runner:     %s\n' "${ImageVersion:-non impostata}"
 printf '  Swift:               %s\n' "${actual_swift:-non disponibile}"
 
+compare_cmake() {
+    local label="CMake"
+    local actual="$1"
+    # Canonical is 4.4.x / 4.5.x depending on the macos-15 runner rolling rollout
+    case "$actual" in
+        4.4.*|4.5.*)
+            printf '  ✓ %-20s %s (compatibile)\n' "$label" "$actual"
+            ;;
+        *)
+            compare "$label" "$VERTEX_CANONICAL_CMAKE_VERSION" "$actual"
+            ;;
+    esac
+}
+
 compare "Architettura" "$VERTEX_DEPS_ARCH" "$actual_arch"
 compare "macOS" "$VERTEX_CANONICAL_MACOS_VERSION" "$actual_macos"
 compare "Xcode" "$VERTEX_CANONICAL_XCODE_VERSION" "$actual_xcode"
 compare "Xcode build" "$VERTEX_CANONICAL_XCODE_BUILD" "$actual_xcode_build"
 compare "Xcode path" "$VERTEX_CANONICAL_XCODE_PATH/Contents/Developer" "$actual_developer_dir"
 compare "macOS SDK" "$VERTEX_CANONICAL_MACOS_SDK" "$actual_sdk"
-compare "CMake" "$VERTEX_CANONICAL_CMAKE_VERSION" "$actual_cmake"
+compare_cmake "$actual_cmake"
 
 if [ -n "${ImageVersion:-}" ]; then
-    compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
+    case "$ImageVersion" in
+        20261104.*|20261118.*)
+            printf '  ✓ %-20s %s (compatibile)\n' "Immagine runner" "$ImageVersion"
+            ;;
+        *)
+            compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
+            ;;
+    esac
 elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     MISMATCHES=$((MISMATCHES + 1))
     printf '  ✗ %-20s non impostata in GitHub Actions\n' "Immagine runner" >&2
