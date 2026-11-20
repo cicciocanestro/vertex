@@ -897,6 +897,9 @@ extension TorrentEngine {
         }
         if lower.contains("no such file") || lower.contains("cannot stat") { return L("File non trovato.") }
         if lower.contains("permission") || lower.contains("operation not permitted") { return L("Permesso negato.") }
+        // The bridge reports a proxy request without a host in Italian: without
+        // this branch the English UI would show the raw C++ string.
+        if lower.contains("host proxy non valido") { return L("Host proxy non valido") }
         if lower.contains("invalid")
             || lower.contains("parse")
             || lower.contains("missing info-hash")

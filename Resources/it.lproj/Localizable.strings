@@ -314,6 +314,7 @@
 "Annuncio non inviato" = "Annuncio non inviato";
 "Altre azioni" = "Altre azioni";
 "Rete locale" = "Rete locale";
+"Host proxy non valido" = "Host proxy non valido";
 "Il motore BitTorrent non è disponibile. Riavvia Vertex." = "Il motore BitTorrent non è disponibile. Riavvia Vertex.";
 "Esiste già un file con lo stesso nome nella cartella di destinazione." = "Esiste già un file con lo stesso nome nella cartella di destinazione.";
 

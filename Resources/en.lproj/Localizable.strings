@@ -345,6 +345,7 @@
 "Annuncio non inviato" = "Announce failed";
 "Altre azioni" = "More actions";
 "Rete locale" = "Local network";
+"Host proxy non valido" = "Invalid proxy host";
 "Il motore BitTorrent non è disponibile. Riavvia Vertex." = "The BitTorrent engine is unavailable. Restart Vertex.";
 "Esiste già un file con lo stesso nome nella cartella di destinazione." = "A file with the same name already exists in the destination folder.";
 
