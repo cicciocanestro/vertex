@@ -52,6 +52,7 @@ struct InspectorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     overview(palette)
+                    saveLocation(palette)
                     actions(palette)
                     if torrent.hasError {
                         errorBanner(palette)
@@ -102,7 +103,7 @@ struct InspectorView: View {
                     Text(L("Completato"))
                         .foregroundStyle(color)
                     Text(L("· In pausa"))
-                        .foregroundStyle(Color.primary.opacity(0.5))
+                        .foregroundStyle(palette.mutedText)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(torrent.phase.label))
@@ -114,7 +115,7 @@ struct InspectorView: View {
         .font(Typography.microRoundedSemiboldText)
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
-        .background(Capsule().fill(color.opacity(0.12)))
+        .background(Capsule().fill(torrent.phase == .paused ? palette.input : color.opacity(0.12)))
     }
 
     private func actions(_ palette: Palette) -> some View {
@@ -159,29 +160,72 @@ struct InspectorView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            IconButton(icon: "folder", help: "Mostra nel Finder", size: 34) {
+            // Four identical circles were ~157 pt of chrome with no hierarchy
+            // and gave the torrent name almost no room. The destructive and
+            // rare actions move into a menu; pause/resume stays primary.
+            Menu {
+                Button {
+                    engine.reveal(torrent)
+                } label: {
+                    Label(L("Mostra nel Finder"), systemImage: "folder")
+                }
+
+                Button {
+                    engine.chooseAndMoveStorage(for: torrent)
+                } label: {
+                    Label(L("Sposta file…"), systemImage: "folder.badge.gearshape")
+                }
+
+                Button {
+                    engine.copyMagnet(for: torrent)
+                } label: {
+                    Label(L("Copia link magnet"), systemImage: "link")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    onDeleteWithFiles(torrent)
+                } label: {
+                    Label(L("Rimuovi"), systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(Typography.bodyLargeMediumText)
+                    .foregroundStyle(palette.secondary)
+                    .frame(width: 34, height: 34)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .background(Circle().fill(palette.input))
+            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
+            .help(L("Altre azioni"))
+            .accessibilityLabel(Text(L("Altre azioni")))
+        }
+    }
+
+    /// A healthy torrent never showed where its files live: the save path only
+    /// appeared inside the error banner.
+    private func saveLocation(_ palette: Palette) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "folder")
+                .font(Typography.captionMediumText)
+                .foregroundStyle(palette.tertiary)
+
+            Text(torrent.savePath)
+                .font(Typography.captionMonoText)
+                .foregroundStyle(palette.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+                .help(torrent.savePath)
+
+            Spacer(minLength: 4)
+
+            IconButton(icon: "arrow.up.forward.square", help: "Mostra nel Finder", size: 22) {
                 engine.reveal(torrent)
             }
-            .background(Circle().fill(palette.input))
-            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
-
-            IconButton(icon: "folder.badge.gearshape", help: "Sposta file…", size: 34) {
-                engine.chooseAndMoveStorage(for: torrent)
-            }
-            .background(Circle().fill(palette.input))
-            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
-
-            IconButton(icon: "link", help: "Copia link magnet", size: 34) {
-                engine.copyMagnet(for: torrent)
-            }
-            .background(Circle().fill(palette.input))
-            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
-
-            IconButton(icon: "trash", help: "Rimuovi", tint: Theme.coral.opacity(0.85), size: 34) {
-                onDeleteWithFiles(torrent)
-            }
-            .background(Circle().fill(palette.input))
-            .overlay(Circle().stroke(palette.stroke, lineWidth: 1).allowsHitTesting(false))
         }
     }
 
@@ -581,6 +625,19 @@ struct InspectorView: View {
     private func peerRow(_ peer: TorrentPeer, _ palette: Palette) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
+                if let code = GeoIP.countryCode(forEndpoint: peer.endpoint) {
+                    Text(verbatim: GeoIP.flag(for: code) ?? "")
+                        .font(Typography.smallText)
+                        .help(GeoIP.countryName(for: code))
+                        .accessibilityLabel(Text(GeoIP.countryName(for: code)))
+                } else if GeoIP.isLocalEndpoint(peer.endpoint) {
+                    Image(systemName: "house.fill")
+                        .font(Typography.captionSmallText)
+                        .foregroundStyle(palette.tertiary)
+                        .help(L("Rete locale"))
+                        .accessibilityLabel(Text(L("Rete locale")))
+                }
+
                 Text(peer.client.isEmpty ? L("Handshake…") : peer.client)
                     .font(Typography.smallMediumText)
                     .foregroundStyle(peer.client.isEmpty ? palette.tertiary : palette.text)

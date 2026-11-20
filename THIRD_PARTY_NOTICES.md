@@ -28,6 +28,14 @@ Vertex bundles the following third-party libraries in the application bundle.
 - Website: https://www.boost.org/
 - Full text: [`Resources/Licenses/boost-BSL-1.0.txt`](Resources/Licenses/boost-BSL-1.0.txt)
 
+### DB-IP "IP to Country Lite"
+
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- Copyright: © DB-IP (https://db-ip.com)
+- Website: https://db-ip.com/db/download/ip-to-country-lite
+- Used for: offline country flag next to each peer (IPv4 only, no network lookup)
+- Full text: [`Resources/Licenses/DB-IP-Lite.txt`](Resources/Licenses/DB-IP-Lite.txt)
+
 ### Apple Frameworks
 
 SwiftUI, AppKit, Foundation and other system frameworks are not included in the
@@ -61,6 +69,14 @@ Vertex include nel bundle applicativo le seguenti librerie di terze parti.
 - Licenza: Boost Software License 1.0
 - Sito: https://www.boost.org/
 - Testo completo: [`Resources/Licenses/boost-BSL-1.0.txt`](Resources/Licenses/boost-BSL-1.0.txt)
+
+### DB-IP "IP to Country Lite"
+
+- Licenza: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- Copyright: © DB-IP (https://db-ip.com)
+- Sito: https://db-ip.com/db/download/ip-to-country-lite
+- Uso: bandiera del paese accanto a ogni peer, offline (solo IPv4, nessuna chiamata di rete)
+- Testo completo: [`Resources/Licenses/DB-IP-Lite.txt`](Resources/Licenses/DB-IP-Lite.txt)
 
 ### Framework Apple
 

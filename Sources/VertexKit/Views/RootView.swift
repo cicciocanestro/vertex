@@ -115,10 +115,7 @@ package struct RootView: View {
     }
 
     package var body: some View {
-        layout
-            #if DEBUG
-            .dynamicTypeSize(debugDynamicTypeSize)
-            #endif
+        styledLayout
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: engine.selectedID)
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: engine.selectedIDs.count > 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
@@ -252,8 +249,24 @@ package struct RootView: View {
             #endif
     }
 
+    @ViewBuilder
+    private var styledLayout: some View {
+        #if DEBUG
+        if let debugDynamicTypeSize {
+            layout.dynamicTypeSize(debugDynamicTypeSize)
+        } else {
+            layout
+        }
+        #else
+        layout
+        #endif
+    }
+
     #if DEBUG
-    private var debugDynamicTypeSize: DynamicTypeSize {
+    /// Pinning the type size unconditionally hid every large-text layout from
+    /// development and from the rendering tests: only an explicit
+    /// `VERTEX_DYNAMIC_TYPE` now overrides the system setting.
+    private var debugDynamicTypeSize: DynamicTypeSize? {
         switch ProcessInfo.processInfo.environment["VERTEX_DYNAMIC_TYPE"] {
         case "xSmall": return .xSmall
         case "small": return .small
@@ -262,7 +275,7 @@ package struct RootView: View {
         case "xLarge": return .xLarge
         case "xxLarge": return .xxLarge
         case "xxxLarge": return .xxxLarge
-        default: return .large
+        default: return nil
         }
     }
     #endif
@@ -441,7 +454,9 @@ package struct RootView: View {
                 onAction: handleToastAction
             )
             .padding(.horizontal, 20)
-            .padding(.bottom, 52)
+            // Sit above the status bar, and above the multi-selection bar when
+            // that one is visible, instead of covering the controls.
+            .padding(.bottom, engine.selectedTorrents.count > 1 ? 96 : 56)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(4)
         }

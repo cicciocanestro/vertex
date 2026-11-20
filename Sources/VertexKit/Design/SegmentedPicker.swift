@@ -83,6 +83,7 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
         .padding(.horizontal, horizontalPadding)

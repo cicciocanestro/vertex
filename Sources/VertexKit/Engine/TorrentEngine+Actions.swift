@@ -21,11 +21,6 @@ extension TorrentEngine {
         sequential: Bool,
         completion: (@MainActor (String?) -> Void)? = nil
     ) -> String? {
-        guard session != nil, !isShuttingDown else {
-            let message = L("Motore non disponibile.")
-            completion?(message)
-            return message
-        }
         let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
         guard TorrentInput.isMagnet(trimmed) else {
             let message = L("Il link magnet non è valido.")
@@ -34,17 +29,27 @@ extension TorrentEngine {
             return message
         }
 
-        guard !isShuttingDown, let session else { return nil }
+        guard !isShuttingDown, let session else {
+            let message = L("Motore non disponibile.")
+            completion?(message)
+            return message
+        }
         let generation = sessionGeneration
         let pointer = SessionPointerBox(session)
 
         sessionQueue.async { [weak self] in
-            guard let s = pointer.value else { return }
+            guard let s = pointer.value else {
+                DispatchQueue.main.async { completion?(L("Motore non disponibile.")) }
+                return
+            }
             let prepared = Self.preparedDestination(destination)
             guard let path = prepared.path else {
                 let message = prepared.error ?? L("Cartella di destinazione non valida.")
                 DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
+                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                        completion?(L("Motore non disponibile."))
+                        return
+                    }
                     self.showToast(message, kind: .error)
                     completion?(message)
                 }
@@ -66,9 +71,9 @@ extension TorrentEngine {
             let rawError = code != 0 ? Self.readLastError(s) : ""
             DispatchQueue.main.async {
                 guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    if self?.isShuttingDown == false {
-                        completion?(L("Motore non disponibile."))
-                    }
+                    // Always answer: a dropped completion leaves the caller
+                    // waiting forever (the add sheet never closes).
+                    completion?(L("Motore non disponibile."))
                     return
                 }
 
@@ -108,26 +113,30 @@ extension TorrentEngine {
         sequential: Bool,
         completion: (@MainActor (String?) -> Void)? = nil
     ) -> String? {
-        guard session != nil, !isShuttingDown else {
+        let filePath = url.path
+        let detail = url.deletingPathExtension().lastPathComponent
+
+        guard !isShuttingDown, let session else {
             let message = L("Motore non disponibile.")
             completion?(message)
             return message
         }
-
-        let filePath = url.path
-        let detail = url.deletingPathExtension().lastPathComponent
-
-        guard !isShuttingDown, let session else { return nil }
         let generation = sessionGeneration
         let pointer = SessionPointerBox(session)
 
         sessionQueue.async { [weak self] in
-            guard let s = pointer.value else { return }
+            guard let s = pointer.value else {
+                DispatchQueue.main.async { completion?(L("Motore non disponibile.")) }
+                return
+            }
             let prepared = Self.preparedDestination(destination)
             guard let path = prepared.path else {
                 let message = prepared.error ?? L("Cartella di destinazione non valida.")
                 DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
+                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
+                        completion?(L("Motore non disponibile."))
+                        return
+                    }
                     self.showToast(message, kind: .error)
                     completion?(message)
                 }
@@ -149,9 +158,9 @@ extension TorrentEngine {
             let rawError = code != 0 ? Self.readLastError(s) : ""
             DispatchQueue.main.async {
                 guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    if self?.isShuttingDown == false {
-                        completion?(L("Motore non disponibile."))
-                    }
+                    // Always answer: a dropped completion leaves the caller
+                    // waiting forever (the add sheet never closes).
+                    completion?(L("Motore non disponibile."))
                     return
                 }
 
@@ -240,17 +249,19 @@ extension TorrentEngine {
 
         let ids = list.map(\.id)
         let action = deleteFiles ? "remove_files" : "remove"
-        enqueueSessionOperation { session in
-            var result: Int32 = 0
+        let queued = enqueueSessionOperation(
+            errorTitle: L("Alcuni torrent non sono stati rimossi")
+        ) { session in
+            var failures: Int32 = 0
             for id in ids {
                 let code = id.withCString { idPointer in
                     action.withCString { actionPointer in
                         vt_control(session, idPointer, actionPointer)
                     }
                 }
-                if code != 0 { result = code }
+                if code != 0 { failures += 1 }
             }
-            return result
+            return failures == 0 ? 0 : -1
         } onSuccess: { [weak self] in
             guard let self else { return }
             let remaining = self.selectedIDs.subtracting(ids)
@@ -262,6 +273,9 @@ extension TorrentEngine {
                 kind: .info
             )
             self.poll()
+        }
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 
@@ -276,15 +290,22 @@ extension TorrentEngine {
             return
         }
         let commands = list.map { ($0.id, $0.isQueued ? "dequeue" : "pause") }
-        enqueueSessionOperation { session in
+        let queued = enqueueSessionOperation(
+            errorTitle: L("Alcuni torrent non sono stati messi in pausa")
+        ) { session in
+            var failures: Int32 = 0
             for (id, action) in commands {
-                _ = id.withCString { idPtr in
+                let code = id.withCString { idPtr in
                     action.withCString { actPtr in vt_control(session, idPtr, actPtr) }
                 }
+                if code != 0 { failures += 1 }
             }
-            return 0
+            return failures == 0 ? 0 : -1
         } onSuccess: { [weak self] in
             self?.poll()
+        }
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 
@@ -295,15 +316,22 @@ extension TorrentEngine {
             return
         }
         let ids = list.map(\.id)
-        enqueueSessionOperation { session in
+        let queued = enqueueSessionOperation(
+            errorTitle: L("Alcuni torrent non sono stati ripresi")
+        ) { session in
+            var failures: Int32 = 0
             for id in ids {
-                _ = id.withCString { idPtr in
+                let code = id.withCString { idPtr in
                     "resume".withCString { actPtr in vt_control(session, idPtr, actPtr) }
                 }
+                if code != 0 { failures += 1 }
             }
-            return 0
+            return failures == 0 ? 0 : -1
         } onSuccess: { [weak self] in
             self?.poll()
+        }
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 
@@ -328,16 +356,23 @@ extension TorrentEngine {
             return
         }
         let ids = list.map(\.id)
-        enqueueSessionOperation { session in
+        let queued = enqueueSessionOperation(
+            errorTitle: L("Annuncio non inviato")
+        ) { session in
+            var failures: Int32 = 0
             for id in ids {
-                _ = id.withCString { idPtr in
+                let code = id.withCString { idPtr in
                     "reannounce".withCString { actPtr in vt_control(session, idPtr, actPtr) }
                 }
+                if code != 0 { failures += 1 }
             }
-            return 0
+            return failures == 0 ? 0 : -1
         } onSuccess: { [weak self] in
             self?.showToast(L("Annuncio inviato ai tracker"), kind: .info)
             self?.poll()
+        }
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 
@@ -536,9 +571,9 @@ extension TorrentEngine {
             let rawError = code != 0 ? Self.readLastError(s) : ""
             DispatchQueue.main.async {
                 guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    if self?.isShuttingDown == false {
-                        completion?(L("Motore non disponibile."))
-                    }
+                    // Always answer: a dropped completion leaves the caller
+                    // waiting forever (the add sheet never closes).
+                    completion?(L("Motore non disponibile."))
                     return
                 }
 
@@ -553,12 +588,13 @@ extension TorrentEngine {
                     return
                 }
 
+                // `move_storage` is asynchronous: the bridge returns as soon as
+                // libtorrent accepts the request. The real completion is the
+                // save path changing in a later snapshot (see `apply`).
                 self.showToast(
-                    L("File spostati"),
-                    kind: .success,
-                    detail: path,
-                    actionTitle: L("Apri cartella"),
-                    action: .openFolder(path: path)
+                    L("Spostamento in corso…"),
+                    kind: .info,
+                    detail: path
                 )
                 self.poll()
                 completion?(nil)
@@ -777,6 +813,9 @@ extension TorrentEngine {
         )
         toast = message
         if kind == .error { recordErrorToast(text) }
+        // VoiceOver cannot see the toast overlay: post it as an announcement so
+        // errors and completions are not silent for screen-reader users.
+        if kind != .info { announce(text) }
         toastTask?.cancel()
         // An actionable toast stays a little longer so it can be clicked.
         let delay: UInt64 = action == nil ? 4_000_000_000 : 7_000_000_000
@@ -789,12 +828,24 @@ extension TorrentEngine {
         }
     }
 
+    private func announce(_ text: String) {
+        guard let app = NSApp, app.isRunning else { return }
+        NSAccessibility.post(
+            element: app,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: text,
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue
+            ]
+        )
+    }
+
     func control(
         _ action: String,
         id: String,
         onSuccess: (@MainActor () -> Void)? = nil
     ) {
-        enqueueSessionOperation { session in
+        let queued = enqueueSessionOperation { session in
             id.withCString { idPointer in
                 action.withCString { actionPointer in
                     vt_control(session, idPointer, actionPointer)
@@ -803,6 +854,11 @@ extension TorrentEngine {
         } onSuccess: { [weak self] in
             onSuccess?()
             self?.poll()
+        }
+        // The command was refused because there is no session (startup, PEX
+        // restart, shutdown): tell the user instead of letting the click vanish.
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 

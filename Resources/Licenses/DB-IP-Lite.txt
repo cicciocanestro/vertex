@@ -1,0 +1,22 @@
+DB-IP "IP to Country Lite" database
+===================================
+
+Copyright (c) 2026 DB-IP (https://db-ip.com)
+
+Licensed under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0): https://creativecommons.org/licenses/by/4.0/legalcode
+
+The dataset is used unmodified in substance: Vertex converts the CSV ranges
+into a compact binary table (Resources/GeoIP/country-v4.bin.z) that maps IPv4
+address ranges to ISO 3166-1 alpha-2 country codes. The conversion is done by
+Scripts/build-geoip.sh and Scripts/geoip-encode.py in the Vertex source tree.
+
+No attribution is displayed per lookup; the attribution is provided here, in
+THIRD_PARTY_NOTICES.md and in the app's open-source licenses screen.
+
+The "Lite" database is offered by DB-IP free of charge and is less accurate
+than their commercial products. Vertex uses it only to pick the flag shown
+next to a connected peer; it is never used for access control or billing.
+
+DB-IP makes no warranty of any kind, express or implied, about the accuracy or
+completeness of the data.

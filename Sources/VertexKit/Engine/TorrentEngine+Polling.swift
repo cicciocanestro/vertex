@@ -178,6 +178,31 @@ extension TorrentEngine {
             }
         }
 
+        // A storage move finishes asynchronously: the save path changes only
+        // once the disk thread has moved the files, so a change here is the
+        // real completion signal (the bridge returns when the request is
+        // accepted, not when the move is done).
+        if hasLoadedSnapshot {
+            for torrent in snapshot.torrents {
+                guard let previous = pollState.torrentsByID[torrent.id],
+                      !previous.savePath.isEmpty,
+                      !torrent.savePath.isEmpty,
+                      previous.savePath != torrent.savePath else { continue }
+                // The raw strings differ: normalize before reporting, so a
+                // trailing slash is not mistaken for a completed move.
+                let oldPath = URL(fileURLWithPath: previous.savePath).standardizedFileURL.path
+                let newPath = URL(fileURLWithPath: torrent.savePath).standardizedFileURL.path
+                guard oldPath != newPath else { continue }
+                showToast(
+                    L("File spostati"),
+                    kind: .success,
+                    detail: torrent.savePath,
+                    actionTitle: L("Apri cartella"),
+                    action: .openFolder(path: torrent.savePath)
+                )
+            }
+        }
+
         // Notify only for torrents we have seen actively unfinished (not while verifying),
         // so resumed torrents settling after launch don't trigger a false "completed" toast.
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))

@@ -868,15 +868,26 @@ vt_session* vt_session_create_configured(const char* download_dir,
 
                 try
                 {
+                    // A resume file is a compact bencoded dict. Check the size
+                    // before reading so a corrupt or oversized file cannot
+                    // exhaust memory at startup.
+                    std::error_code size_ec;
+                    auto const resume_size = fs::file_size(entry.path(), size_ec);
+                    constexpr std::uintmax_t MAX_RESUME_FILE = 10 * 1024 * 1024; // 10 MiB
+                    if (size_ec || resume_size == 0 || resume_size > MAX_RESUME_FILE)
+                        continue;
+
                     std::ifstream file(entry.path(), std::ios::binary);
                     std::vector<char> data((std::istreambuf_iterator<char>(file)),
                                            std::istreambuf_iterator<char>());
-                    if (data.empty())
+                    // Re-check after reading: the file may have grown between
+                    // the stat and the read, and this bounds the int cast below.
+                    if (data.empty() || data.size() > MAX_RESUME_FILE)
                         continue;
 
                     lt::error_code resume_ec;
                     auto params = lt::read_resume_data(
-                        lt::span<char const>(data.data(), int(data.size())), resume_ec);
+                        lt::span<char const>(data.data(), static_cast<int>(data.size())), resume_ec);
                     if (resume_ec)
                         continue;
 

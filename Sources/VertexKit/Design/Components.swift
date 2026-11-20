@@ -244,6 +244,9 @@ struct FilterChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hover.value = $0 }
+        // VoiceOver otherwise reads "Tutti, 12, button" without saying which
+        // filter is active, which is the main navigation mode of the app.
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -386,7 +389,9 @@ struct ToastView: View {
                     Text(detail)
                         .font(Typography.bodyText)
                         .foregroundStyle(palette.secondary)
-                        .lineLimit(1)
+                        // A truncated file name was the least useful outcome of
+                        // an error toast: two lines, then ellipsis.
+                        .lineLimit(2)
                 }
             }
 
@@ -415,6 +420,16 @@ struct ToastView: View {
         .padding(.vertical, 9)
         .frame(maxWidth: toast.action == nil ? 400 : 460)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(alignment: .leading) {
+            // The icon alone is a small target for the eye; a 3 pt accent bar
+            // makes the toast's kind readable at the edge of vision.
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(accent)
+                .frame(width: 3)
+                .padding(.vertical, 10)
+                .padding(.leading, 3)
+                .allowsHitTesting(false)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(palette.strokeStrong, lineWidth: 1)

@@ -134,7 +134,9 @@ struct SettingsSheet: View {
     var body: some View {
         let palette = Palette(scheme: scheme)
         settingsContainer(palette)
-            .frame(width: 700, height: 540)
+            // Minimum sizes let the sheet grow with Dynamic Type instead of
+            // clipping the sidebar and the footer at large text sizes.
+            .frame(minWidth: 640, idealWidth: 700, minHeight: 440, idealHeight: 540)
             .modifier(SettingsSheetEventHandlers(
                 onAppearAction: handleOnAppear,
                 onDisappearAction: handleOnDisappear
@@ -187,9 +189,13 @@ struct SettingsSheet: View {
 
     private func settingsBody(_ palette: Palette) -> some View {
         HStack(spacing: 0) {
-            settingsSidebar(palette)
-                .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
-                .fixedSize(horizontal: true, vertical: false)
+            // The rail scrolls: at accessibility text sizes seven rows no longer
+            // fit the sheet height and used to run under the footer.
+            ScrollView(.vertical) {
+                settingsSidebar(palette)
+            }
+            .scrollIndicators(.automatic)
+            .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
 
             Hairline(palette: palette, axis: .vertical)
 
@@ -218,7 +224,9 @@ struct SettingsSheet: View {
                 onClose()
             }
             .buttonStyle(PrimaryButtonStyle())
-            .keyboardShortcut(.defaultAction)
+            // Not the default action: Return in a numeric field used to close
+            // the sheet mid-edit. Esc closes instead (when no field is editing).
+            .keyboardShortcut(.cancelAction)
         }
     }
 
@@ -482,6 +490,7 @@ struct SettingsSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text(L(item.titleKey)))
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }

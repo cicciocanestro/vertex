@@ -72,9 +72,10 @@ struct NetworkDiagnosticsView: View {
                     onClose()
                 }
                 .buttonStyle(PrimaryButtonStyle())
+                .keyboardShortcut(.cancelAction)
             }
         }
-        .frame(width: 620, height: 650)
+        .frame(minWidth: 560, idealWidth: 620, minHeight: 480, idealHeight: 650)
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
         .onChange(of: testPort) { _, _ in tester.reset() }

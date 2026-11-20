@@ -556,6 +556,30 @@ enum EngineTests {
             }
             try TestRunner.assertEqual(onMain { notified.value }, ["Multi1.iso"])
         }
+
+        TestRunner.run("Engine: una richiesta durante lo shutdown risponde sempre") {
+            let workspace = try IntegrationWorkspace()
+            let engine = try makeEngine(in: workspace, name: "shutdown-add")
+            defer { shutdown(engine) }
+
+            let answered = onMain { AsyncBox<String>() }
+            onMain { engine.shutdown() }
+
+            let rejected = onMain {
+                engine.addMagnet(
+                    "magnet:?xt=urn:btih:dddddddddddddddddddddddddddddddddddddddd",
+                    destination: engineDownloadPath(workspace, "shutdown-add"),
+                    startPaused: false,
+                    sequential: false
+                ) { message in
+                    answered.value = message
+                }
+            }
+            // A dropped completion used to leave the add sheet open forever.
+            try TestRunner.assertEqual(rejected, L("Motore non disponibile."))
+            let callback = onMain { answered.value }
+            try TestRunner.assertEqual(callback ?? "", L("Motore non disponibile."))
+        }
     }
 
     // MARK: - Helpers

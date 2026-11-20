@@ -376,9 +376,14 @@ package final class TorrentEngine: ObservableObject {
             session = newSession
             sessionPexEnabled = configuration.pex
             isReady = true
+            startupError = nil
+            // The new session was created from this configuration: diffing the
+            // current preferences against it applies only the edits made while
+            // the restart was in progress, instead of rebinding the listening
+            // port and remapping UPnP on every PEX toggle.
+            lastAppliedConfiguration = configuration
             startPolling()
             poll()
-            // Apply changes made while the restart was in progress.
             applySettings()
             return
         }
@@ -391,8 +396,12 @@ package final class TorrentEngine: ObservableObject {
         if let fallbackSession {
             session = fallbackSession
             isReady = true
+            startupError = nil
+            lastAppliedConfiguration = configuration
             startPolling()
             poll()
+            // Changes made while the restart was in progress must not be lost.
+            applySettings()
             showToast(
                 L("La modifica a Peer Exchange non è stata applicata."),
                 kind: .error,
@@ -405,6 +414,12 @@ package final class TorrentEngine: ObservableObject {
             session = nil
             lastAppliedConfiguration = nil
             isReady = false
+            // Without this the empty library is indistinguishable from a dead
+            // engine and the retry button never appears.
+            startupError = Self.sessionFailureDetail(
+                creationError,
+                fallback: L("Il motore BitTorrent non è disponibile. Riavvia Vertex.")
+            )
             pollState = PollState()
             detail = nil
             selectedID = nil

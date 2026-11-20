@@ -48,6 +48,13 @@ struct Palette {
         isDark ? Color.white.opacity(0.46) : Color(hex: 0x11131A).opacity(0.58)
     }
 
+    /// Muted but still readable text, used by the paused state. The previous
+    /// `Color.primary.opacity(0.5)` sat below 4.5:1 on the light card at the
+    /// 9-11 pt sizes the pills use.
+    var mutedText: Color {
+        isDark ? Color.white.opacity(0.62) : Color(hex: 0x5A6070)
+    }
+
     // Cards are slightly more opaque and their border more visible, so the
     // light theme does not look like white cards on a white background.
     var card: Color {
@@ -106,7 +113,7 @@ struct Palette {
         case .checking: return blueText
         case .seeding: return violetText
         case .completed, .completedPaused: return greenText
-        case .paused: return Color.primary.opacity(0.5)
+        case .paused: return mutedText
         // Queued is not "off": it is informative, so it keeps the secondary text
         // contrast instead of the muted paused grey.
         case .queued: return secondary
@@ -235,8 +242,10 @@ struct LogoMark: View {
 /// Minimum size of the main window: the SwiftUI scene and the AppKit window
 /// both read it, so the two cannot drift apart.
 package enum WindowMetrics {
-    package static let minimumWidth: CGFloat = 980
-    package static let minimumHeight: CGFloat = 760
+    // 980x760 does not fit on a 1280x800 display once the menu bar and the Dock
+    // are accounted for, which made the window impossible to shrink.
+    package static let minimumWidth: CGFloat = 900
+    package static let minimumHeight: CGFloat = 640
 }
 
 private final class WindowConfiguratorView: NSView {

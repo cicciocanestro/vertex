@@ -338,6 +338,14 @@
 "Sposta file…" = "Move files…";
 "Sposta" = "Move";
 "File spostati" = "Files moved";
+"Spostamento in corso…" = "Move in progress…";
+"Alcuni torrent non sono stati rimossi" = "Some torrents were not removed";
+"Alcuni torrent non sono stati messi in pausa" = "Some torrents were not paused";
+"Alcuni torrent non sono stati ripresi" = "Some torrents were not resumed";
+"Annuncio non inviato" = "Announce failed";
+"Altre azioni" = "More actions";
+"Rete locale" = "Local network";
+"Il motore BitTorrent non è disponibile. Riavvia Vertex." = "The BitTorrent engine is unavailable. Restart Vertex.";
 "Esiste già un file con lo stesso nome nella cartella di destinazione." = "A file with the same name already exists in the destination folder.";
 
 /* Multi-selection, inspector peers and completion notifications */

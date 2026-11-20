@@ -19,6 +19,11 @@ source "$ROOT/Scripts/toolchain.env"
 source "$ROOT/Scripts/lib/macho.sh"
 
 PREFIX="${VERTEX_DEPS_PREFIX:-$ROOT/.build/vertex-deps}"
+# A rebuild must not discard a working dependency tree: the previous prefix is
+# moved aside (an O(1) rename on the same volume) and restored if the build
+# fails. The path itself never changes, because the dylib install names are
+# baked with it.
+BACKUP_PREFIX="${PREFIX}.backup"
 SRC="${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}"
 DOWNLOADS="${VERTEX_DEPS_DOWNLOADS:-$ROOT/.build/vertex-deps-downloads}"
 TARGET="$VERTEX_DEPS_TARGET"
@@ -107,6 +112,27 @@ echo "  Boost:      $BOOST_VERSION (solo header)"
 echo "  Target:     macOS $TARGET ($ARCH)"
 echo "  Prefix:     $PREFIX"
 
+# The same handler is registered for INT, TERM and EXIT. On a signal bash runs
+# the signal trap and then the EXIT trap: without this guard the second run
+# would delete the tree the first run just restored.
+PREFIX_RESTORED=0
+restore_prefix() {
+    if [ "$PREFIX_RESTORED" -eq 1 ]; then
+        return 0
+    fi
+    PREFIX_RESTORED=1
+    if [ -d "$BACKUP_PREFIX" ]; then
+        rm -rf "$PREFIX"
+        mv "$BACKUP_PREFIX" "$PREFIX"
+    fi
+}
+
+if [ -d "$PREFIX" ]; then
+    rm -rf "$BACKUP_PREFIX"
+    mv "$PREFIX" "$BACKUP_PREFIX"
+    trap restore_prefix EXIT INT TERM
+fi
+
 rm -rf "$PREFIX" "$SRC"
 mkdir -p "$PREFIX" "$SRC" "$DOWNLOADS"
 
@@ -144,7 +170,15 @@ fetch() {
 }
 
 archive_root() {
-    tar -tf "$1" | head -n 1 | cut -d/ -f1
+    # `head -n 1` would close the pipe early: tar takes SIGPIPE, `pipefail`
+    # makes the assignment fail and `set -e` aborts the script with no message.
+    local root
+    root="$(tar -tf "$1" 2>/dev/null | sed -n '1p' | cut -d/ -f1)" || root=""
+    if [ -z "$root" ]; then
+        echo "✗ Impossibile leggere l'archivio $1" >&2
+        exit 1
+    fi
+    printf '%s\n' "$root"
 }
 
 check_macho() {
@@ -266,5 +300,9 @@ done
 
 printf 'lock=%s script=%s toolchain=%s target=%s arch=%s\n' \
     "$LOCK_HASH" "$SCRIPT_HASH" "$TOOLCHAIN_HASH" "$TARGET" "$ARCH" > "$STAMP"
+
+# The new tree is complete and verified: keep it and drop the old one.
+trap - EXIT INT TERM
+rm -rf "$BACKUP_PREFIX"
 
 echo "✓ Dipendenze pronte in $PREFIX"

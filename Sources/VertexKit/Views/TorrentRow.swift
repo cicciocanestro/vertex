@@ -165,7 +165,7 @@ struct TorrentRow: View {
             if wide.value {
                 HStack(spacing: 14) {
                     metric(
-                        icon: "externaldrive",
+                        icon: "internaldrive",
                         value: torrent.hasMetadata ? Fmt.bytes(torrent.size) : "—",
                         help: "Dimensione",
                         minWidth: 82,
@@ -173,7 +173,7 @@ struct TorrentRow: View {
                     )
                     if torrent.phase == .downloading {
                         metric(
-                            icon: "clock",
+                            icon: "hourglass",
                             value: Fmt.eta(torrent.eta),
                             help: "Tempo rimasto",
                             minWidth: 62,
@@ -189,7 +189,7 @@ struct TorrentRow: View {
                         )
                     } else {
                         metric(
-                            icon: "clock",
+                            icon: "hourglass",
                             value: "—",
                             help: "Tempo rimasto",
                             minWidth: 62,
@@ -197,7 +197,7 @@ struct TorrentRow: View {
                         )
                     }
                     metric(
-                        icon: "person.2",
+                        icon: "arrow.up.arrow.down.circle",
                         value: "\(torrent.peers) / \(torrent.seeds)",
                         help: "Peer / Seed",
                         minWidth: 66,
@@ -284,6 +284,15 @@ struct TorrentRow: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .overlay(alignment: .leading) {
+            if selected {
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(Theme.mint)
+                    .frame(width: 3, height: 30)
+                    .padding(.leading, 6)
+                    .allowsHitTesting(false)
+            }
         }
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -376,6 +385,26 @@ struct TorrentRow: View {
                 }
             }
         }
+        // The row itself is the main object of the app: VoiceOver must hear its
+        // state and progress, know when it is selected, and be able to pause or
+        // remove it without a mouse. `children: .contain` keeps the visible
+        // buttons in the tree instead of swallowing them.
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(Text(accessibilityValueText))
+        .accessibilityAction(named: Text(torrent.paused ? L("Riprendi") : L("Pausa"))) {
+            engine.togglePause(torrent)
+        }
+        .accessibilityAction(named: Text(L("Rimuovi"))) {
+            onDeleteWithFiles()
+        }
+    }
+
+    private var accessibilityValueText: String {
+        if torrent.hasMetadata {
+            return "\(torrent.phase.label) · \(Fmt.percent(torrent.displayProgress))"
+        }
+        return torrent.phase.label
     }
 
     private func phasePill(_ palette: Palette) -> some View {
@@ -387,7 +416,7 @@ struct TorrentRow: View {
                     Text(L("Completato"))
                         .foregroundStyle(color)
                     Text(L("· In pausa"))
-                        .foregroundStyle(Color.primary.opacity(0.5))
+                        .foregroundStyle(palette.mutedText)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(torrent.phase.label))
@@ -399,7 +428,9 @@ struct TorrentRow: View {
         .font(Typography.microRoundedSemiboldText)
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
-        .background(Capsule().fill(color.opacity(0.12)))
+        // A 12% tint of the muted paused grey disappeared on the light card:
+        // paused rows use the neutral input fill instead.
+        .background(Capsule().fill(torrent.phase == .paused ? palette.input : color.opacity(0.12)))
     }
 
     /// Narrow layout: the pill carries the state, these are the remaining
@@ -454,7 +485,10 @@ struct TorrentRow: View {
 
     private func backgroundFill(_ palette: Palette) -> Color {
         if selected {
-            return Theme.mint.opacity(scheme == .dark ? 0.075 : 0.1)
+            // On the light card a 10% mint wash was almost invisible: the
+            // selection relied on a 1 pt border. The fill and the leading bar
+            // now carry it, so it reads at a glance.
+            return Theme.mint.opacity(scheme == .dark ? 0.11 : 0.16)
         }
         return hover.value ? palette.cardHover : palette.card
     }

@@ -9,6 +9,8 @@ TestRunner.beginSuite("PreferencesTests")
 PreferencesTests.runAll()
 TestRunner.beginSuite("ModelsTests")
 ModelsTests.runAll()
+TestRunner.beginSuite("GeoIPTests")
+GeoIPTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
 #if DEBUG

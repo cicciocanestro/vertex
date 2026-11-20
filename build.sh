@@ -45,8 +45,11 @@ DEPS_PREFIX="$VERTEX_DEPS_PREFIX"
 
 APP_NAME="$VERTEX_APP_NAME"
 APP_PATH="dist/${APP_NAME}.app"
-APP_BIN="${APP_PATH}/Contents/MacOS/${APP_NAME}"
-FRAMEWORKS="${APP_PATH}/Contents/Frameworks"
+# Build into a staging directory and swap it in only after the bundle passes
+# verification: a failure halfway must not destroy the last good artifact.
+STAGE_PATH="dist/.${APP_NAME}.app.stage"
+APP_BIN="${STAGE_PATH}/Contents/MacOS/${APP_NAME}"
+FRAMEWORKS="${STAGE_PATH}/Contents/Frameworks"
 TARGET_MIN=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)
 if [ "$TARGET_MIN" != "$VERTEX_MIN_MACOS" ]; then
     echo "✗ Info.plist dichiara macOS $TARGET_MIN, Scripts/app.env dichiara $VERTEX_MIN_MACOS" >&2
@@ -70,26 +73,32 @@ BIN_DIR="$(swift build -c "$CONFIG" --show-bin-path)"
 BIN_PATH="${BIN_DIR}/${APP_NAME}"
 
 echo "→ Creazione del bundle…"
-rm -rf "$APP_PATH"
-mkdir -p "${APP_PATH}/Contents/MacOS" "${APP_PATH}/Contents/Resources" "$FRAMEWORKS"
+rm -rf "$STAGE_PATH"
+trap 'rm -rf "$STAGE_PATH"' EXIT INT TERM
+mkdir -p "${STAGE_PATH}/Contents/MacOS" "${STAGE_PATH}/Contents/Resources" "$FRAMEWORKS"
 
 cp "$BIN_PATH" "$APP_BIN"
-cp "Resources/Info.plist" "${APP_PATH}/Contents/Info.plist"
+cp "Resources/Info.plist" "${STAGE_PATH}/Contents/Info.plist"
 
 if [ ! -f "Resources/AppIcon.icns" ]; then
     echo "→ Generazione dell'icona…"
     swift Scripts/make-icon.swift
 fi
 
-cp "Resources/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"
+cp "Resources/AppIcon.icns" "${STAGE_PATH}/Contents/Resources/AppIcon.icns"
 
 if [ -d "Resources/Licenses" ]; then
-    cp -R "Resources/Licenses" "${APP_PATH}/Contents/Resources/Licenses"
+    cp -R "Resources/Licenses" "${STAGE_PATH}/Contents/Resources/Licenses"
+fi
+
+# Offline IPv4 country table for the peer flags: bundled, never fetched at runtime.
+if [ -d "Resources/GeoIP" ]; then
+    cp -R "Resources/GeoIP" "${STAGE_PATH}/Contents/Resources/GeoIP"
 fi
 
 for lproj in Resources/*.lproj; do
     [ -d "$lproj" ] || continue
-    cp -R "$lproj" "${APP_PATH}/Contents/Resources/"
+    cp -R "$lproj" "${STAGE_PATH}/Contents/Resources/"
 done
 
 # Copy the complete transitive closure of engine dylibs. This intentionally
@@ -202,11 +211,16 @@ for dylib in "${FRAMEWORKS}"/*.dylib; do
     [ -e "$dylib" ] || continue
     codesign "${SIGN_ARGS[@]}" "$dylib" >/dev/null
 done
-codesign "${SIGN_ARGS[@]}" "$APP_PATH" >/dev/null
-codesign --verify --deep --strict "$APP_PATH"
+codesign "${SIGN_ARGS[@]}" "$STAGE_PATH" >/dev/null
+codesign --verify --deep --strict "$STAGE_PATH"
 
 echo "→ Verifica bundle autosufficiente…"
-"$ROOT/Scripts/verify-bundle.sh" "$APP_PATH" "$TARGET_MIN"
+"$ROOT/Scripts/verify-bundle.sh" "$STAGE_PATH" "$TARGET_MIN"
+
+# Everything validated: swap the staged bundle into place.
+rm -rf "$APP_PATH"
+mv "$STAGE_PATH" "$APP_PATH"
+trap - EXIT INT TERM
 
 echo "✓ App creata: $APP_PATH"
 echo "  Avvio: open \"$APP_PATH\""
