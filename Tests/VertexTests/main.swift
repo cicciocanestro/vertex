@@ -16,6 +16,8 @@ ProxyPasswordStorageTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
 #if DEBUG
+TestRunner.beginSuite("UtilityTests")
+UtilityTests.runAll()
 TestRunner.beginSuite("EngineTests")
 EngineTests.runAll()
 TestRunner.beginSuite("PortReachabilityTests")

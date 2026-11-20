@@ -328,10 +328,12 @@ both architectures.
   file/tracker details, resume data, priorities, path validation and commands.
 - `Sources/VertexKit` — core application library:
   - `Engine/Preferences.swift` — preference keys, defaults, validation, session configuration and proxy-password Keychain migration;
-  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — serialized engine lifecycle, polling and user actions;
+  - `Engine/SessionController.swift` — actor that owns the libtorrent pointer: creation, polling, details and commands never leave it;
+  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift`, `TorrentEngine+Settings.swift` — UI state, adaptive polling and user actions routed through the actor;
   - `Engine/PortReachabilityTester.swift` — external TCP test;
   - `Views/` — list (state pills, wide columns, keyboard navigation), resizable inspector, settings sidebar, add sheet, diagnostics, status bar;
-  - `Utilities/` — input validation, drop handling, localization, network info, Keychain, offline GeoIP lookup;
+  - `Utilities/` — input validation, drop handling, localization, network info, Keychain, proxy-password storage, offline GeoIP lookup;
+  - `Diagnostics/Log.swift` — structured `os.Logger` categories, dynamic values private by default;
   - `Design/` — palette, shared components, modal chrome;
   - `Models/` — snapshot models, filters, sorting, keyboard navigation, file priority levels;
   - `DebugSupport.swift` — demo data and screenshot capture, DEBUG builds only.
@@ -341,6 +343,7 @@ both architectures.
 - `Scripts/` — pinned dependency build, bundle verification, DMG, localization check,
   toolchain check, GeoIP table generation and test runner.
 - `Resources/` — `Info.plist`, localizations, third-party licenses and the bundled GeoIP table.
+- `docs/` — architecture decision records and the threat model.
 - `.github/workflows/ci.yml` — build/test on push and PR; release on tags.
 
 ### Development and tests
@@ -353,13 +356,15 @@ both architectures.
 ```
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/` (text plus
-LCOV). CI uploads both. The suite covers formatters, snapshot JSON decoding, models,
-preferences, the offline GeoIP table, the C++ bridge lifecycle, the engine (add, detail,
-priorities, pause/resume, PEX restart, shutdown), keyboard navigation, network reachability
-with a fake HTTP loader and command routing. Loopback integration tests exercise v1/v2 transfers, resume reload,
-file priorities, removal and failure paths without external trackers. SwiftUI views and
-modal variants are
-rendered off-screen with `ImageRenderer`; the UPnP/NAT-PMP smoke test runs only with
+LCOV). CI uploads both, treats every compiler warning as an error and enforces a coverage
+floor. The suite (89 tests) covers formatters, snapshot JSON decoding, models, preferences,
+the offline GeoIP table, the C++ bridge lifecycle, malformed magnet input, the engine (add,
+detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
+the adaptive polling policy, network reachability with a fake HTTP loader and command
+routing. A 300-torrent benchmark guards the snapshot cache (local p95 ≈ 1.2 ms). Loopback
+integration tests exercise v1/v2 transfers, resume reload, file priorities, removal and
+failure paths without external trackers. SwiftUI views and modal variants are rendered
+off-screen with `ImageRenderer`; the UPnP/NAT-PMP smoke test runs only with
 `VERTEX_TEST_UPNP=1` in CI.
 
 DEBUG builds provide demo data, window capture and a sample actionable toast

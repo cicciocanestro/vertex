@@ -1,3 +1,4 @@
+import AppKit
 import CTorrent
 import Foundation
 
@@ -33,9 +34,29 @@ extension TorrentEngine {
         pollTask = Task { @MainActor [weak self] in
             while let self, !Task.isCancelled {
                 self.poll()
-                try? await Task.sleep(nanoseconds: 800_000_000)
+                let interval = Self.pollInterval(
+                    downloadRate: self.stats.downloadRate,
+                    uploadRate: self.stats.uploadRate,
+                    hasUnfinished: self.torrents.contains { !$0.finished },
+                    isAppActive: NSApp?.isActive ?? true
+                )
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
             }
         }
+    }
+
+    /// Adaptive poll cadence: fast while data is moving or a download is
+    /// unfinished, slower for an idle library, slowest when the app is in the
+    /// background. Kept pure so the policy is testable without a session.
+    nonisolated static func pollInterval(
+        downloadRate: Int64,
+        uploadRate: Int64,
+        hasUnfinished: Bool,
+        isAppActive: Bool
+    ) -> TimeInterval {
+        guard isAppActive else { return 2.5 }
+        if downloadRate > 0 || uploadRate > 0 || hasUnfinished { return 0.8 }
+        return 1.6
     }
 
     func poll() {

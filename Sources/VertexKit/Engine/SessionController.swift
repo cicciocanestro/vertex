@@ -74,6 +74,7 @@ package actor SessionController {
         let configuration = override ?? TorrentEngine.currentConfiguration()
         let creation = Self.makeSession(configuration)
         guard let created = creation.pointer else {
+            Log.session.error("session creation failed: \(creation.error ?? "unknown", privacy: .private)")
             return SessionCreationOutcome(
                 started: false,
                 configuration: configuration,
@@ -86,6 +87,7 @@ package actor SessionController {
             vt_session_destroy(pointer)
         }
         pointer = created
+        Log.session.notice("session created")
         return SessionCreationOutcome(started: true, configuration: configuration, error: nil)
     }
 
@@ -93,6 +95,7 @@ package actor SessionController {
         if let pointer {
             vt_session_destroy(pointer)
             self.pointer = nil
+            Log.session.notice("session destroyed")
         }
     }
 
@@ -114,6 +117,9 @@ package actor SessionController {
         }
         let code = operation(pointer)
         let error = code != 0 ? Self.readLastError(pointer) : ""
+        if code != 0 {
+            Log.session.debug("operation failed (\(code)): \(error, privacy: .private)")
+        }
         return SessionOperationOutcome(code: code, error: error)
     }
 

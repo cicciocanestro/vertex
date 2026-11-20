@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.17.0] — 2026-11-20
+
+### English
+#### Features
+- **The session has one owner**: a new `SessionController` actor owns the libtorrent pointer. Creation, polling, detail reads and commands all run through it, off the main thread; the old serial queue, pointer box and poll counters are gone. A stale result from a previous session can no longer be applied to the new one.
+- **Adaptive polling**: 800 ms while data is moving or a download is unfinished, 1.6 s for an idle library, 2.5 s when the app is in the background.
+- **Snapshot built from state updates**: libtorrent now reports only the torrents that changed (`post_torrent_updates` + `state_update_alert`) instead of querying every handle on every poll. Measured on this machine with 300 idle torrents: p50 1.0 ms, p95 1.2 ms for the whole poll + JSON encode (debug bridge). A benchmark test keeps the O(N) regression out.
+
+#### Security & Reliability
+- **Stable signing without a Developer account**: CI can import a self-signed certificate from secrets (`Scripts/make-signing-cert.sh` / `import-signing-cert.sh`), giving the bundle a stable identity so macOS stops treating every update as a different app. It does not remove the Gatekeeper warning: that still requires a Developer ID and notarization.
+- **Optional file storage for the SOCKS5 password**: a `0600` file in Application Support next to the Keychain, opt-in from Settings, written and migrated on a serial queue. The UI states that the file is not encrypted.
+- **Bridge hardening**: every public entry point takes a mutex, so any caller (app, CLI, tests) can share one session safely; asynchronous errors are queued (up to 8) instead of overwriting each other; resume data is capped at 10 MiB, `fsync`ed before the atomic rename, and a corrupt/oversize file is quarantined as `.bad` instead of silently discarded.
+- **Fail-closed proxy left as is**: a missing host still fails the session, and changing the proxy closes the peers opened before the change.
+
+#### Build, CI & Docs
+- **Warnings are errors in CI** and the coverage floor is now 55% (measured 55.4%). CI compiles with `-warnings-as-errors` on the canonical Swift 6.1 toolchain.
+- **89 tests** (was 80): malformed magnet/oversize input, invalid detail ids, the 300-torrent snapshot benchmark with cache-freshness checks, the adaptive polling policy and drag-and-drop validation.
+- **Documentation**: `docs/adr/0001-session-actor.md` records the ownership decision and `docs/threat-model.md` lists assets, adversaries, mitigations and what stays out of scope.
+- **Structure**: `TorrentEngine+Actions` was split into actions and settings, both under 800 lines; structured `os.Logger` categories log session lifecycle and failures with dynamic values marked private.
+
+#### Known limits
+- No notarization: without an Apple Developer account the first launch still needs "Open Anyway"; the Homebrew Cask removes the quarantine.
+- Country flags cover IPv4 only; IPv6 peers show the generic badge (the lookup is offline in both cases).
+
+### Italiano
+#### Novità e Funzionalità
+- **La sessione ha un solo proprietario**: un nuovo actor `SessionController` possiede il puntatore libtorrent. Creazione, polling, lettura dettagli e comandi passano tutti da lì, fuori dal main thread; la vecchia coda seriale, la scatola del puntatore e i contatori dei poll non esistono più. Un risultato della sessione precedente non può più essere applicato a quella nuova.
+- **Polling adattivo**: 800 ms quando i dati si muovono o un download è incompleto, 1,6 s per una libreria inattiva, 2,5 s con l'app in background.
+- **Snapshot costruito dagli aggiornamenti di stato**: libtorrent segnala solo i torrent cambiati (`post_torrent_updates` + `state_update_alert`) invece di interrogare ogni handle a ogni poll. Misurato su questa macchina con 300 torrent inattivi: p50 1,0 ms, p95 1,2 ms per poll + codifica JSON (bridge debug). Un test benchmark impedisce il ritorno al percorso O(N).
+
+#### Sicurezza e Affidabilità
+- **Firma stabile senza account Developer**: la CI può importare un certificato self-signed dai secret (`Scripts/make-signing-cert.sh` / `import-signing-cert.sh`), dando al bundle un'identità stabile così macOS non tratta ogni aggiornamento come un'app diversa. Non rimuove l'avviso di Gatekeeper: per quello servono Developer ID e notarizzazione.
+- **Storage su file opzionale per la password SOCKS5**: file `0600` in Application Support accanto al Portachiavi, attivabile dalle Impostazioni, scritto e migrato su una coda seriale. L'interfaccia dichiara che il file non è cifrato.
+- **Bridge più solido**: ogni entry point pubblico prende un mutex, quindi qualsiasi chiamante (app, CLI, test) può condividere una sessione in sicurezza; gli errori asincroni finiscono in coda (fino a 8) invece di sovrascriversi; il resume data è limitato a 10 MiB, `fsync`ato prima della rinomina atomica e un file corrotto o troppo grande viene messo in quarantena `.bad` invece di essere scartato in silenzio.
+- **Proxy fail-closed invariato**: un host mancante fa fallire la sessione e cambiare proxy chiude i peer aperti prima della modifica.
+
+#### Build, CI e Documentazione
+- **I warning sono errori in CI** e la soglia di copertura è ora 55% (misurato 55,4%). La CI compila con `-warnings-as-errors` sulla toolchain canonica Swift 6.1.
+- **89 test** (erano 80): magnet malformati e input enormi, id di dettaglio inesistenti, benchmark dello snapshot con 300 torrent e verifica della freschezza della cache, politica di polling adattivo e validazione del drag&drop.
+- **Documentazione**: `docs/adr/0001-session-actor.md` registra la decisione di ownership e `docs/threat-model.md` elenca beni, avversari, mitigazioni e ciò che resta fuori perimetro.
+- **Struttura**: `TorrentEngine+Actions` è stato diviso in azioni e impostazioni, entrambi sotto le 800 righe; categorie `os.Logger` strutturate registrano ciclo di vita e fallimenti con i valori dinamici marcati privati.
+
+#### Limiti noti
+- Nessuna notarizzazione: senza account Apple Developer il primo avvio richiede ancora "Apri comunque"; la Cask di Homebrew rimuove la quarantena.
+- Le bandiere coprono solo IPv4; i peer IPv6 mostrano il badge generico (la lookup è offline in entrambi i casi).
+
 ## [1.16.0] — 2026-11-20
 
 ### English

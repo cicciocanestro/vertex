@@ -332,10 +332,12 @@ richiede dipendenze per entrambe le architetture.
   JSON, dettagli file/tracker, resume data, priorità, validazione percorsi e comandi.
 - `Sources/VertexKit` — libreria principale:
   - `Engine/Preferences.swift` — chiavi, default, validazione preferenze, configurazione sessione e migrazione della password proxy verso il Portachiavi;
-  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — ciclo di vita della sessione, polling serializzato e azioni utente;
+  - `Engine/SessionController.swift` — actor che possiede il puntatore libtorrent: creazione, poll, dettagli e comandi non escono mai da lì;
+  - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift`, `TorrentEngine+Settings.swift` — stato UI, polling adattivo e azioni utente instradate dall'actor;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno;
   - `Views/` — lista (pill di stato, colonne estese, navigazione da tastiera), inspector ridimensionabile, impostazioni a sidebar, sheet di aggiunta, diagnostica, status bar;
-  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi, lookup GeoIP offline;
+  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi, storage della password proxy, lookup GeoIP offline;
+  - `Diagnostics/Log.swift` — categorie `os.Logger` strutturate, valori dinamici privati per default;
   - `Design/` — palette, componenti condivisi, chrome delle modali;
   - `Models/` — modelli snapshot, filtri, ordinamento, navigazione da tastiera, priorità file;
   - `DebugSupport.swift` — dati demo e cattura schermo, solo DEBUG.
@@ -345,6 +347,7 @@ richiede dipendenze per entrambe le architetture.
 - `Scripts/` — build dipendenze fissate, verifica bundle, DMG, controllo localizzazioni,
   controllo toolchain, generazione della tabella GeoIP e test runner.
 - `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabella GeoIP inclusa.
+- `docs/` — decision record architetturali e modello di minaccia.
 - `.github/workflows/ci.yml` — build/test su push e PR; release sui tag.
 
 ### Sviluppo e test
@@ -357,14 +360,16 @@ richiede dipendenze per entrambe le architetture.
 ```
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/` (testo e
-LCOV). La CI carica entrambi. La suite copre formattatori, decodifica snapshot JSON,
-modelli, preferenze, tabella GeoIP offline, ciclo vitale del bridge C++, engine (aggiunta,
-dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da tastiera,
-raggiungibilità rete con loader HTTP finto e routing dei comandi. I test d'integrazione su loopback coprono
-trasferimenti v1/v2, ricaricamento del resume, priorità file, rimozione e failure path
-senza tracker esterni. Le viste SwiftUI
-e le varianti modali vengono renderizzate off-screen con `ImageRenderer`; lo smoke test
-UPnP/NAT-PMP gira solo con `VERTEX_TEST_UPNP=1` in CI.
+LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore e impone una
+soglia di copertura. La suite (89 test) copre formattatori, decodifica snapshot JSON,
+modelli, preferenze, tabella GeoIP offline, ciclo vitale del bridge C++, magnet malformati,
+engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
+tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto
+e routing dei comandi. Un benchmark con 300 torrent protegge la cache dello snapshot
+(p95 locale ≈ 1,2 ms). I test d'integrazione su loopback coprono trasferimenti v1/v2,
+ricaricamento del resume, priorità file, rimozione e failure path senza tracker esterni. Le
+viste SwiftUI e le varianti modali vengono renderizzate off-screen con `ImageRenderer`; lo
+smoke test UPnP/NAT-PMP gira solo con `VERTEX_TEST_UPNP=1` in CI.
 
 Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
 (`VERTEX_DEMO=1`, `VERTEX_SNAPSHOT=/percorso/immagine.png`, `VERTEX_DEMO_TOAST=1`).

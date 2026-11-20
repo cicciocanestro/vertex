@@ -20,7 +20,7 @@ enum ProxyPasswordStorageTests {
 
             let file = workspace.root.appendingPathComponent("proxy-password")
             file.path.withCString { path in
-                setenv("VERTEX_PROXY_PASSWORD_FILE", path, 1)
+                _ = setenv("VERTEX_PROXY_PASSWORD_FILE", path, 1)
             }
             defaults.set(true, forKey: PrefKey.proxyPasswordInFile)
 

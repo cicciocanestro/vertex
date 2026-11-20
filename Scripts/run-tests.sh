@@ -17,7 +17,12 @@ COVERAGE_DIR="${VERTEX_COVERAGE_DIR:-$ROOT/dist/coverage}"
 mkdir -p "$(dirname "$REPORT")" "$COVERAGE_DIR"
 
 echo "→ Compilazione della suite con coverage…"
+WARNING_FLAGS=()
+if [[ "${VERTEX_WARNINGS_AS_ERRORS:-0}" == "1" ]]; then
+    WARNING_FLAGS=(-Xswiftc -warnings-as-errors)
+fi
 swift build -c debug \
+    "${WARNING_FLAGS[@]}" \
     -Xswiftc -profile-generate \
     -Xswiftc -profile-coverage-mapping
 # `--show-bin-path` only prints the build directory; it does not compile.
@@ -58,7 +63,7 @@ if [ -f "$PROFILE" ]; then
             # Regression gate: the total line coverage may not fall below the
             # recorded floor. Raise VERTEX_MIN_COVERAGE as coverage improves.
             total="$(awk '/^TOTAL/ {gsub("%", "", $4); print $4}' "$COVERAGE_DIR/coverage.txt")"
-            minimum="${VERTEX_MIN_COVERAGE:-54}"
+            minimum="${VERTEX_MIN_COVERAGE:-55}"
             if [ -n "$total" ] && ! awk -v t="$total" -v m="$minimum" \
                 'BEGIN { exit (t + 0 >= m + 0) ? 0 : 1 }'; then
                 echo "✗ Coverage ${total}% sotto il minimo ${minimum}%" >&2

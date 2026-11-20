@@ -133,6 +133,7 @@ package final class TorrentEngine: ObservableObject {
         }
 
         guard outcome.started else {
+            Log.engine.error("startup failed: \(outcome.error ?? "unknown", privacy: .private)")
             hasSession = false
             startupError = Self.sessionFailureDetail(
                 outcome.error,
@@ -300,6 +301,7 @@ package final class TorrentEngine: ObservableObject {
         }
 
         // Both attempts failed: put the preference back and surface a retry view.
+        Log.engine.error("session restart failed: \(outcome.error ?? "unknown", privacy: .private)")
         UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
         sessionPexEnabled = oldPex
         hasSession = false

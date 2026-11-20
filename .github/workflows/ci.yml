@@ -114,6 +114,9 @@ jobs:
           # Enables the best-effort UPnP/NAT-PMP smoke test. Local test runs
           # never touch the user's router because the gate stays closed.
           VERTEX_TEST_UPNP: "1"
+          # A new warning must fail the build: the local toolchain is newer
+          # than the CI one, so the stricter compiler is the real gate.
+          VERTEX_WARNINGS_AS_ERRORS: "1"
         run: ./build.sh test
 
       - name: Verify test artifacts

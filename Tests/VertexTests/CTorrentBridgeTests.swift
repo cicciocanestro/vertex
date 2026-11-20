@@ -653,6 +653,151 @@ enum CTorrentBridgeTests {
                 "Uno snapshot concorrente non è un JSON valido"
             )
         }
+
+        TestRunner.run("Snapshot: 300 torrent e cache degli aggiornamenti") {
+            try snapshotBenchmark()
+        }
+
+        TestRunner.run("Bridge: input malevoli o malformati") {
+            try withRawSession(port: 6885) { session, _, download, _ in
+                let rejected = [
+                    "",
+                    "magnet:",
+                    "magnet:?xt=urn:btih:",
+                    "magnet:?xt=urn:btih:zzzz",
+                    "magnet:?xt=urn:btih:" + String(repeating: "g", count: 40),
+                    String(repeating: "m", count: 100_000)
+                ]
+                for raw in rejected {
+                    let rc = raw.withCString { uri in
+                        download.path.withCString { path in
+                            vt_add_magnet(session, uri, path, 1, 0)
+                        }
+                    }
+                    try TestRunner.assertTrue(
+                        rc != 0,
+                        "input accettato: \(raw.prefix(40))"
+                    )
+                    if let error = vt_last_error(session) { vt_free_string(error) }
+                }
+
+                // A valid infohash with a huge non-ASCII name may be accepted;
+                // what matters is that it cannot crash or corrupt the snapshot.
+                let hugeName = "magnet:?xt=urn:btih:"
+                    + String(repeating: "0", count: 40)
+                    + "&dn=" + String(repeating: "é", count: 4096)
+                _ = hugeName.withCString { uri in
+                    download.path.withCString { path in
+                        vt_add_magnet(session, uri, path, 1, 0)
+                    }
+                }
+                if let error = vt_last_error(session) { vt_free_string(error) }
+
+                let detail = "no-such-id".withCString { vt_detail_json(session, $0) }
+                if let detail {
+                    defer { vt_free_string(detail) }
+                    let decoded = try JSONDecoder().decode(
+                        TorrentDetail.self,
+                        from: Data(String(cString: detail).utf8)
+                    )
+                    try TestRunner.assertTrue(
+                        decoded.files.isEmpty,
+                        "Un id inesistente non deve produrre file"
+                    )
+                }
+                _ = try Self.decodeSnapshot(session)
+            }
+        }
+    }
+
+    /// Guards the state_update_alert cache: 300 idle torrents must not turn the
+    /// poll into 300 `status()` queries. The budget is deliberately generous
+    /// (debug bridge build, shared CI runner); the printed numbers are the
+    /// measurement, the assertion only catches a return to the O(N) path.
+    static func snapshotBenchmark() throws {
+        let count = 300
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+        let download = try workspace.directory("downloads")
+        let resume = try workspace.directory("resume")
+
+        let session = download.path.withCString { dlPath in
+            resume.path.withCString { resPath in
+                vt_session_create_full(dlPath, resPath, 6884, 0, 0, 0, 0, 0, 0, nil, nil)
+            }
+        }
+        guard let session else {
+            throw TestFailure(message: "sessione non creata", file: #file, line: #line)
+        }
+        defer { vt_session_destroy(session) }
+
+        for index in 0..<count {
+            let hash = String(format: "%040x", index + 1)
+            let magnet = "magnet:?xt=urn:btih:\(hash)&dn=bench-\(index)"
+            let rc = magnet.withCString { uri in
+                download.path.withCString { path in
+                    vt_add_magnet(session, uri, path, 1, 0)
+                }
+            }
+            if rc != 0 {
+                throw TestFailure(
+                    message: "add magnet \(index) fallita: \(String(cString: vt_last_error(session)))",
+                    file: #file,
+                    line: #line
+                )
+            }
+        }
+
+        // Warm-up: the first poll fills the cache and pays the cold path.
+        _ = Self.drainSnapshot(session)
+
+        var samples: [Double] = []
+        for _ in 0..<20 {
+            let start = DispatchTime.now().uptimeNanoseconds
+            vt_session_poll(session)
+            let json = vt_snapshot_json(session)
+            if let json { vt_free_string(json) }
+            let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+            samples.append(elapsed)
+        }
+        samples.sort()
+        let p50 = samples[samples.count / 2]
+        let p95 = samples[Int(Double(samples.count) * 0.95)]
+        print(String(format: "  Snapshot: %d torrent, p50 %.2f ms, p95 %.2f ms", count, p50, p95))
+
+        let snapshot = try Self.decodeSnapshot(session)
+        try TestRunner.assertEqual(snapshot.torrents.count, count, "Lo snapshot deve elencare tutti i torrent")
+        try TestRunner.assertTrue(snapshot.torrents.allSatisfy { $0.paused }, "I torrent aggiunti in pausa devono risultare in pausa")
+
+        // Change one torrent through the bridge: the alert must refresh the
+        // cache, so the next snapshot cannot keep reporting it as paused.
+        let firstID = snapshot.torrents[0].id
+        try TestRunner.assertEqual(
+            firstID.withCString { vt_control(session, $0, "resume") },
+            0,
+            "resume deve riuscire"
+        )
+        _ = Self.drainSnapshot(session)
+        let refreshed = try Self.decodeSnapshot(session)
+        let resumed = refreshed.torrents.first { $0.id == firstID }
+        try TestRunner.assertNotNil(resumed, "Il torrent ripreso deve restare nello snapshot")
+        try TestRunner.assertFalse(resumed?.paused ?? true, "La cache deve riflettere il resume")
+
+        try TestRunner.assertTrue(p95 < 50, "p95 dello snapshot troppo alto: \(p95) ms")
+    }
+
+    private static func drainSnapshot(_ session: OpaquePointer) -> String? {
+        vt_session_poll(session)
+        guard let pointer = vt_snapshot_json(session) else { return nil }
+        defer { vt_free_string(pointer) }
+        return String(cString: pointer)
+    }
+
+    private static func decodeSnapshot(_ session: OpaquePointer) throws -> VertexSnapshot {
+        guard let json = drainSnapshot(session) else {
+            throw TestFailure(message: "snapshot nil", file: #file, line: #line)
+        }
+        return try JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
     }
 
     /// Creates a raw C session in a temporary workspace and destroys it at the

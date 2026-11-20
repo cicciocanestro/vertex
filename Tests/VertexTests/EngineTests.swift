@@ -6,6 +6,39 @@ enum EngineTests {
     static func runAll() {
         print("\n\u{001B}[1m[Suite: EngineTests]\u{001B}[0m")
 
+        TestRunner.run("Engine: intervallo di polling adattivo") {
+            try onMain {
+                try TestRunner.assertEqual(
+                    TorrentEngine.pollInterval(
+                        downloadRate: 0, uploadRate: 0, hasUnfinished: false, isAppActive: true
+                    ),
+                    1.6,
+                    "Una libreria inattiva deve diradare i poll"
+                )
+                try TestRunner.assertEqual(
+                    TorrentEngine.pollInterval(
+                        downloadRate: 1024, uploadRate: 0, hasUnfinished: false, isAppActive: true
+                    ),
+                    0.8,
+                    "Il traffico in corso deve usare il ritmo rapido"
+                )
+                try TestRunner.assertEqual(
+                    TorrentEngine.pollInterval(
+                        downloadRate: 0, uploadRate: 0, hasUnfinished: true, isAppActive: true
+                    ),
+                    0.8,
+                    "Un download incompleto deve usare il ritmo rapido"
+                )
+                try TestRunner.assertEqual(
+                    TorrentEngine.pollInterval(
+                        downloadRate: 1024, uploadRate: 1024, hasUnfinished: true, isAppActive: false
+                    ),
+                    2.5,
+                    "In background il poll deve rallentare comunque"
+                )
+            }
+        }
+
         TestRunner.run("Engine: magnet, selezione e dettaglio") {
             let workspace = try IntegrationWorkspace()
             let engine = try makeEngine(in: workspace, name: "magnet")

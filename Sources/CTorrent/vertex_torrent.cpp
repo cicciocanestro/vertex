@@ -396,6 +396,10 @@ struct vt_session
     std::unordered_set<std::string> removed_ids_set;
     std::chrono::steady_clock::time_point last_stats;
     std::chrono::steady_clock::time_point last_resume_save;
+    // Last known status per torrent, refreshed by state_update_alert. The
+    // snapshot reads this cache instead of calling status() on every handle:
+    // with a large library that per-handle query dominates the poll.
+    std::unordered_map<std::string, lt::torrent_status> status_cache;
     // Serializes every public entry point: the bridge owns mutable state
     // (errors, portmap, config) and libtorrent calls are synchronous. A caller
     // may therefore use one session from several threads.
@@ -1273,6 +1277,20 @@ void vt_session_poll(vt_session* session)
             session->last_resume_save = now;
         }
 
+        // Ask for the torrents that changed since the last poll. The resulting
+        // alert fills status_cache, so the snapshot only queries the handles it
+        // has never seen (first poll after a resume) instead of all of them.
+        try
+        {
+            session->session->post_torrent_updates(
+                lt::torrent_handle::query_name
+                | lt::torrent_handle::query_save_path
+                | lt::torrent_handle::query_accurate_download_counters);
+        }
+        catch (...)
+        {
+        }
+
         std::vector<lt::alert*> alerts;
         session->session->pop_alerts(&alerts);
         for (auto* alert : alerts)
@@ -1381,6 +1399,19 @@ void vt_session_poll(vt_session* session)
                 if (socks->error)
                     session->proxy_error = socks->error.message();
             }
+            else if (auto* update = lt::alert_cast<lt::state_update_alert>(alert))
+            {
+                for (auto const& status : update->status)
+                {
+                    try
+                    {
+                        session->status_cache[to_hex(status.info_hashes.get_best())] = status;
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
             // No peer_connect_alert handler here on purpose: its alert category
             // (`connect`) is not part of the session alert mask, so the alert
             // never arrives. The proxy error is cleared by the TCP health probe
@@ -1411,17 +1442,37 @@ char* vt_snapshot_json(vt_session* session)
         int active = 0;
         int paused = 0;
 
+        auto handles = session->session->get_torrents();
+        // Drop the cache of removed torrents once it is clearly larger than the
+        // live set; the snapshot repopulates it lazily.
+        if (session->status_cache.size() > handles.size() * 2 + 64)
+            session->status_cache.clear();
+
         out << "{\"torrents\":[";
         bool first = true;
-        for (auto const& handle : session->session->get_torrents())
+        for (auto const& handle : handles)
         {
             try
             {
                 // Only the fields used below: skip pieces and verified pieces, but keep
                 // accurate counters so progress/ETA don't jump by whole pieces.
-                auto status = handle.status(lt::torrent_handle::query_name
-                                            | lt::torrent_handle::query_save_path
-                                            | lt::torrent_handle::query_accurate_download_counters);
+                auto const query = lt::torrent_handle::query_name
+                                   | lt::torrent_handle::query_save_path
+                                   | lt::torrent_handle::query_accurate_download_counters;
+                std::string const cache_id = to_hex(handle.info_hashes().get_best());
+                lt::torrent_status status;
+                auto cached = session->status_cache.find(cache_id);
+                if (cached != session->status_cache.end())
+                {
+                    status = cached->second;
+                }
+                else
+                {
+                    // Cold cache (first poll after a resume): one direct query,
+                    // then the state_update_alert keeps the entry fresh.
+                    status = handle.status(query);
+                    session->status_cache[cache_id] = status;
+                }
 
                 // Build the whole object in its own stream: `append_torrent_json`
                 // writes dozens of fields, and an exception in the middle of it
