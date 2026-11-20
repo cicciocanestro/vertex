@@ -1,14 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.1] — 2026-11-20
 
 ### English
-- **Network leak test**: a loopback tracker stub and a SOCKS5 stub prove that with the proxy enabled the tracker receives zero direct connections, while the proxy is contacted; the inverse run without a proxy keeps the assertion meaningful.
-- **Sanitizers in CI**: the whole suite now runs under ThreadSanitizer and AddressSanitizer on every non-tag build (`Scripts/run-sanitizers.sh thread|address`). 91 tests.
+#### Security & Reliability
+- **Network leak test**: a loopback tracker stub and a SOCKS5 stub add a magnet whose only tracker is the direct stub, then assert that with the proxy enabled the tracker receives **zero** direct TCP connections while the proxy is contacted. The inverse run without a proxy requires the tracker to be reached, so the negative assertion cannot pass vacuously. This proves the fail-closed promise at the network level, not just at the bridge.
+- **Sanitizers on every change**: the entire suite runs under ThreadSanitizer and AddressSanitizer in CI on every non-tag build (`Scripts/run-sanitizers.sh thread|address`). 91 tests pass under both; the pinned C++ dependencies stay uninstrumented on purpose, so the report covers the Swift code and the bridge we own.
+- **DMG creation survives a busy runner**: `hdiutil create` intermittently returns "Resource busy" when another job is releasing a volume. The script retries three times with a short backoff instead of failing a green build.
+
+#### Notes
+- The snapshot benchmark keeps its p95 ceiling only outside sanitizers: instrumented builds measure the instrumentation (56 ms under ASan, 154 ms under TSan), not the poll.
 
 ### Italiano
-- **Test di leak di rete**: un tracker su loopback e uno stub SOCKS5 dimostrano che con il proxy attivo il tracker riceve zero connessioni dirette, mentre il proxy viene contattato; l'esecuzione inversa senza proxy rende l'asserzione significativa.
-- **Sanitizer in CI**: l'intera suite gira sotto ThreadSanitizer e AddressSanitizer su ogni build non di release (`Scripts/run-sanitizers.sh thread|address`). 91 test.
+#### Sicurezza e Affidabilità
+- **Test di leak di rete**: un tracker su loopback e uno stub SOCKS5 aggiungono un magnet che ha come unico tracker lo stub diretto, poi verificano che con il proxy attivo il tracker riceva **zero** connessioni TCP dirette mentre il proxy viene contattato. L'esecuzione inversa senza proxy richiede che il tracker sia raggiunto, quindi l'asserzione negativa non può passare per caso. È la promessa fail-closed provata a livello di rete, non solo sul bridge.
+- **Sanitizer su ogni modifica**: l'intera suite gira sotto ThreadSanitizer e AddressSanitizer in CI su ogni build non di release (`Scripts/run-sanitizers.sh thread|address`). 91 test passano con entrambi; le dipendenze C++ fissate restano volutamente non strumentate, così il report copre il codice Swift e il bridge nostro.
+- **La DMG sopravvive a un runner occupato**: `hdiutil create` ogni tanto restituisce "Resource busy" mentre un altro job rilascia un volume. Lo script ritenta tre volte con un breve backoff invece di far fallire una build verde.
+
+#### Note
+- Il benchmark dello snapshot mantiene la soglia p95 solo fuori dai sanitizer: le build strumentate misurano la strumentazione (56 ms con ASan, 154 ms con TSan), non il poll.
 
 ## [1.17.0] — 2026-11-20
 
