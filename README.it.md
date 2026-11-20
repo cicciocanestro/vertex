@@ -70,6 +70,9 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   torrent v1 e v2.
 - Aggiunta da magnet, file `.torrent`, trascinamento, appunti, Finder o browser.
 - Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file (priorità Non scaricare/Normale/Alta), peer connessi e tracker.
+- **Bandiere dei paesi offline**: ogni peer connesso mostra la bandiera del paese (IPv4) o un
+  badge di rete locale. La tabella è inclusa nell'app (DB-IP Lite, CC BY 4.0): nessuna
+  richiesta di lookup e nessun indirizzo dei peer lascia la macchina.
 - Selezione multipla (`⌘`-clic, `⇧`-clic, `⌘A`) con pausa/ripresa e rimozione in blocco, più notifiche native macOS opzionali a download completato (su bundle firmato con Developer ID).
 - Pausa/ripresa, download sequenziale, resume data ed errori visibili.
 - Limiti globali di velocità, coda dei torrent attivi, porta, DHT, PEX, LSD e UPnP/NAT-PMP.
@@ -83,7 +86,8 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   un proxy anonimo (come Tor su `127.0.0.1:9050` o proxy VPN SOCKS5) con supporto opzionale
   all'autenticazione (password nel Portachiavi di macOS). Abilita automaticamente
   `anonymous_mode` rigoroso, disattiva UPnP/NAT-PMP
-  per prevenire leak dell'IP locale del router e blocca il traffico se il proxy cade.
+  per prevenire leak dell'IP locale del router, blocca il traffico se il proxy cade e chiude
+  le connessioni già aperte quando il proxy viene attivato o modificato.
 - **Diagnostica rete**: porta effettiva, IP locale, stato proxy, stato dei mapping e raggiungibilità TCP.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
 - **Nessuna telemetria**. Le uniche connessioni sono quelle BitTorrent e, solo quando avvii
@@ -254,6 +258,7 @@ avviso.
 - Stato e resume data: `~/Library/Application Support/Vertex/resume`
 - Preferenze: `UserDefaults` (`app.vertex.torrent`)
 - Password del proxy SOCKS5: Portachiavi di macOS (voce `app.vertex.torrent`), non in chiaro
+- Tabella dei paesi dei peer: inclusa nell'app (`Contents/Resources/GeoIP`), mai interrogata online
 
 Non è presente alcuna telemetria. L'app non è sandboxed e accede alle cartelle scelte e
 alla cartella di download.
@@ -303,7 +308,7 @@ richiede dipendenze per entrambe le architetture.
   - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift` — ciclo di vita della sessione, polling serializzato e azioni utente;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno;
   - `Views/` — lista (pill di stato, colonne estese, navigazione da tastiera), inspector ridimensionabile, impostazioni a sidebar, sheet di aggiunta, diagnostica, status bar;
-  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi;
+  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi, lookup GeoIP offline;
   - `Design/` — palette, componenti condivisi, chrome delle modali;
   - `Models/` — modelli snapshot, filtri, ordinamento, navigazione da tastiera, priorità file;
   - `DebugSupport.swift` — dati demo e cattura schermo, solo DEBUG.
@@ -311,8 +316,8 @@ richiede dipendenze per entrambe le architetture.
 - `Tests/VertexTests` — suite automatica, inclusi test d'integrazione libtorrent su loopback.
 - `Tests/Fixtures` — torrent deterministici v1/v2.
 - `Scripts/` — build dipendenze fissate, verifica bundle, DMG, controllo localizzazioni,
-  controllo toolchain e test runner.
-- `Resources/` — `Info.plist`, localizzazioni e licenze di terze parti.
+  controllo toolchain, generazione della tabella GeoIP e test runner.
+- `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabella GeoIP inclusa.
 - `.github/workflows/ci.yml` — build/test su push e PR; release sui tag.
 
 ### Sviluppo e test
@@ -326,9 +331,9 @@ richiede dipendenze per entrambe le architetture.
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/` (testo e
 LCOV). La CI carica entrambi. La suite copre formattatori, decodifica snapshot JSON,
-modelli, preferenze, ciclo vitale del bridge C++, engine (aggiunta, dettaglio, priorità,
-pausa/ripresa, riavvio PEX, shutdown), navigazione da tastiera, raggiungibilità rete con
-loader HTTP finto e routing dei comandi. I test d'integrazione su loopback coprono
+modelli, preferenze, tabella GeoIP offline, ciclo vitale del bridge C++, engine (aggiunta,
+dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da tastiera,
+raggiungibilità rete con loader HTTP finto e routing dei comandi. I test d'integrazione su loopback coprono
 trasferimenti v1/v2, ricaricamento del resume, priorità file, rimozione e failure path
 senza tracker esterni. Le viste SwiftUI
 e le varianti modali vengono renderizzate off-screen con `ImageRenderer`; lo smoke test
@@ -343,6 +348,7 @@ Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
   per entrambe le architetture.
 - Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper. Il
   supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
+- Le bandiere dei peer coprono solo IPv4: i peer IPv6 non mostrano bandiera.
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
 - Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
 - La DMG è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).

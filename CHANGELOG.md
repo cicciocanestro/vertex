@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.16.0] — 2026-11-20
+
+### English
+#### Features
+- **Offline country flags for peers**: the Inspector peer list now shows an ISO country flag for IPv4 peers and a local-network badge for LAN addresses. The table is generated from DB-IP Lite (CC BY 4.0) by `Scripts/build-geoip.sh` and bundled at build time, so no peer address ever leaves the machine. Adds ~656 KB to the bundle; attribution is in `THIRD_PARTY_NOTICES.md` and the in-app licenses.
+- **Clearer Inspector**: the download folder is always visible (selectable path with a reveal button), and the four identical icon circles are replaced by a Pause/Resume control plus a "More actions" menu (Finder, Move files, Copy magnet, Remove).
+- **Selected rows read at a glance**: a leading mint bar and a stronger fill, so the active row is visible in the light theme too.
+
+#### Security & Reliability
+- **SOCKS5 actually fails closed**: enabling or changing the proxy now closes the peer connections opened before the change; applying settings alone kept them running over the real address. A proxy request without a host fails explicitly instead of silently configuring clearnet, both at runtime and at session creation.
+- **Keychain**: "no item" is now distinct from "read failed", so a transient failure no longer caches an empty password for the whole process. The engine retries off the main thread with backoff and re-applies the configuration; writes from the settings sheet no longer run on the main actor.
+- **Engine lifecycle**: a PEX restart diffs against the configuration used to create the session (no port rebind or UPnP reset on every toggle), the fallback branch applies edits made during the restart, and a session that cannot be restored shows the retry view instead of an empty library. Add/move completions are always answered, commands and batch operations report when they cannot be queued or when individual torrents fail, and a storage move is confirmed only when the save path actually changes.
+
+#### Build, Release & CI
+- **Atomic builds**: the app is assembled in a staging bundle and swapped in only after verification, so a failed build no longer destroys the last good artifact; a failed dependency build restores the previous prefix instead of deleting it.
+- **Release pipeline**: new lint job (`bash -n`, ShellCheck errors) and plist/strings validation; dependency cache disabled on tags; opt-in signed-release gate; notarization is mandatory when enabled; idempotent release uploads. `verify-bundle.sh` verifies every Mach-O individually, and `notarize.sh` derives the expected DMG, verifies the app inside the mounted image, uses a timeout, dumps notary logs on rejection, retries stapling and runs `spctl`.
+
+#### Accessibility & UI
+- Modals use minimum sizes with a scrollable settings rail, the window minimum is 900×640, Esc closes settings/diagnostics, and Return no longer closes the settings sheet while editing a field.
+- VoiceOver: selected state announced for filter chips, segmented controls and the settings rail; torrent rows expose state, progress and pause/remove actions; error and success toasts are announced.
+- Contrast and typography: readable muted text for the paused state, neutral pills, an accent bar on toasts with two-line details, and clearer row metrics.
+
+#### Tests
+- 80 tests (was 74), including the GeoIP table, proxy peer-drop/empty-host and add-during-shutdown. Flaky patterns removed: ephemeral ports, stable-window assertions instead of fixed sleeps, complete preference backup, escaped JSON fixtures. Coverage no longer fails a green suite, and a clean release build works again.
+
+### Italiano
+#### Novità e Funzionalità
+- **Bandiere dei paesi offline per i peer**: la lista Peer dell'Inspector mostra la bandiera ISO per i peer IPv4 e un badge di rete locale per gli indirizzi LAN. La tabella è generata da DB-IP Lite (CC BY 4.0) con `Scripts/build-geoip.sh` e inclusa nel bundle in fase di build: nessun indirizzo dei peer lascia la macchina. Aggiunge ~656 KB al bundle; l'attribuzione è in `THIRD_PARTY_NOTICES.md` e nelle licenze dell'app.
+- **Inspector più chiaro**: la cartella di download è sempre visibile (percorso selezionabile con pulsante di apertura) e i quattro cerchi-icona identici diventano un controllo Pausa/Riprendi più un menu "Altre azioni" (Finder, Sposta file, Copia magnet, Rimuovi).
+- **Righe selezionate leggibili a colpo d'occhio**: barra laterale mint e riempimento più deciso, così la riga attiva si distingue anche in tema chiaro.
+
+#### Sicurezza e Affidabilità
+- **SOCKS5 davvero fail-closed**: attivare o cambiare il proxy ora chiude le connessioni peer aperte prima della modifica; applicare solo le impostazioni le lasciava attive sull'indirizzo reale. Una richiesta di proxy senza host fallisce esplicitamente invece di configurare il clearnet in silenzio, sia a runtime sia alla creazione della sessione.
+- **Portachiavi**: "nessun elemento" è ora distinto da "lettura fallita", quindi un errore transitorio non memorizza più una password vuota per tutto il processo. L'engine ritenta fuori dal main con backoff e riapplica la configurazione; le scritture dal foglio impostazioni non girano più sul main actor.
+- **Ciclo di vita del motore**: il riavvio PEX confronta con la configurazione usata per creare la sessione (niente rebind della porta né reset UPnP a ogni toggle), il ramo di fallback applica le modifiche fatte durante il riavvio e una sessione non ripristinabile mostra la vista di retry invece di una libreria vuota. Le completion di aggiunta/spostamento rispondono sempre, comandi e operazioni batch segnalano quando non possono essere accodati o quando singoli torrent falliscono, e lo spostamento è confermato solo quando il percorso di salvataggio cambia davvero.
+
+#### Build, Rilascio e CI
+- **Build atomiche**: l'app viene assemblata in un bundle di staging e sostituita solo dopo la verifica, quindi una build fallita non distrugge più l'ultimo artefatto valido; una build delle dipendenze fallita ripristina il prefix precedente invece di cancellarlo.
+- **Pipeline di rilascio**: nuovo job di lint (`bash -n`, errori ShellCheck) e validazione di plist/strings; cache delle dipendenze disabilitata sui tag; gate opzionale per le release firmate; notarizzazione obbligatoria quando abilitata; upload di release idempotente. `verify-bundle.sh` verifica ogni Mach-O singolarmente e `notarize.sh` deriva la DMG attesa, verifica l'app dentro l'immagine montata, usa un timeout, scarica i log in caso di rifiuto, ritenta lo stapling ed esegue `spctl`.
+
+#### Accessibilità e UI
+- Le modali usano dimensioni minime con rail delle impostazioni scrollabile, il minimo della finestra è 900×640, Esc chiude impostazioni/diagnostica e Return non chiude più il foglio impostazioni mentre si modifica un campo.
+- VoiceOver: stato selezionato annunciato per chip filtro, controlli segmentati e rail impostazioni; le righe torrent espongono stato, progresso e azioni pausa/rimuovi; i toast di errore e successo vengono annunciati.
+- Contrasto e tipografia: testo attenuato leggibile per lo stato in pausa, pillole neutre, barra d'accento sui toast con dettaglio su due righe e metriche di riga più chiare.
+
+#### Test
+- 80 test (erano 74), inclusi tabella GeoIP, chiusura peer/assenza host nel proxy e aggiunta durante lo shutdown. Rimossi i pattern fragili: porte effimere, verifiche su finestra temporale al posto di sleep fissi, backup completo delle preferenze, fixture JSON con escaping. La coverage non fa più fallire una suite verde e la build release pulita funziona di nuovo.
+
 ## [1.15.0] — 2026-11-19
 
 ### English
