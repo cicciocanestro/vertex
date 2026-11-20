@@ -154,10 +154,18 @@ enum PreferencesTests {
             // Snapshot and restore the affected keys so the test does not leak into
             // the real user defaults.
             let defaults = UserDefaults.standard
+            // Every key the validation may touch, including the ones it only
+            // clamps indirectly: a partial backup leaked values into the real
+            // preference domain of the test binary (and skipped maxActiveTorrents,
+            // which the test asserts below).
             let keys = [
                 PrefKey.listenPort, PrefKey.downloadLimitKB, PrefKey.uploadLimitKB,
-                PrefKey.bindAddress, PrefKey.appearance, PrefKey.downloadPath,
-                PrefKey.proxyPort, PrefKey.proxyHost, PrefKey.seedRatioLimit
+                PrefKey.maxActiveTorrents, PrefKey.bindAddress, PrefKey.appearance,
+                PrefKey.downloadPath, PrefKey.proxyPort, PrefKey.proxyHost,
+                PrefKey.proxyUser, PrefKey.proxyPassword, PrefKey.proxyEnabled,
+                PrefKey.seedRatioLimit, PrefKey.dhtEnabled, PrefKey.pexEnabled,
+                PrefKey.lsdEnabled, PrefKey.upnpEnabled, PrefKey.startPaused,
+                PrefKey.sequentialDefault, PrefKey.notificationsEnabled
             ]
             let backup: [String: Any?] = Dictionary(uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
             defer {

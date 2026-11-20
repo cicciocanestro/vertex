@@ -52,8 +52,16 @@ enum Keychain {
         return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
     }
 
-    static func proxyPassword() -> String? {
-        guard isEnabled else { return nil }
+    enum ReadError: Error, Equatable {
+        case disabled
+        case unexpectedStatus(OSStatus)
+    }
+
+    /// Reads the password, keeping "there is no item" (`success(nil)`) distinct
+    /// from "the read failed": the caller must retry the latter instead of
+    /// caching an empty password for the rest of the process.
+    static func readProxyPassword() -> Result<String?, ReadError> {
+        guard isEnabled else { return .failure(.disabled) }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -63,12 +71,25 @@ enum Keychain {
         ]
 
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return .success(nil)
         }
-        return value
+        guard status == errSecSuccess else {
+            return .failure(.unexpectedStatus(status))
+        }
+        guard let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return .success(nil)
+        }
+        return .success(value)
+    }
+
+    static func proxyPassword() -> String? {
+        if case .success(let value) = readProxyPassword() {
+            return value
+        }
+        return nil
     }
 
     static func deleteProxyPassword() {

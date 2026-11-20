@@ -467,20 +467,16 @@ enum ModelsTests {
                     added: Int64(index)
                 ))
             }
-            let started = Date()
             let load = TorrentListPipeline.applyWithCounts(
                 to: many,
                 filter: .all,
                 search: "Torrent",
                 sort: .name
             )
-            let elapsed = Date().timeIntervalSince(started)
+            // No wall-clock assertion: a seconds threshold on a shared CI runner
+            // is a flake generator, not a regression test.
             try TestRunner.assertEqual(load.torrents.count, 5_000)
             try TestRunner.assertEqual(load.counts[.all, default: -1], 5_000)
-            try TestRunner.assertTrue(
-                elapsed < 5,
-                "La pipeline di 5000 torrent ha impiegato \(elapsed)s"
-            )
         }
 
         TestRunner.run("Coda: fase queued, categoria e decodifica") {

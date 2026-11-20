@@ -177,6 +177,10 @@ package enum Preferences {
     private static let proxyPasswordLock = NSLock()
     /// Guarded by `proxyPasswordLock`: every access below takes the lock.
     nonisolated(unsafe) private static var cachedProxyPassword: String?
+    /// True once the Keychain read completed (even when there is no item). A
+    /// failed read leaves it false, so the engine can retry instead of serving
+    /// an empty password for the whole process.
+    nonisolated(unsafe) private static var proxyPasswordLoaded = false
 
     /// The SOCKS5 password for the current configuration. Never touches the
     /// Keychain: it returns the cached value, or the not-yet-migrated plaintext
@@ -197,29 +201,48 @@ package enum Preferences {
     /// already contains the password.
     package static func warmProxyPasswordCache() {
         proxyPasswordLock.lock()
-        let alreadyLoaded = cachedProxyPassword != nil
+        let alreadyLoaded = proxyPasswordLoaded
         proxyPasswordLock.unlock()
         if alreadyLoaded { return }
 
         let defaults = UserDefaults.standard
         let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
 
-        var resolved = Keychain.proxyPassword()
-        if resolved == nil, !legacy.isEmpty {
+        let resolved: String?
+        switch Keychain.readProxyPassword() {
+        case .success(let value):
+            resolved = value
+        case .failure:
+            // Locked keychain, denied prompt or a different signature: do not
+            // cache "no password" forever. The cache stays cold, `proxyPassword`
+            // keeps the legacy fallback and the engine retries later.
+            return
+        }
+
+        var value = resolved
+        if value == nil, !legacy.isEmpty {
             // One-time migration. A failed write must not lose the value, so the
             // plaintext is dropped only after the Keychain accepted it; when the
             // Keychain is unavailable (tests) the cache stays cold and
             // `proxyPassword` keeps reading the plaintext.
             guard Keychain.setProxyPassword(legacy) else { return }
-            resolved = legacy
+            value = legacy
         }
-        if resolved != nil, !legacy.isEmpty {
+        if value != nil, !legacy.isEmpty {
             defaults.removeObject(forKey: PrefKey.proxyPassword)
         }
 
         proxyPasswordLock.lock()
-        cachedProxyPassword = resolved ?? ""
+        cachedProxyPassword = value ?? ""
+        proxyPasswordLoaded = true
         proxyPasswordLock.unlock()
+    }
+
+    /// Whether the Keychain read for the proxy password has completed.
+    package static var isProxyPasswordCacheLoaded: Bool {
+        proxyPasswordLock.lock()
+        defer { proxyPasswordLock.unlock() }
+        return proxyPasswordLoaded
     }
 
     /// One-time migration of the old plaintext password, kept for callers that
@@ -238,6 +261,7 @@ package enum Preferences {
             UserDefaults.standard.removeObject(forKey: PrefKey.proxyPassword)
             proxyPasswordLock.lock()
             cachedProxyPassword = value
+            proxyPasswordLoaded = true
             proxyPasswordLock.unlock()
         }
         return saved

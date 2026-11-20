@@ -25,7 +25,8 @@ BIN="$(swift build -c debug --show-bin-path)/VertexTestRunner"
 
 echo "→ Esecuzione test suite…"
 PROFILE="$COVERAGE_DIR/default.profraw"
-rm -f "$PROFILE" "$COVERAGE_DIR/default.profdata"
+rm -f "$PROFILE" "$COVERAGE_DIR/default.profdata" \
+    "$COVERAGE_DIR/coverage.txt" "$COVERAGE_DIR/coverage.lcov"
 
 set +e
 VERTEX_TEST_REPORT="$REPORT" \
@@ -36,20 +37,29 @@ TEST_STATUS=$?
 set -e
 
 if [ -f "$PROFILE" ]; then
-    echo "→ Generazione report coverage…"
-    xcrun llvm-profdata merge -sparse "$PROFILE" \
-        -o "$COVERAGE_DIR/default.profdata"
-    xcrun llvm-cov report "$BIN" \
-        -instr-profile="$COVERAGE_DIR/default.profdata" \
-        -ignore-filename-regex='Tests/VertexTests' \
-        > "$COVERAGE_DIR/coverage.txt"
-    xcrun llvm-cov export "$BIN" \
-        -instr-profile="$COVERAGE_DIR/default.profdata" \
-        -ignore-filename-regex='Tests/VertexTests' \
-        -format=lcov \
-        > "$COVERAGE_DIR/coverage.lcov"
-    printf 'Report:    %s\n' "$REPORT"
-    printf 'Coverage:  %s\n' "$COVERAGE_DIR/coverage.txt"
+    # With only the Command Line Tools the LLVM coverage tools may be missing.
+    # A green suite must not turn into a red build because of a report.
+    if xcrun -f llvm-profdata >/dev/null 2>&1 && xcrun -f llvm-cov >/dev/null 2>&1; then
+        echo "→ Generazione report coverage…"
+        if xcrun llvm-profdata merge -sparse "$PROFILE" \
+            -o "$COVERAGE_DIR/default.profdata" \
+            && xcrun llvm-cov report "$BIN" \
+                -instr-profile="$COVERAGE_DIR/default.profdata" \
+                -ignore-filename-regex='Tests/VertexTests' \
+                > "$COVERAGE_DIR/coverage.txt" \
+            && xcrun llvm-cov export "$BIN" \
+                -instr-profile="$COVERAGE_DIR/default.profdata" \
+                -ignore-filename-regex='Tests/VertexTests' \
+                -format=lcov \
+                > "$COVERAGE_DIR/coverage.lcov"; then
+            printf 'Report:    %s\n' "$REPORT"
+            printf 'Coverage:  %s\n' "$COVERAGE_DIR/coverage.txt"
+        else
+            echo "⚠ Generazione del report coverage fallita (i test restano validi)" >&2
+        fi
+    else
+        echo "⚠ Strumenti LLVM non disponibili: coverage saltata" >&2
+    fi
 else
     echo "⚠ LLVM non ha prodotto il profilo di coverage" >&2
 fi

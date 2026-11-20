@@ -90,6 +90,8 @@ package final class TorrentEngine: ObservableObject {
     var proxyCheckTick = 0
     var proxyHealthError: String?
     var isProxyProbeInFlight = false
+    var isWarmingProxyPassword = false
+    var lastProxyPasswordWarmAttempt: Date?
     /// Errors shown in the last few seconds. libtorrent reports an add failure
     /// twice (synchronously and through add_torrent_alert); the alert path uses
     /// this to avoid showing the same message again.
@@ -487,6 +489,39 @@ package final class TorrentEngine: ObservableObject {
         guard let session else { return nil }
         return sessionQueue.sync {
             body(session)
+        }
+    }
+
+    /// A Keychain read can fail transiently (locked keychain, denied prompt,
+    /// different signing identity). The cache then stays cold and the session
+    /// runs without proxy credentials, so retry off the main thread while the
+    /// user asked for a proxy. Backed off, so a permanently unavailable
+    /// Keychain does not prompt on every poll.
+    func retryProxyPasswordWarmIfNeeded() {
+        guard !Preferences.isProxyPasswordCacheLoaded,
+              !isWarmingProxyPassword,
+              !isShuttingDown,
+              session != nil,
+              UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) else {
+            return
+        }
+        if let last = lastProxyPasswordWarmAttempt,
+           Date().timeIntervalSince(last) < 30 {
+            return
+        }
+        lastProxyPasswordWarmAttempt = Date()
+        isWarmingProxyPassword = true
+        sessionQueue.async { [weak self] in
+            Preferences.warmProxyPasswordCache()
+            let loaded = Preferences.isProxyPasswordCacheLoaded
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isWarmingProxyPassword = false
+                // The password may have arrived: re-apply so libtorrent gets it.
+                if loaded {
+                    self.applySettings()
+                }
+            }
         }
     }
 

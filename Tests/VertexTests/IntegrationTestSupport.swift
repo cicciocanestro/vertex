@@ -8,6 +8,7 @@ enum IntegrationTestError: Error, CustomStringConvertible {
     case fixture(String)
     case io(String)
     case timeout(String)
+    case assertion(String)
 
     var description: String {
         switch self {
@@ -15,6 +16,7 @@ enum IntegrationTestError: Error, CustomStringConvertible {
         case .fixture(let message): return "fixture: \(message)"
         case .io(let message): return "io: \(message)"
         case .timeout(let message): return "timeout: \(message)"
+        case .assertion(let message): return "assertion: \(message)"
         }
     }
 }
@@ -160,6 +162,22 @@ enum TestsSupport {
             Thread.sleep(forTimeInterval: 0.05)
         }
         throw IntegrationTestError.timeout(description)
+    }
+
+    /// Requires `condition` to hold for the whole window: a single sample cannot
+    /// prove "no bytes were transferred" or "it did not start by itself".
+    static func waitUntilStable(
+        _ description: String,
+        duration: TimeInterval = 1.2,
+        _ condition: () throws -> Bool
+    ) throws {
+        let deadline = Date().addingTimeInterval(duration)
+        while Date() < deadline {
+            guard try condition() else {
+                throw IntegrationTestError.assertion(description)
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
     }
 }
 

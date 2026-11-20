@@ -242,9 +242,14 @@ struct SettingsSheet: View {
         taskState.value = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
-            let saved = Preferences.setProxyPassword(password.value)
-            if saved { dirty.value = false }
             taskState.value = nil
+            // `SecItemUpdate` can block and may show an access prompt: keep it
+            // off the main thread so typing in the field never freezes the UI.
+            let value = password.value
+            let saved = await Task.detached(priority: .userInitiated) {
+                Preferences.setProxyPassword(value)
+            }.value
+            if saved { dirty.value = false }
             engine.applySettingsNow()
             if !saved {
                 engine.showToast(

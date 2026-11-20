@@ -144,7 +144,16 @@ if [ -n "$EXPECTED_ARCH" ] && [ "$BUNDLE_ARCHS" != "$EXPECTED_ARCH" ]; then
     exit 1
 fi
 
-if ! codesign --verify --deep --strict "$APP"; then
+# `--deep` is deprecated and only validates what it happens to find: verify
+# every Mach-O explicitly, with the same strict check, so a partially signed
+# dylib cannot hide inside the bundle.
+for file in "${MACHOS[@]}"; do
+    if ! codesign --verify --strict "$file" 2>/dev/null; then
+        echo "✗ Firma non valida: ${file#"$APP"/}" >&2
+        exit 1
+    fi
+done
+if ! codesign --verify --strict "$APP"; then
     echo "✗ Firma non valida per $APP" >&2
     exit 1
 fi

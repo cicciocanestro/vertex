@@ -15,6 +15,30 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: Lint shell scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Syntax check
+        run: |
+          for script in build.sh Scripts/*.sh; do
+            echo "· bash -n $script"
+            bash -n "$script"
+          done
+
+      - name: ShellCheck
+        # Errors only: the scripts are not lint-clean at warning level yet, and a
+        # release must not be blocked by style findings.
+        run: shellcheck -S error build.sh Scripts/*.sh
+
   build-and-test:
     name: Build, Test & Package (macOS 15, arm64)
     runs-on: macos-15
@@ -30,6 +54,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # build.sh and the pinned dependencies run in this checkout: keep the
+          # workflow token out of .git/config while they execute.
+          persist-credentials: false
 
       - name: Verify runner architecture
         run: |
@@ -61,7 +89,16 @@ jobs:
       - name: Verify localization parity
         run: ./Scripts/check-localization.sh
 
+      - name: Lint scripts and property lists
+        run: |
+          for script in build.sh Scripts/*.sh; do bash -n "$script"; done
+          plutil -lint Resources/Info.plist
+          for strings in Resources/*.lproj/*.strings; do plutil -lint "$strings"; done
+
       - name: Cache pinned engine dependencies
+        # A release artifact must be built from scratch: the cache carries the
+        # dependency stamp, and a cached tree is not a reproduced one.
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build/vertex-deps
@@ -107,6 +144,24 @@ jobs:
           source Scripts/app.env
           ./Scripts/verify-bundle.sh "dist/${VERTEX_APP_NAME}.app"
 
+      - name: Enforce signed release (opt-in)
+        # Set the repository variable VERTEX_REQUIRE_RELEASE_SIGNING=1 once a
+        # Developer ID certificate is available: from then on a tag cannot
+        # publish an ad-hoc build by accident.
+        if: startsWith(github.ref, 'refs/tags/v') && vars.VERTEX_REQUIRE_RELEASE_SIGNING == '1'
+        env:
+          VERTEX_SIGN_IDENTITY: ${{ secrets.VERTEX_SIGN_IDENTITY }}
+        run: |
+          source Scripts/app.env
+          if [ -z "${VERTEX_SIGN_IDENTITY:-}" ]; then
+            echo "::error::VERTEX_REQUIRE_RELEASE_SIGNING=1 ma il secret VERTEX_SIGN_IDENTITY è vuoto"
+            exit 1
+          fi
+          if codesign -dv --verbose=2 "dist/${VERTEX_APP_NAME}.app" 2>&1 | grep -q "Signature=adhoc"; then
+            echo "::error::Il bundle pubblicato è firmato ad-hoc"
+            exit 1
+          fi
+
       - name: Create DMG and checksum
         run: ./Scripts/make-dmg.sh --no-build
 
@@ -117,6 +172,8 @@ jobs:
         if: ${{ vars.VERTEX_ENABLE_NOTARIZATION == '1' }}
         env:
           VERTEX_NOTARY_PROFILE: ${{ vars.VERTEX_NOTARY_PROFILE }}
+          # With notarization enabled a missing profile is an error, not a skip.
+          VERTEX_NOTARIZATION_REQUIRED: "1"
         run: ./Scripts/notarize.sh
 
       - name: Verify DMG checksum
@@ -148,12 +205,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build-and-test
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download verified artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -171,11 +231,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            dist/Vertex-*.dmg \
-            dist/Vertex-*.dmg.sha256 \
-            --title "Vertex ${GITHUB_REF_NAME#v}" \
-            --generate-notes
+          # Idempotent: re-running the workflow for the same tag uploads the
+          # verified assets again instead of failing with "release exists".
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" \
+              dist/Vertex-*.dmg \
+              dist/Vertex-*.dmg.sha256 \
+              --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              dist/Vertex-*.dmg \
+              dist/Vertex-*.dmg.sha256 \
+              --title "Vertex ${GITHUB_REF_NAME#v}" \
+              --generate-notes
+          fi
 
       - name: Update Homebrew Tap (optional)
         env:

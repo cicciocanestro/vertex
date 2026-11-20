@@ -496,7 +496,10 @@ void apply_link_settings(lt::settings_pack& settings,
     settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
 }
 
-void configure_proxy_pack(vt_session* session,
+// Returns false when proxy_type asks for a proxy but no hostname was supplied.
+// The caller must fail instead of applying a clearnet configuration: a silent
+// fallback would leave the UI showing an active proxy that is not in use.
+bool configure_proxy_pack(vt_session* session,
                           lt::settings_pack& settings,
                           int proxy_type,
                           const char* hostname,
@@ -504,7 +507,13 @@ void configure_proxy_pack(vt_session* session,
                           const char* username,
                           const char* password)
 {
-    if (proxy_type == 1 && hostname && *hostname)
+    if (proxy_type == 1)
+    {
+        if (!hostname || !*hostname)
+            return false;
+    }
+
+    if (proxy_type == 1)
     {
         session->proxy_type = 1;
         session->proxy_host = hostname;
@@ -531,8 +540,9 @@ void configure_proxy_pack(vt_session* session,
         settings.set_bool(lt::settings_pack::proxy_peer_connections, true);
         settings.set_bool(lt::settings_pack::proxy_hostnames, true);
 
-        // Enforce strict anonymous mode: if the proxy fails, connections are never
-        // fallen back to the clearnet adapter and active connections drop.
+        // Enforce strict anonymous mode: if the proxy fails, libtorrent never
+        // falls back to the clearnet adapter. Existing connections are dropped
+        // by the caller (see drop_all_peer_connections).
         settings.set_bool(lt::settings_pack::anonymous_mode, true);
 
         // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
@@ -558,6 +568,28 @@ void configure_proxy_pack(vt_session* session,
         settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
         settings.set_bool(lt::settings_pack::enable_natpmp, session->upnp_enabled);
         reset_portmap_state(session);
+    }
+    return true;
+}
+
+// Applying proxy settings does not reconnect the peers that were established
+// before the change: libtorrent keeps serving them over the old path. Drop
+// them explicitly, so enabling a proxy cannot leave a transfer running from
+// the real address (the "fail-closed" promise of the SOCKS5 feature).
+void drop_all_peer_connections(vt_session* session)
+{
+    if (!session || !session->session)
+        return;
+    try
+    {
+        for (auto handle : session->session->get_torrents())
+        {
+            if (handle.is_valid())
+                handle.clear_peers();
+        }
+    }
+    catch (...)
+    {
     }
 }
 
@@ -825,13 +857,19 @@ vt_session* vt_session_create_configured(const char* download_dir,
         }
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             enable_dht, enable_upnp, enable_lsd);
-        if (proxy_type == 1 && proxy_host && *proxy_host)
+        if (proxy_type == 1)
         {
             // Configure SOCKS5 and anonymous_mode in the initial settings_pack
             // BEFORE starting lt::session and loading resume files, so no packet
-            // can leave over clearnet during startup.
-            configure_proxy_pack(session.get(), settings, proxy_type, proxy_host,
-                                 proxy_port, proxy_user, proxy_password);
+            // can leave over clearnet during startup. A missing host is an error,
+            // not a reason to start in clearnet.
+            if (!configure_proxy_pack(session.get(), settings, proxy_type, proxy_host,
+                                      proxy_port, proxy_user, proxy_password))
+            {
+                if (error_message)
+                    *error_message = ::strdup("Host proxy non valido");
+                return nullptr;
+            }
         }
         settings.set_str(lt::settings_pack::dht_bootstrap_nodes,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
@@ -2078,9 +2116,27 @@ int vt_apply_proxy_settings(vt_session* session,
 
     try
     {
+        bool const was_active = session->proxy_type == 1;
+        std::string const previous_host = session->proxy_host;
+        int const previous_port = session->proxy_port;
+        bool const previous_auth = session->proxy_auth;
+
         lt::settings_pack settings;
-        configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password);
+        if (!configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password))
+        {
+            session->last_error = "Host proxy non valido";
+            return -1;
+        }
         session->session->apply_settings(settings);
+
+        bool const now_active = session->proxy_type == 1;
+        bool const endpoint_changed = was_active != now_active
+            || (now_active
+                && (previous_host != session->proxy_host
+                    || previous_port != session->proxy_port
+                    || previous_auth != session->proxy_auth));
+        if (endpoint_changed)
+            drop_all_peer_connections(session);
         return 0;
     }
     VT_CATCH_ALL(session, -1)

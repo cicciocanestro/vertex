@@ -47,6 +47,7 @@ extension TorrentEngine {
         #endif
 
         guard !isShuttingDown, !isPollInFlight, let session else { return }
+        retryProxyPasswordWarmIfNeeded()
         isPollInFlight = true
         nextPollID += 1
         let pollID = nextPollID

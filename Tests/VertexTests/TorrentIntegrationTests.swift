@@ -61,6 +61,10 @@ enum TorrentIntegrationTests {
         TestRunner.run("SOCKS5 Proxy live: routing fail-closed con proxy non raggiungibile") {
             try proxyFailClosed()
         }
+
+        TestRunner.run("SOCKS5: attivazione del proxy e peer già connessi") {
+            try proxyDropsExistingPeers()
+        }
     }
 
     private static func transfer(_ fixture: IntegrationFixture) throws {
@@ -460,12 +464,12 @@ enum TorrentIntegrationTests {
             }
             return torrent.paused && !torrent.autoManaged
         }
-        Thread.sleep(forTimeInterval: 2)
-        try TestRunner.assertEqual(
-            try session.snapshot().torrents.filter { !$0.paused }.count,
-            1,
-            "Un torrent escluso dalla coda non deve avviarsi da solo"
-        )
+        try TestsSupport.waitUntilStable(
+            "un torrent escluso dalla coda non deve avviarsi da solo",
+            duration: 1.5
+        ) {
+            try session.snapshot().torrents.filter { !$0.paused }.count == 1
+        }
 
         // Resuming puts it back in the queue; the single slot is still taken.
         try session.control(torrentID: queuedID, action: "resume")
@@ -805,6 +809,69 @@ enum TorrentIntegrationTests {
         }
     }
 
+    /// Enabling the proxy must invalidate the connections that were opened in
+    /// clearnet: a settings apply alone leaves them running from the real
+    /// address, which defeats the fail-closed promise of the feature.
+    private static func proxyDropsExistingPeers() throws {
+        let fixture = IntegrationFixture.v1
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+
+        let seed = try IntegrationSwarm.makeSeed(fixture, workspace: workspace)
+        defer { seed.session.close() }
+
+        let downloadRoot = try workspace.directory("leech-proxy-drop")
+        let resumeRoot = try workspace.directory("leech-proxy-drop-resume")
+        let leechPort = try TestsSupport.freeTCPPort()
+        let leech = try BridgeSession(
+            downloadDirectory: downloadRoot,
+            resumeDirectory: resumeRoot,
+            port: leechPort
+        )
+        defer { leech.close() }
+
+        // An empty host must be rejected, not silently downgraded to clearnet.
+        let emptyResult = "".withCString { host in
+            vt_apply_proxy_settings(leech.pointer, 1, host, 1080, nil, nil)
+        }
+        try TestRunner.assertEqual(emptyResult, -1, "Un proxy senza host deve fallire")
+
+        let errorPointer = vt_last_error(leech.pointer)
+        let message = errorPointer.map { String(cString: $0) } ?? ""
+        if let errorPointer { vt_free_string(errorPointer) }
+        try TestRunner.assertTrue(
+            message.contains("Host proxy"),
+            "L'errore deve menzionare l'host, trovato: \(message)"
+        )
+
+        try leech.addTorrentFile(fixture.torrentURL.path, savePath: downloadRoot.path)
+        let torrent = try leech.waitForTorrent(fixture.rootName)
+        // The fixture is 48 KB and loopback moves it in milliseconds: cap the
+        // rate so the peer is still connected when the proxy is enabled.
+        try leech.applySettings(port: leechPort, downloadLimit: 2048)
+        try leech.addPeer(torrentID: torrent.id, port: seed.port)
+
+        try TestsSupport.waitFor("peer connesso prima del proxy", timeout: 15) {
+            let snapshot = try leech.snapshot()
+            guard let current = snapshot.torrents.first(where: { $0.id == torrent.id }) else {
+                return false
+            }
+            return current.peers > 0 || current.downloaded > 0
+        }
+
+        // A closed local port: libtorrent cannot re-establish the peer through
+        // the proxy, so the peer list must stay empty.
+        let deadProxyPort = try TestsSupport.freeTCPPort()
+        let applied = "127.0.0.1".withCString { host in
+            vt_apply_proxy_settings(leech.pointer, 1, host, Int32(deadProxyPort), nil, nil)
+        }
+        try TestRunner.assertEqual(applied, 0)
+
+        try TestsSupport.waitFor("nessun peer dopo l'attivazione del proxy", timeout: 10) {
+            try leech.detail(torrentID: torrent.id).peers.isEmpty
+        }
+    }
+
     private static func proxyFailClosed() throws {
         let fixture = IntegrationFixture.v1
         let workspace = try IntegrationWorkspace()
@@ -829,9 +896,10 @@ enum TorrentIntegrationTests {
         )
         let torrent = try leech.waitForTorrent(fixture.rootName)
 
-        // Point proxy to a closed local port (e.g. 59999).
-        // With proxy_peer_connections = true, no packets can escape directly to the seed.
-        let deadProxyPort = 59999
+        // Point the proxy to a port that is free on this machine: a hardcoded
+        // one can be occupied by another process and silently invalidate the
+        // "closed proxy" premise of the test.
+        let deadProxyPort = try TestsSupport.freeTCPPort()
         let proxyHost = "127.0.0.1"
         let setProxyResult = proxyHost.withCString { hostPtr in
             vt_apply_proxy_settings(leech.pointer, 1, hostPtr, Int32(deadProxyPort), nil, nil)
@@ -839,14 +907,15 @@ enum TorrentIntegrationTests {
         try TestRunner.assertEqual(setProxyResult, 0)
 
         try leech.addPeer(torrentID: torrent.id, port: seed.port)
-        Thread.sleep(forTimeInterval: 0.35)
+        // "No bytes" has to hold for a window: one sample after a fixed sleep
+        // proves nothing on either a slow or a fast runner.
+        try TestsSupport.waitUntilStable(
+            "nessun byte con proxy SOCKS5 non raggiungibile (fail-closed)"
+        ) {
+            (try leech.snapshot().torrents.first?.downloaded ?? -1) == 0
+        }
 
         let snap = try leech.snapshot()
         try TestRunner.assertTrue(snap.stats.isProxyActive)
-        try TestRunner.assertEqual(
-            snap.torrents.first?.downloaded ?? -1,
-            0,
-            "Con proxy SOCKS5 non raggiungibile nessun byte deve essere trasferito (fail-closed)"
-        )
     }
 }
