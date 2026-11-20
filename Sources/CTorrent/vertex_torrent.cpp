@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <locale>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <unordered_set>
 #include <sstream>
@@ -395,9 +396,47 @@ struct vt_session
     std::unordered_set<std::string> removed_ids_set;
     std::chrono::steady_clock::time_point last_stats;
     std::chrono::steady_clock::time_point last_resume_save;
+    // Serializes every public entry point: the bridge owns mutable state
+    // (errors, portmap, config) and libtorrent calls are synchronous. A caller
+    // may therefore use one session from several threads.
+    std::mutex mutex;
 };
 
 namespace {
+
+// RAII lock for the public `vt_*` entry points. Null-safe, so it can be the
+// first statement of a function that still has to validate its arguments.
+struct session_lock
+{
+    explicit session_lock(vt_session* value) : session(value)
+    {
+        if (session)
+            session->mutex.lock();
+    }
+
+    session_lock(session_lock const&) = delete;
+    session_lock& operator=(session_lock const&) = delete;
+
+    ~session_lock()
+    {
+        if (session)
+            session->mutex.unlock();
+    }
+
+    // vt_session_destroy deletes the object: release the mutex first.
+    void unlock()
+    {
+        if (session)
+        {
+            session->mutex.unlock();
+            session = nullptr;
+        }
+    }
+
+    vt_session* session;
+};
+
+#define VT_LOCK_SESSION(value) session_lock vt_session_lock_guard_((value))
 
 lt::torrent_handle find_handle(vt_session* session, std::string const& id)
 {
@@ -1055,6 +1094,7 @@ void vt_session_destroy(vt_session* session)
 {
     if (!session)
         return;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1184,13 +1224,10 @@ void vt_session_destroy(vt_session* session)
                         }
                     }
 
-                    // A valid handle whose id is not in requested_ids is a
-                    // stale alert: it must not release a slot for another
-                    // torrent. Only unknown/invalid handles are forgiven.
-                    if (!matched && !identified && pending > 0)
-                    {
-                        --pending;
-                    }
+                    // A stale alert must not release a slot for another torrent:
+                    // decrementing here truncated the drain and could lose the
+                    // resume data of the torrents that were actually requested.
+                    // The deadline below bounds the pathological case instead.
                 }
             }
         }
@@ -1199,6 +1236,8 @@ void vt_session_destroy(vt_session* session)
     {
     }
 
+    // The object is about to disappear: release the mutex before deleting it.
+    vt_session_lock_guard_.unlock();
     delete session;
 }
 
@@ -1206,6 +1245,7 @@ void vt_session_poll(vt_session* session)
 {
     if (!session || !session->session)
         return;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1356,6 +1396,7 @@ char* vt_snapshot_json(vt_session* session)
 {
     if (!session || !session->session)
         return nullptr;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1477,6 +1518,7 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
 {
     if (!session || !torrent_id_value)
         return nullptr;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1638,6 +1680,7 @@ char* vt_last_error(vt_session* session)
 {
     if (!session)
         return nullptr;
+    VT_LOCK_SESSION(session);
     auto text = session->last_error;
     session->last_error.clear();
     return ::strdup(text.c_str());
@@ -1647,6 +1690,7 @@ char* vt_magnet_uri(vt_session* session, const char* torrent_id_value)
 {
     if (!session || !torrent_id_value)
         return nullptr;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1689,6 +1733,7 @@ int vt_add_magnet(vt_session* session,
 {
     if (!session || !uri)
         return -1;
+    VT_LOCK_SESSION(session);
 
     // MEDIUM #5: reject magnet URIs larger than 8 KiB before handing to libtorrent
     constexpr std::size_t MAX_MAGNET_URI = 8 * 1024;
@@ -1722,6 +1767,7 @@ int vt_add_torrent_file(vt_session* session,
 {
     if (!session || !path)
         return -1;
+    VT_LOCK_SESSION(session);
 
     // MEDIUM #6: validate torrent file path before loading
     // - canonicalize
@@ -1780,6 +1826,7 @@ int vt_add_peer(vt_session* session,
 {
     if (!session || !torrent_id_value || !host || port <= 0 || port > 65535)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1845,6 +1892,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 {
     if (!session || !torrent_id_value || !action)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -1942,6 +1990,7 @@ int vt_set_trackers(vt_session* session, const char* torrent_id_value, const cha
 {
     if (!session || !torrent_id_value || !urls)
         return -1;
+    VT_LOCK_SESSION(session);
 
     // Bounds for a list that comes from a text field: a torrent with hundreds of
     // trackers is a configuration mistake, and a huge URL is not a URL.
@@ -1999,6 +2048,7 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
 {
     if (!session)
         return -1;
+    VT_LOCK_SESSION(session);
     if (!torrent_id_value || file_index < 0 || priority < 0 || priority > 7)
     {
         session->last_error = "Parametri non validi";
@@ -2025,6 +2075,7 @@ int vt_set_all_file_priorities(vt_session* session, const char* torrent_id_value
 {
     if (!session)
         return -1;
+    VT_LOCK_SESSION(session);
     if (!torrent_id_value || priority < 0 || priority > 7)
     {
         session->last_error = "Parametri non validi";
@@ -2060,6 +2111,7 @@ int vt_move_storage(vt_session* session, const char* torrent_id_value, const cha
 {
     if (!session || !session->session)
         return -1;
+    VT_LOCK_SESSION(session);
     if (!torrent_id_value || !save_path || !*save_path)
     {
         session->last_error = "Parametri non validi";
@@ -2114,6 +2166,7 @@ int vt_apply_settings_ex(vt_session* session,
 {
     if (!session || !session->session)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -2152,6 +2205,7 @@ int vt_set_active_limit(vt_session* session, int max_active)
 {
     if (!session || !session->session)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -2185,6 +2239,7 @@ int vt_apply_proxy_settings(vt_session* session,
 {
     if (!session || !session->session)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {
@@ -2216,8 +2271,10 @@ int vt_apply_proxy_settings(vt_session* session,
 
 void vt_clear_proxy_error(vt_session* session)
 {
-    if (session)
-        session->proxy_error.clear();
+    if (!session)
+        return;
+    VT_LOCK_SESSION(session);
+    session->proxy_error.clear();
 }
 
 char* vt_normalize_save_path(const char* requested, const char* fallback)
@@ -2239,6 +2296,7 @@ int vt_set_default_save_path(vt_session* session, const char* path)
 {
     if (!session || !path || !*path)
         return -1;
+    VT_LOCK_SESSION(session);
 
     try
     {

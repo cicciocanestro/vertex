@@ -2,6 +2,33 @@ import Foundation
 import CTorrent
 import VertexKit
 
+/// Small thread-safe probe: the concurrent test must report a corrupted
+/// snapshot from a background queue without trapping.
+private final class ConcurrentProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var corrupted = false
+
+    func markCorrupted() {
+        lock.lock()
+        corrupted = true
+        lock.unlock()
+    }
+
+    var isCorrupted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return corrupted
+    }
+}
+
+private final class SessionPointer: @unchecked Sendable {
+    let value: OpaquePointer
+
+    init(_ value: OpaquePointer) {
+        self.value = value
+    }
+}
+
 enum CTorrentBridgeTests {
     static func runAll() {
         print("\n\u{001B}[1m[Suite: CTorrentBridgeTests]\u{001B}[0m")
@@ -517,6 +544,10 @@ enum CTorrentBridgeTests {
         TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
             try upnpSmoke()
         }
+
+        TestRunner.run("Bridge: chiamate concorrenti sulla stessa sessione") {
+            try concurrentCalls()
+        }
     }
 
     /// Decodes the session snapshot through the same model the UI uses, so the
@@ -582,6 +613,45 @@ enum CTorrentBridgeTests {
                     "L'errore di mapping non identifica il trasporto: \(snapshot.portmap.error)"
                 )
             }
+        }
+
+    }
+
+    /// The bridge promises to serialize every entry point: hammer one session
+    /// from several threads and require valid JSON throughout.
+    private static func concurrentCalls() throws {
+        let port = Int32(try TestsSupport.freeTCPPort())
+        try withRawSession(port: port) { session, _, _, _ in
+            let pointer = SessionPointer(session)
+            let probe = ConcurrentProbe()
+            let group = DispatchGroup()
+            let queue = DispatchQueue(label: "vertex.bridge.concurrent", attributes: .concurrent)
+
+            for _ in 0..<4 {
+                queue.async(group: group) {
+                    for _ in 0..<40 {
+                        vt_session_poll(pointer.value)
+                        if let json = vt_snapshot_json(pointer.value) {
+                            let text = String(cString: json)
+                            vt_free_string(json)
+                            guard let data = text.data(using: .utf8),
+                                  (try? JSONDecoder().decode(VertexSnapshot.self, from: data)) != nil else {
+                                probe.markCorrupted()
+                                continue
+                            }
+                        }
+                        if let error = vt_last_error(pointer.value) {
+                            vt_free_string(error)
+                        }
+                        _ = vt_set_active_limit(pointer.value, 0)
+                    }
+                }
+            }
+            group.wait()
+            try TestRunner.assertFalse(
+                probe.isCorrupted,
+                "Uno snapshot concorrente non è un JSON valido"
+            )
         }
     }
 

@@ -201,10 +201,11 @@ enum EngineTests {
             }
 
             onMain { engine.reannounce(torrent) }
-            try TestRunner.assertTrue(
-                onMain { !engine.magnetURI(for: torrent).isEmpty },
-                "Il magnet URI deve essere disponibile per un torrent con metadati"
-            )
+            let magnetURI = onMain { AsyncBox<String>() }
+            onMain { engine.magnetURI(for: torrent) { magnetURI.value = $0 } }
+            try waitUntil("magnet URI disponibile") {
+                onMain { !(magnetURI.value ?? "").isEmpty }
+            }
 
             // Test moveStorage through engine
             let targetMoved = try workspace.directory("engine-moved")

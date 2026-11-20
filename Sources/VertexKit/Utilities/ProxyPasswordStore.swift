@@ -34,7 +34,21 @@ package enum ProxyPasswordStore {
         return base.appendingPathComponent("Vertex/proxy-password")
     }
 
+    /// Serializes every backend access. The cache in `Preferences` was already
+    /// lock-protected, but a warm read and a write could still interleave at
+    /// the Keychain/file level and leave a stale value cached.
+    private static let ioQueue = DispatchQueue(label: "com.vertex.proxy-password")
+
     package static func read() -> Result<String?, ReadError> {
+        ioQueue.sync { readUnlocked() }
+    }
+
+    @discardableResult
+    package static func write(_ value: String) -> Bool {
+        ioQueue.sync { writeUnlocked(value) }
+    }
+
+    private static func readUnlocked() -> Result<String?, ReadError> {
         switch storage {
         case .file:
             return readFile()
@@ -50,8 +64,7 @@ package enum ProxyPasswordStore {
         }
     }
 
-    @discardableResult
-    package static func write(_ value: String) -> Bool {
+    private static func writeUnlocked(_ value: String) -> Bool {
         switch storage {
         case .file:
             return writeFile(value)
@@ -65,12 +78,14 @@ package enum ProxyPasswordStore {
     /// Moves the password to the newly selected backend and removes the copy in
     /// the old one. `value` is the password the in-memory cache already holds.
     package static func migratePassword(_ value: String, toFile: Bool) {
-        if toFile {
-            guard writeFile(value) else { return }
-            Keychain.deleteProxyPassword()
-        } else {
-            guard value.isEmpty || Keychain.setProxyPassword(value) else { return }
-            removeFile()
+        ioQueue.sync {
+            if toFile {
+                guard writeFile(value) else { return }
+                Keychain.deleteProxyPassword()
+            } else {
+                guard value.isEmpty || Keychain.setProxyPassword(value) else { return }
+                removeFile()
+            }
         }
     }
 

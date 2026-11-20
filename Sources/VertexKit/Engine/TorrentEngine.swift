@@ -484,14 +484,6 @@ package final class TorrentEngine: ObservableObject {
 
     // MARK: - Queue Primitives
 
-    /// Serializes a synchronous bridge call with the background poll.
-    func withSession<T>(_ body: (OpaquePointer) -> T) -> T? {
-        guard let session else { return nil }
-        return sessionQueue.sync {
-            body(session)
-        }
-    }
-
     /// A Keychain read can fail transiently (locked keychain, denied prompt,
     /// different signing identity). The cache then stays cold and the session
     /// runs without proxy credentials, so retry off the main thread while the

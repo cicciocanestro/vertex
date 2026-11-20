@@ -1,6 +1,17 @@
 #ifndef VERTEX_TORRENT_H
 #define VERTEX_TORRENT_H
 
+/* THREADING
+   Every function that takes a vt_session* may be called from any thread: the
+   bridge serializes access internally with a mutex, so callers do not have to
+   provide their own. The only exception is vt_session_destroy, which must be
+   the last call for that session and must not race with other calls: it
+   deletes the object.
+
+   Strings returned as char* are allocated with strdup and must be released
+   with vt_free_string. Functions returning vt_session* return NULL on failure
+   and, when available, fill the error_message out-parameter. */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

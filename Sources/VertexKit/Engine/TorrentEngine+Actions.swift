@@ -2,6 +2,12 @@ import AppKit
 import CTorrent
 import Foundation
 
+/// Hands a string out of the session queue: written there, read on the main
+/// actor after the operation completed.
+private final class StringBox: @unchecked Sendable {
+    var value = ""
+}
+
 extension TorrentEngine {
     /// Adds a magnet link.
     ///
@@ -482,13 +488,25 @@ extension TorrentEngine {
         )
     }
 
-    func magnetURI(for torrent: Torrent) -> String {
-        withSession { session in
+    /// Reads the magnet URI off the main thread. The old synchronous variant
+    /// blocked the main actor behind the session queue (up to seconds with a
+    /// large library), which is exactly what the queue exists to avoid.
+    func magnetURI(for torrent: Torrent, completion: @escaping @MainActor (String) -> Void) {
+        let box = StringBox()
+        let queued = enqueueSessionOperation { session in
             let pointer = torrent.id.withCString { vt_magnet_uri(session, $0) }
-            guard let pointer else { return "" }
+            guard let pointer else { return -1 }
             defer { vt_free_string(pointer) }
-            return String(cString: pointer)
-        } ?? ""
+            box.value = String(cString: pointer)
+            return 0
+        } onSuccess: {
+            completion(box.value)
+        } onFailure: { _ in
+            completion("")
+        }
+        if !queued {
+            completion("")
+        }
     }
 
     func copyMagnet(for torrent: Torrent) {
