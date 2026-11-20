@@ -774,17 +774,12 @@ enum TorrentIntegrationTests {
         }
 
         try leech.addPeer(torrentID: torrent.id, port: seed.port)
-        Thread.sleep(forTimeInterval: 0.35)
-        let blockedSnap = try leech.snapshot()
-        try TestRunner.assertFalse(
-            blockedSnap.listening,
-            "Con tunnel giù il socket non deve essere in ascolto"
-        )
-        try TestRunner.assertEqual(
-            blockedSnap.torrents.first?.downloaded ?? -1,
-            0,
-            "Con tunnel giù (fail-closed) non deve passare alcun byte"
-        )
+        try TestsSupport.waitUntilStable(
+            "con tunnel giù il socket resta chiuso e non passa alcun byte"
+        ) {
+            let snap = try leech.snapshot()
+            return !snap.listening && (snap.torrents.first?.downloaded ?? -1) == 0
+        }
 
         // Simulate tunnel recovery: rebind back to 127.0.0.1 (or automatic)
         // and verify listenError clears and the download completes cleanly.

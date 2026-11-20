@@ -208,6 +208,26 @@ extension Torrent {
     }
 }
 
+private extension String {
+    /// Escapes what would break the hand-built JSON fixture: a torrent name
+    /// containing a quote used to crash the whole test runner through `try!`.
+    var jsonEscaped: String {
+        var result = ""
+        result.reserveCapacity(count)
+        for character in self {
+            switch character {
+            case "\\": result += "\\\\"
+            case "\"": result += "\\\""
+            case "\n": result += "\\n"
+            case "\r": result += "\\r"
+            case "\t": result += "\\t"
+            default: result.append(character)
+            }
+        }
+        return result
+    }
+}
+
 extension VertexSnapshot {
     static func test(
         torrents: [Torrent] = [],
@@ -216,8 +236,8 @@ extension VertexSnapshot {
         let torrentsJSON = torrents.map { t in
             """
             {
-                "id": "\(t.id)",
-                "name": "\(t.name)",
+                "id": "\(t.id.jsonEscaped)",
+                "name": "\(t.name.jsonEscaped)",
                 "state_code": \(t.stateCode),
                 "progress": \(t.progress),
                 "size": \(t.size),
@@ -234,10 +254,10 @@ extension VertexSnapshot {
                 "auto_managed": \(t.autoManaged),
                 "sequential": \(t.sequential),
                 "has_metadata": \(t.hasMetadata),
-                "save_path": "\(t.savePath)",
+                "save_path": "\(t.savePath.jsonEscaped)",
                 "ratio": \(t.ratio),
                 "added": \(t.added),
-                "error": "\(t.error)"
+                "error": "\(t.error.jsonEscaped)"
             }
             """
         }.joined(separator: ",")
@@ -252,8 +272,8 @@ extension VertexSnapshot {
             "alert_error": "",
             "listen_actual_port": \(stats.actualPort),
             "listening": \(stats.isListening),
-            "bind_address": "\(stats.bindAddress)",
-            "listen_error": "\(stats.listenError)",
+            "bind_address": "\(stats.bindAddress.jsonEscaped)",
+            "listen_error": "\(stats.listenError.jsonEscaped)",
             "portmap": {
                 "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                 "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
