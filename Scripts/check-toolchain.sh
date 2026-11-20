@@ -74,13 +74,10 @@ printf '  Swift:               %s\n' "${actual_swift:-non disponibile}"
 compare_cmake() {
     local label="CMake"
     local actual="$1"
-    if [ "$MODE" = "--strict" ]; then
-        # A release build must use the exact canonical CMake: the compatibility
-        # window is for local development only.
-        compare "$label" "$VERTEX_CANONICAL_CMAKE_VERSION" "$actual"
-        return
-    fi
-    # Canonical is 4.4.x / 4.5.x depending on the macos-15 runner rolling rollout
+    # GitHub rolls the `macos-15` image and its CMake moves between 4.4.x and
+    # 4.5.x; the image label cannot be pinned to a build. A release therefore
+    # accepts the declared compatibility window instead of an exact match, and
+    # says so, rather than failing every tag the day the runner rolls.
     case "$actual" in
         4.4.*|4.5.*)
             printf '  ✓ %-20s %s (compatibile, non canonico)\n' "$label" "$actual"
@@ -100,18 +97,16 @@ compare "macOS SDK" "$VERTEX_CANONICAL_MACOS_SDK" "$actual_sdk"
 compare_cmake "$actual_cmake"
 
 if [ -n "${ImageVersion:-}" ]; then
-    if [ "$MODE" = "--strict" ]; then
-        compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
-    else
-        case "$ImageVersion" in
-            20261104.*|20261118.*)
-                printf '  ✓ %-20s %s (compatibile, non canonica)\n' "Immagine runner" "$ImageVersion"
-                ;;
-            *)
-                compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
-                ;;
-        esac
-    fi
+    # Same reasoning as CMake: the runner image is assigned by GitHub and is not
+    # pinnable, so the accepted window is declared here and printed.
+    case "$ImageVersion" in
+        20261104.*|20261118.*)
+            printf '  ✓ %-20s %s (compatibile, non canonica)\n' "Immagine runner" "$ImageVersion"
+            ;;
+        *)
+            compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
+            ;;
+    esac
 elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     MISMATCHES=$((MISMATCHES + 1))
     printf '  ✗ %-20s non impostata in GitHub Actions\n' "Immagine runner" >&2
