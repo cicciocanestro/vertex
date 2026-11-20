@@ -833,9 +833,12 @@ extension TorrentEngine {
     /// Keychain and the filesystem, so it runs off the main thread.
     func setProxyPasswordStorage(inFile: Bool) {
         let value = Preferences.proxyPassword
-        Task.detached(priority: .userInitiated) { [weak self] in
+        // Same pattern as the session queue: the migration runs off the main
+        // thread and hops back through DispatchQueue.main (Swift 6.1 rejects
+        // capturing a task-isolated self in `Task.detached` + MainActor.run).
+        DispatchQueue.global(qos: .userInitiated).async {
             Preferences.migrateProxyPasswordStorage(toFile: inFile, value: value)
-            await MainActor.run {
+            DispatchQueue.main.async { [weak self] in
                 self?.applySettingsNow()
             }
         }
