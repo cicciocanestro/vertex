@@ -783,7 +783,14 @@ enum CTorrentBridgeTests {
         try TestRunner.assertNotNil(resumed, "Il torrent ripreso deve restare nello snapshot")
         try TestRunner.assertFalse(resumed?.paused ?? true, "La cache deve riflettere il resume")
 
-        try TestRunner.assertTrue(p95 < 50, "p95 dello snapshot troppo alto: \(p95) ms")
+        // Sanitizers instrument every access: the absolute timing is not
+        // comparable, so the budget only guards normal runs. The measurement is
+        // printed either way.
+        if ProcessInfo.processInfo.environment["VERTEX_SANITIZER"] == nil {
+            try TestRunner.assertTrue(p95 < 50, "p95 dello snapshot troppo alto: \(p95) ms")
+        } else {
+            print("  (budget non applicato: esecuzione sotto sanitizer)")
+        }
     }
 
     private static func drainSnapshot(_ session: OpaquePointer) -> String? {

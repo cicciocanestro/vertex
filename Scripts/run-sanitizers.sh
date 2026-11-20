@@ -29,6 +29,7 @@ if [[ ! -x "$BIN" ]]; then
 fi
 
 echo "→ Esecuzione suite con sanitizer: $MODE"
+export VERTEX_SANITIZER="$MODE"
 if [[ "$MODE" == "thread" ]]; then
     TSAN_OPTIONS="${TSAN_OPTIONS:-halt_on_error=1}" "$BIN"
 else
