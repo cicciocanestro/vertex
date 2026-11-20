@@ -57,8 +57,9 @@ fi
 
 "$ROOT/Scripts/verify-bundle.sh" "$APP_IN_IMAGE" "$VERTEX_MIN_MACOS" "$VERTEX_ARCH"
 
-if codesign -dv --verbose=2 "$APP_IN_IMAGE" 2>&1 | grep -q "Signature=adhoc"; then
-    echo "✗ Firma ad-hoc: la notarizzazione richiede una Developer ID" >&2
+if ! codesign -dv --verbose=2 "$APP_IN_IMAGE" 2>&1 | grep -q "Authority=Developer ID Application"; then
+    echo "✗ La notarizzazione richiede un certificato Developer ID." >&2
+    echo "  Un certificato self-signed serve solo a rendere stabile l'identità, non è accettato da Apple." >&2
     exit 1
 fi
 

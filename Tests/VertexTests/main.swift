@@ -11,6 +11,8 @@ TestRunner.beginSuite("ModelsTests")
 ModelsTests.runAll()
 TestRunner.beginSuite("GeoIPTests")
 GeoIPTests.runAll()
+TestRunner.beginSuite("ProxyPasswordStorageTests")
+ProxyPasswordStorageTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
 #if DEBUG

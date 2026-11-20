@@ -346,6 +346,8 @@
 "Altre azioni" = "More actions";
 "Rete locale" = "Local network";
 "Host proxy non valido" = "Invalid proxy host";
+"Memorizza la password in un file locale" = "Store the password in a local file";
+"Evita i prompt del Portachiavi; permessi 0600, non cifrata" = "Avoids Keychain prompts; 0600 permissions, not encrypted";
 "Il motore BitTorrent non è disponibile. Riavvia Vertex." = "The BitTorrent engine is unavailable. Restart Vertex.";
 "Esiste già un file con lo stesso nome nella cartella di destinazione." = "A file with the same name already exists in the destination folder.";
 

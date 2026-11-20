@@ -110,7 +110,8 @@ enum PreferencesTests {
                 PrefKey.proxyHost,
                 PrefKey.proxyPort,
                 PrefKey.proxyUser,
-                PrefKey.proxyPassword
+                PrefKey.proxyPassword,
+                PrefKey.proxyPasswordInFile
             ]
             try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
             try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
@@ -127,6 +128,7 @@ enum PreferencesTests {
             try TestRunner.assertEqual(defaults[PrefKey.notificationsEnabled] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.appearance] as? String, "system")
             try TestRunner.assertEqual(defaults[PrefKey.proxyEnabled] as? Bool, false)
+            try TestRunner.assertEqual(defaults[PrefKey.proxyPasswordInFile] as? Bool, false)
             try TestRunner.assertEqual(defaults[PrefKey.proxyHost] as? String, "127.0.0.1")
             try TestRunner.assertEqual(defaults[PrefKey.proxyPort] as? Int, 1080)
             try TestRunner.assertEqual(defaults[PrefKey.proxyUser] as? String, "")

@@ -828,6 +828,19 @@ extension TorrentEngine {
         }
     }
 
+    /// Moves the SOCKS5 password between the Keychain and the 0600 file after
+    /// the user changes the storage preference. The migration touches the
+    /// Keychain and the filesystem, so it runs off the main thread.
+    func setProxyPasswordStorage(inFile: Bool) {
+        let value = Preferences.proxyPassword
+        Task.detached(priority: .userInitiated) { [weak self] in
+            Preferences.migrateProxyPasswordStorage(toFile: inFile, value: value)
+            await MainActor.run {
+                self?.applySettingsNow()
+            }
+        }
+    }
+
     private func announce(_ text: String) {
         guard let app = NSApp, app.isRunning else { return }
         NSAccessibility.post(

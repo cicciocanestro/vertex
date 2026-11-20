@@ -89,6 +89,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
     @AppStorage(PrefKey.proxyUser) private var proxyUser = PrefDefault.proxyUser
+    @AppStorage(PrefKey.proxyPasswordInFile) private var proxyPasswordInFile = PrefDefault.proxyPasswordInFile
     /// The proxy password lives in the Keychain, not in UserDefaults. The field
     /// is edited locally and written after a short debounce (or on close) so a
     /// keystroke does not hit the keychain.
@@ -383,6 +384,20 @@ struct SettingsSheet: View {
                     proxyHostRow(palette)
                     Hairline(palette: palette).padding(.leading, 28)
                     proxyAuthRow(palette)
+                    Hairline(palette: palette).padding(.leading, 28)
+                    toggleRow(
+                        icon: "doc.badge.key",
+                        title: "Memorizza la password in un file locale",
+                        subtitle: "Evita i prompt del Portachiavi; permessi 0600, non cifrata",
+                        isOn: Binding(
+                            get: { proxyPasswordInFile },
+                            set: { newValue in
+                                proxyPasswordInFile = newValue
+                                engine.setProxyPasswordStorage(inFile: newValue)
+                            }
+                        ),
+                        palette: palette
+                    )
                 }
             }
 
@@ -996,6 +1011,7 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
     @AppStorage(PrefKey.proxyHost) private var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) private var proxyPort = PrefDefault.proxyPort
     @AppStorage(PrefKey.proxyUser) private var proxyUser = PrefDefault.proxyUser
+    @AppStorage(PrefKey.proxyPasswordInFile) private var proxyPasswordInFile = PrefDefault.proxyPasswordInFile
     @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
 
     func body(content: Content) -> some View {

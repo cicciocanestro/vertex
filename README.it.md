@@ -14,6 +14,9 @@ Niente Electron, niente pubblicità, nessuna telemetria. Open source con licenza
 
 ## Download
 
+> **Nota:** la build pubblicata è firmata ad-hoc e non notarizzata. Al primo avvio su un
+> altro Mac macOS può chiedere conferma; vedi [Firma e notarizzazione](#firma-e-notarizzazione).
+
 ### Homebrew (consigliato)
 
 ```bash
@@ -50,6 +53,25 @@ per la distribuzione; la build li supporta già: `VERTEX_SIGN_IDENTITY` selezion
 di firma (hardened runtime e timestamp al posto della firma ad-hoc) e `Scripts/notarize.sh`
 invia la DMG a `notarytool` e applica il ticket. Senza certificato la release resta ad-hoc,
 quindi aspettati questa conferma una tantum.
+
+#### Identità stabile senza account Developer
+
+La firma ad-hoc cambia a ogni build, quindi macOS vede ogni aggiornamento come un'app
+diversa e richiede di nuovo l'accesso al Portachiavi (dove sta la password SOCKS5). Un
+certificato self-signed di code signing dà al bundle un'identità stabile tra le build, senza
+account Apple:
+
+```bash
+VERTEX_SIGN_P12_PASSWORD='scegli-una-password' ./Scripts/make-signing-cert.sh
+# Aggiungi come secret del repository:
+#   VERTEX_SIGN_P12           il base64 stampato dallo script
+#   VERTEX_SIGN_P12_PASSWORD  la password scelta
+#   VERTEX_SIGN_IDENTITY      Vertex Self-Signed
+```
+
+Il workflow importa il certificato in un keychain temporaneo e lo rimuove alla fine.
+Gatekeeper continua a mostrare l'avviso perché Apple non si fida del certificato: per
+eliminarlo servono Developer ID e notarizzazione.
 
 ### Requisiti
 
@@ -158,6 +180,9 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 - **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali
   RFC 1929). Le credenziali vengono inviate quando il campo **Utente** è compilato: in quel
   caso il bridge usa il tipo `socks5_pw` di libtorrent; senza utente il proxy resta `socks5`.
+  La password sta nel Portachiavi per impostazione predefinita; un'opzione la salva in un file
+  locale `0600`, per chi non vuole i prompt del Portachiavi dopo gli aggiornamenti. Attivare o
+  cambiare il proxy chiude le connessioni aperte prima della modifica.
   Tutto il traffico verso tracker e peer passa dal proxy, mentre UPnP/NAT-PMP viene disattivato
   sul router locale. Un badge dedicato nella barra di stato (`SOCKS5`) ne monitora la raggiungibilità
   in tempo reale: verde menta quando è attivo, rosso corallo `[!]` quando il proxy non risponde.
@@ -257,7 +282,9 @@ avviso.
 - Download predefinito: `~/Downloads/Vertex`
 - Stato e resume data: `~/Library/Application Support/Vertex/resume`
 - Preferenze: `UserDefaults` (`app.vertex.torrent`)
-- Password del proxy SOCKS5: Portachiavi di macOS (voce `app.vertex.torrent`), non in chiaro
+- Password del proxy SOCKS5: Portachiavi di macOS (voce `app.vertex.torrent`), non in chiaro.
+  Se attivi **Impostazioni → Proxy SOCKS5 → Memorizza la password in un file locale**, si trova
+  in `~/Library/Application Support/Vertex/proxy-password` con permessi `0600` (non cifrata).
 - Tabella dei paesi dei peer: inclusa nell'app (`Contents/Resources/GeoIP`), mai interrogata online
 
 Non è presente alcuna telemetria. L'app non è sandboxed e accede alle cartelle scelte e

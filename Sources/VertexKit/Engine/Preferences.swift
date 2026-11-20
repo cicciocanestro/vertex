@@ -23,6 +23,9 @@ package enum PrefKey {
     package static let proxyPort = "proxyPort"
     package static let proxyUser = "proxyUser"
     package static let proxyPassword = "proxyPassword"
+    /// Store the SOCKS5 password in a 0600 file instead of the Keychain, to
+    /// avoid access prompts after rebuilds. Default: Keychain.
+    package static let proxyPasswordInFile = "proxyPasswordInFile"
     /// Interface state (filter, sort, inspector width). Persisted separately
     /// from the engine preferences and not registered as defaults: a missing
     /// value falls back to the view's own default.
@@ -209,7 +212,7 @@ package enum Preferences {
         let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
 
         let resolved: String?
-        switch Keychain.readProxyPassword() {
+        switch ProxyPasswordStore.read() {
         case .success(let value):
             resolved = value
         case .failure:
@@ -254,7 +257,7 @@ package enum Preferences {
 
     @discardableResult
     package static func setProxyPassword(_ value: String) -> Bool {
-        let saved = Keychain.setProxyPassword(value)
+        let saved = ProxyPasswordStore.write(value)
         if saved {
             // Clearing or replacing the password must not leave the legacy
             // plaintext value behind: proxyPassword would fall back to it.
@@ -265,6 +268,12 @@ package enum Preferences {
             proxyPasswordLock.unlock()
         }
         return saved
+    }
+
+    /// Moves the cached password to the selected backend after the user changes
+    /// the storage preference. Runs off the main thread (Keychain/file I/O).
+    package static func migrateProxyPasswordStorage(toFile: Bool, value: String) {
+        ProxyPasswordStore.migratePassword(value, toFile: toFile)
     }
 }
 
@@ -302,6 +311,7 @@ package enum PrefDefault {
     package static let proxyPort = 1080
     package static let proxyUser = ""
     package static let proxyPassword = ""
+    package static let proxyPasswordInFile = false
 
     package static var dictionary: [String: Any] {
         [
@@ -324,7 +334,8 @@ package enum PrefDefault {
             PrefKey.proxyHost: proxyHost,
             PrefKey.proxyPort: proxyPort,
             PrefKey.proxyUser: proxyUser,
-            PrefKey.proxyPassword: proxyPassword
+            PrefKey.proxyPassword: proxyPassword,
+            PrefKey.proxyPasswordInFile: proxyPasswordInFile
         ]
     }
 }

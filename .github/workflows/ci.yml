@@ -132,17 +132,39 @@ jobs:
             dist/coverage/
           if-no-files-found: warn
 
-      - name: Build application bundle
+      - name: Import signing certificate (optional)
+        # A self-signed certificate gives the bundle a stable identity across
+        # builds (no Keychain prompts after updates). Without the secret the
+        # script is a no-op and the build stays ad-hoc. Gatekeeper still warns:
+        # removing that warning requires a Developer ID and notarization.
         env:
-          # Empty unless the repository defines the secret: build.sh then falls
-          # back to ad-hoc signing.
+          VERTEX_SIGN_P12: ${{ secrets.VERTEX_SIGN_P12 }}
+          VERTEX_SIGN_P12_PASSWORD: ${{ secrets.VERTEX_SIGN_P12_PASSWORD }}
           VERTEX_SIGN_IDENTITY: ${{ secrets.VERTEX_SIGN_IDENTITY }}
+        run: ./Scripts/import-signing-cert.sh
+
+      - name: Build application bundle
+        # VERTEX_SIGN_IDENTITY comes from GITHUB_ENV when a certificate was
+        # imported; otherwise it is unset and build.sh signs ad-hoc.
         run: ./build.sh release
 
       - name: Verify self-contained bundle
         run: |
           source Scripts/app.env
           ./Scripts/verify-bundle.sh "dist/${VERTEX_APP_NAME}.app"
+
+      - name: Verify stable signing identity
+        run: |
+          source Scripts/app.env
+          if [ "${VERTEX_SIGNING_EXPECTED:-}" != "1" ]; then
+            echo "· Firma ad-hoc: nessun certificato configurato."
+            exit 0
+          fi
+          if codesign -dv --verbose=2 "dist/${VERTEX_APP_NAME}.app" 2>&1 | grep -q "Signature=adhoc"; then
+            echo "::error::Il certificato è stato importato ma il bundle è ancora ad-hoc"
+            exit 1
+          fi
+          echo "✓ Firma stabile applicata"
 
       - name: Enforce signed release (opt-in)
         # Set the repository variable VERTEX_REQUIRE_RELEASE_SIGNING=1 once a
@@ -199,6 +221,10 @@ jobs:
             dist/Vertex-*.dmg
             dist/Vertex-*.dmg.sha256
           if-no-files-found: error
+
+      - name: Remove temporary signing keychain
+        if: always()
+        run: ./Scripts/cleanup-signing-cert.sh
 
   release:
     name: Publish GitHub Release

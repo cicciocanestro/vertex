@@ -204,7 +204,16 @@ if [ "$SIGN_IDENTITY" = "-" ]; then
     echo "→ Firma ad-hoc…"
 else
     echo "→ Firma con identità: $SIGN_IDENTITY (hardened runtime)"
-    SIGN_ARGS+=(--options runtime --timestamp)
+    SIGN_ARGS+=(--options runtime)
+    case "$SIGN_IDENTITY" in
+        "Developer ID Application"*)
+            # The Apple timestamp service only accepts Developer ID certificates.
+            SIGN_ARGS+=(--timestamp)
+            ;;
+        *)
+            echo "  certificato non Developer ID: firma senza timestamp Apple"
+            ;;
+    esac
 fi
 
 for dylib in "${FRAMEWORKS}"/*.dylib; do
