@@ -176,7 +176,7 @@ package enum Preferences {
     /// Cached SOCKS5 password. Reading the Keychain can block, and with an
     /// ad-hoc signature macOS may even show an access prompt, so the read never
     /// happens on the main thread: `warmProxyPasswordCache()` fills this once on
-    /// the session queue and every later access is lock-protected memory.
+    /// the session actor and every later access is lock-protected memory.
     private static let proxyPasswordLock = NSLock()
     /// Guarded by `proxyPasswordLock`: every access below takes the lock.
     nonisolated(unsafe) private static var cachedProxyPassword: String?
@@ -199,9 +199,9 @@ package enum Preferences {
     }
 
     /// Reads the Keychain item once, migrating the legacy plaintext password.
-    /// Must be called off the main thread: `TorrentEngine` does it on the session
-    /// queue before creating the session, so the first configuration snapshot
-    /// already contains the password.
+    /// Must be called off the main thread: `SessionController.create` does it on
+    /// the session actor before building the configuration, so the first
+    /// snapshot already contains the password.
     package static func warmProxyPasswordCache() {
         proxyPasswordLock.lock()
         let alreadyLoaded = proxyPasswordLoaded

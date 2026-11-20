@@ -17,8 +17,8 @@ extension TorrentEngine {
     /// the bridge call itself — for example a duplicate torrent — arrives on the
     /// main actor through `completion`.
     ///
-    /// The bridge call runs on `sessionQueue`: parsing the URI and touching the
-    /// filesystem must never block the UI.
+    /// The destination validation runs off the main thread and the bridge call
+    /// goes through the session actor, so neither blocks the UI.
     @discardableResult
     package func addMagnet(
         _ uri: String,
@@ -35,74 +35,68 @@ extension TorrentEngine {
             return message
         }
 
-        guard !isShuttingDown, let session else {
+        guard !isShuttingDown, hasSession else {
             let message = L("Motore non disponibile.")
             completion?(message)
             return message
         }
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
 
-        sessionQueue.async { [weak self] in
-            guard let s = pointer.value else {
-                DispatchQueue.main.async { completion?(L("Motore non disponibile.")) }
+        Task { [weak self] in
+            let prepared = await Task.detached(priority: .userInitiated) {
+                Self.preparedDestination(destination)
+            }.value
+            guard let self else { return }
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                // Always answer: a dropped completion leaves the caller waiting
+                // forever (the add sheet never closes).
+                completion?(L("Motore non disponibile."))
                 return
             }
-            let prepared = Self.preparedDestination(destination)
             guard let path = prepared.path else {
                 let message = prepared.error ?? L("Cartella di destinazione non valida.")
-                DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                        completion?(L("Motore non disponibile."))
-                        return
-                    }
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                }
+                self.showToast(message, kind: .error)
+                completion?(message)
                 return
             }
 
-            let code = trimmed.withCString { uriPointer in
-                path.withCString { pathPointer in
-                    vt_add_magnet(
-                        s,
-                        uriPointer,
-                        pathPointer,
-                        startPaused ? 1 : 0,
-                        sequential ? 1 : 0
-                    )
+            let outcome = await self.sessionController.perform { session in
+                trimmed.withCString { uriPointer in
+                    path.withCString { pathPointer in
+                        vt_add_magnet(
+                            session,
+                            uriPointer,
+                            pathPointer,
+                            startPaused ? 1 : 0,
+                            sequential ? 1 : 0
+                        )
+                    }
                 }
             }
 
-            let rawError = code != 0 ? Self.readLastError(s) : ""
-            DispatchQueue.main.async {
-                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    // Always answer: a dropped completion leaves the caller
-                    // waiting forever (the add sheet never closes).
-                    completion?(L("Motore non disponibile."))
-                    return
-                }
-
-                if code != 0 {
-                    let message = self.localizedError(
-                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? L("Errore sconosciuto.")
-                            : rawError
-                    )
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                    return
-                }
-
-                self.showToast(
-                    L("Torrent aggiunto"),
-                    kind: .success,
-                    actionTitle: L("Apri cartella"),
-                    action: .openFolder(path: path)
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                completion?(L("Motore non disponibile."))
+                return
+            }
+            if outcome.code != 0 {
+                let message = self.localizedError(
+                    outcome.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? L("Errore sconosciuto.")
+                        : outcome.error
                 )
-                self.poll()
-                completion?(nil)
+                self.showToast(message, kind: .error)
+                completion?(message)
+                return
             }
+
+            self.showToast(
+                L("Torrent aggiunto"),
+                kind: .success,
+                actionTitle: L("Apri cartella"),
+                action: .openFolder(path: path)
+            )
+            self.poll()
+            completion?(nil)
         }
 
         return nil
@@ -122,75 +116,69 @@ extension TorrentEngine {
         let filePath = url.path
         let detail = url.deletingPathExtension().lastPathComponent
 
-        guard !isShuttingDown, let session else {
+        guard !isShuttingDown, hasSession else {
             let message = L("Motore non disponibile.")
             completion?(message)
             return message
         }
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
 
-        sessionQueue.async { [weak self] in
-            guard let s = pointer.value else {
-                DispatchQueue.main.async { completion?(L("Motore non disponibile.")) }
+        Task { [weak self] in
+            let prepared = await Task.detached(priority: .userInitiated) {
+                Self.preparedDestination(destination)
+            }.value
+            guard let self else { return }
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                // Always answer: a dropped completion leaves the caller waiting
+                // forever (the add sheet never closes).
+                completion?(L("Motore non disponibile."))
                 return
             }
-            let prepared = Self.preparedDestination(destination)
             guard let path = prepared.path else {
                 let message = prepared.error ?? L("Cartella di destinazione non valida.")
-                DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                        completion?(L("Motore non disponibile."))
-                        return
-                    }
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                }
+                self.showToast(message, kind: .error)
+                completion?(message)
                 return
             }
 
-            let code = filePath.withCString { filePointer in
-                path.withCString { pathPointer in
-                    vt_add_torrent_file(
-                        s,
-                        filePointer,
-                        pathPointer,
-                        startPaused ? 1 : 0,
-                        sequential ? 1 : 0
-                    )
+            let outcome = await self.sessionController.perform { session in
+                filePath.withCString { filePointer in
+                    path.withCString { pathPointer in
+                        vt_add_torrent_file(
+                            session,
+                            filePointer,
+                            pathPointer,
+                            startPaused ? 1 : 0,
+                            sequential ? 1 : 0
+                        )
+                    }
                 }
             }
 
-            let rawError = code != 0 ? Self.readLastError(s) : ""
-            DispatchQueue.main.async {
-                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    // Always answer: a dropped completion leaves the caller
-                    // waiting forever (the add sheet never closes).
-                    completion?(L("Motore non disponibile."))
-                    return
-                }
-
-                if code != 0 {
-                    let message = self.localizedError(
-                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? L("Errore sconosciuto.")
-                            : rawError
-                    )
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                    return
-                }
-
-                self.showToast(
-                    L("Torrent aggiunto"),
-                    kind: .success,
-                    detail: detail,
-                    actionTitle: L("Apri cartella"),
-                    action: .openFolder(path: path)
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                completion?(L("Motore non disponibile."))
+                return
+            }
+            if outcome.code != 0 {
+                let message = self.localizedError(
+                    outcome.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? L("Errore sconosciuto.")
+                        : outcome.error
                 )
-                self.poll()
-                completion?(nil)
+                self.showToast(message, kind: .error)
+                completion?(message)
+                return
             }
+
+            self.showToast(
+                L("Torrent aggiunto"),
+                kind: .success,
+                detail: detail,
+                actionTitle: L("Apri cartella"),
+                action: .openFolder(path: path)
+            )
+            self.poll()
+            completion?(nil)
         }
 
         return nil
@@ -511,24 +499,26 @@ extension TorrentEngine {
 
     func copyMagnet(for torrent: Torrent) {
         let id = torrent.id
-        guard !isShuttingDown, let session else { return }
+        guard !isShuttingDown, hasSession else { return }
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
-        sessionQueue.async { [weak self] in
-            let uri: String = {
-                guard let s = pointer.value else { return "" }
-                guard let cStr = id.withCString({ vt_magnet_uri(s, $0) }) else { return "" }
-                defer { vt_free_string(cStr) }
-                return String(cString: cStr)
-            }()
-            DispatchQueue.main.async {
-                guard let self, !self.isShuttingDown, self.sessionGeneration == generation, !uri.isEmpty else {
-                    return
-                }
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(uri, forType: .string)
-                self.showToast(L("Link magnet copiato"), kind: .info)
+        let box = StringBox()
+
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.sessionController.perform { session in
+                let pointer = id.withCString { vt_magnet_uri(session, $0) }
+                guard let pointer else { return -1 }
+                defer { vt_free_string(pointer) }
+                box.value = String(cString: pointer)
+                return 0
             }
+            guard outcome.code == 0,
+                  !self.isShuttingDown,
+                  self.sessionGeneration == generation,
+                  !box.value.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(box.value, forType: .string)
+            self.showToast(L("Link magnet copiato"), kind: .info)
         }
     }
 
@@ -542,14 +532,14 @@ extension TorrentEngine {
     }
 
     /// Moves the downloaded files of an already-added torrent to `destination`.
-    /// Directory validation and the bridge call run on `sessionQueue`, so the UI
-    /// thread never touches the filesystem.
+    /// Directory validation runs on a background thread and the bridge call goes
+    /// through the session actor, so the UI thread never touches the filesystem.
     package func moveStorage(
         _ torrent: Torrent,
         to destination: String,
         completion: (@MainActor (String?) -> Void)? = nil
     ) {
-        guard !isShuttingDown, let session else {
+        guard !isShuttingDown, hasSession else {
             let message = L("Motore non disponibile.")
             completion?(message)
             return
@@ -557,66 +547,62 @@ extension TorrentEngine {
         let torrentID = torrent.id
         let currentSavePath = torrent.savePath
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
 
-        sessionQueue.async { [weak self] in
-            guard let s = pointer.value else { return }
-            let prepared = Self.preparedDestination(destination)
+        Task { [weak self] in
+            let prepared = await Task.detached(priority: .userInitiated) {
+                Self.preparedDestination(destination)
+            }.value
+            guard let self else { return }
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                completion?(L("Motore non disponibile."))
+                return
+            }
             guard let path = prepared.path else {
                 let message = prepared.error ?? L("Cartella di destinazione non valida.")
-                DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown, self.sessionGeneration == generation else { return }
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                }
+                self.showToast(message, kind: .error)
+                completion?(message)
                 return
             }
 
             if URL(fileURLWithPath: path).standardizedFileURL.path
                 == URL(fileURLWithPath: currentSavePath).standardizedFileURL.path {
-                DispatchQueue.main.async {
-                    completion?(nil)
-                }
+                completion?(nil)
                 return
             }
 
-            let code = torrentID.withCString { idPointer in
-                path.withCString { pathPointer in
-                    vt_move_storage(s, idPointer, pathPointer)
+            let outcome = await self.sessionController.perform { session in
+                torrentID.withCString { idPointer in
+                    path.withCString { pathPointer in
+                        vt_move_storage(session, idPointer, pathPointer)
+                    }
                 }
             }
 
-            let rawError = code != 0 ? Self.readLastError(s) : ""
-            DispatchQueue.main.async {
-                guard let self, !self.isShuttingDown, self.sessionGeneration == generation else {
-                    // Always answer: a dropped completion leaves the caller
-                    // waiting forever (the add sheet never closes).
-                    completion?(L("Motore non disponibile."))
-                    return
-                }
-
-                if code != 0 {
-                    let message = self.localizedError(
-                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? L("Errore sconosciuto.")
-                            : rawError
-                    )
-                    self.showToast(message, kind: .error)
-                    completion?(message)
-                    return
-                }
-
-                // `move_storage` is asynchronous: the bridge returns as soon as
-                // libtorrent accepts the request. The real completion is the
-                // save path changing in a later snapshot (see `apply`).
-                self.showToast(
-                    L("Spostamento in corso…"),
-                    kind: .info,
-                    detail: path
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                completion?(L("Motore non disponibile."))
+                return
+            }
+            if outcome.code != 0 {
+                let message = self.localizedError(
+                    outcome.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? L("Errore sconosciuto.")
+                        : outcome.error
                 )
-                self.poll()
-                completion?(nil)
+                self.showToast(message, kind: .error)
+                completion?(message)
+                return
             }
+
+            // `move_storage` is asynchronous: the bridge returns as soon as
+            // libtorrent accepts the request. The real completion is the save
+            // path changing in a later snapshot (see `apply`).
+            self.showToast(
+                L("Spostamento in corso…"),
+                kind: .info,
+                detail: path
+            )
+            self.poll()
+            completion?(nil)
         }
     }
 
@@ -651,7 +637,7 @@ extension TorrentEngine {
     }
 
     func applySettings() {
-        guard !isShuttingDown, !isRestartingSession, session != nil else { return }
+        guard !isShuttingDown, !isRestartingSession, hasSession else { return }
 
         let configuration: SessionConfiguration
         if let configurationOverride {

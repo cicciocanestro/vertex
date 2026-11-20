@@ -46,28 +46,23 @@ extension TorrentEngine {
         }
         #endif
 
-        guard !isShuttingDown, !isPollInFlight, let session else { return }
+        guard !isShuttingDown, !isPollInFlight, hasSession else { return }
         retryProxyPasswordWarmIfNeeded()
         isPollInFlight = true
-        nextPollID += 1
-        let pollID = nextPollID
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
 
-        sessionQueue.async { [weak self] in
-            let snapshot = pointer.value.flatMap { Self.readSnapshot($0) }
-            DispatchQueue.main.async {
-                self?.finishPoll(snapshot, id: pollID, generation: generation)
-            }
+        Task { [weak self] in
+            guard let self else { return }
+            let snapshot = await self.sessionController.poll()
+            self.finishPoll(snapshot, generation: generation)
         }
     }
 
-    func finishPoll(_ snapshot: VertexSnapshot?, id: Int, generation: Int) {
+    func finishPoll(_ snapshot: VertexSnapshot?, generation: Int) {
         isPollInFlight = false
-        guard generation == sessionGeneration, id >= lastAppliedPollID, !isShuttingDown else {
+        guard generation == sessionGeneration, !isShuttingDown else {
             return
         }
-        lastAppliedPollID = id
         guard let snapshot else { return }
 
         // Perform an active TCP health-check probe on the configured proxy:
@@ -95,11 +90,11 @@ extension TorrentEngine {
                             if let newError {
                                 self.pollState.stats.proxy.error = newError
                             }
-                            if isReachable, let s = self.session {
-                                let pointer = SessionPointerBox(s)
-                                self.sessionQueue.async {
-                                    if let value = pointer.value {
-                                        vt_clear_proxy_error(value)
+                            if isReachable, self.hasSession {
+                                Task {
+                                    await self.sessionController.perform { pointer in
+                                        vt_clear_proxy_error(pointer)
+                                        return 0
                                     }
                                 }
                             }
@@ -375,30 +370,26 @@ extension TorrentEngine {
     #endif
 
     func loadDetail(_ id: String) {
-        guard selectedID == id, !isShuttingDown, let session else {
+        guard selectedID == id, !isShuttingDown, hasSession else {
             if selectedID == id {
                 detail = nil
             }
             return
         }
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
-        sessionQueue.async { [weak self] in
-            let json = pointer.value.flatMap { Self.readDetailJSON($0, id: id) }
-            DispatchQueue.main.async {
-                self?.applyDetailJSON(json, id: id, generation: generation)
-            }
+        Task { [weak self] in
+            guard let self else { return }
+            let decoded = await self.sessionController.detail(id: id)
+            self.applyDetail(decoded, id: id, generation: generation)
         }
     }
 
-    func applyDetailJSON(_ json: String?, id: String, generation: Int? = nil) {
+    func applyDetail(_ decoded: TorrentDetail?, id: String, generation: Int? = nil) {
         guard selectedID == id else { return }
         if let generation, generation != sessionGeneration {
             return
         }
-        guard let json,
-              let data = json.data(using: .utf8),
-              let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
+        guard let decoded else {
             // Never keep showing the previous snapshot when the fetch fails.
             detail = nil
             return
@@ -409,36 +400,25 @@ extension TorrentEngine {
         }
     }
 
-    nonisolated static func readSnapshot(_ session: OpaquePointer) -> VertexSnapshot? {
-        vt_session_poll(session)
-        guard let pointer = vt_snapshot_json(session) else { return nil }
-        let json = String(cString: pointer)
-        vt_free_string(pointer)
-        guard let data = json.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(VertexSnapshot.self, from: data)
-    }
-
-    nonisolated static func readDetailJSON(
-        _ session: OpaquePointer,
-        id: String
-    ) -> String? {
-        let pointer = id.withCString { vt_detail_json(session, $0) }
-        guard let pointer else { return nil }
-        defer { vt_free_string(pointer) }
-        return String(cString: pointer)
+    func applyDetailJSON(_ json: String?, id: String, generation: Int? = nil) {
+        guard let json,
+              let data = json.data(using: .utf8),
+              let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
+            applyDetail(nil, id: id, generation: generation)
+            return
+        }
+        applyDetail(decoded, id: id, generation: generation)
     }
 
     #if DEBUG
     package func pollNowForTesting() {
-        guard !isShuttingDown, let session else { return }
-        nextPollID += 1
-        let pollID = nextPollID
+        guard !isShuttingDown, let pointer = sessionController.testPointer else { return }
         let generation = sessionGeneration
-        let snapshot = sessionQueue.sync { Self.readSnapshot(session) }
-        finishPoll(snapshot, id: pollID, generation: generation)
+        let snapshot = SessionController.readSnapshot(pointer)
+        finishPoll(snapshot, generation: generation)
         if let id = selectedID {
-            let json = sessionQueue.sync { Self.readDetailJSON(session, id: id) }
-            applyDetailJSON(json, id: id, generation: generation)
+            let decoded = SessionController.readDetail(pointer, id: id)
+            applyDetail(decoded, id: id, generation: generation)
         }
     }
 

@@ -2,28 +2,6 @@ import AppKit
 import CTorrent
 import Foundation
 
-/// A session pointer is only handed to one lifecycle queue at a time. The box
-/// makes that ownership explicit to the compiler; libtorrent itself is
-/// thread-safe and the pointer is not used by the UI while it is in flight.
-final class SessionPointerBox: @unchecked Sendable {
-    let value: OpaquePointer?
-
-    init(_ value: OpaquePointer?) {
-        self.value = value
-    }
-
-    func destroy() {
-        if let value {
-            vt_session_destroy(value)
-        }
-    }
-}
-
-private struct SessionCreationResult {
-    let pointer: OpaquePointer?
-    let error: String?
-}
-
 @MainActor
 package final class TorrentEngine: ObservableObject {
     package static let shared = TorrentEngine()
@@ -55,7 +33,12 @@ package final class TorrentEngine: ObservableObject {
     @Published package var selectedIDs: Set<String> = []
     var selectionAnchorID: String?
 
-    var session: OpaquePointer?
+    /// Owns the libtorrent pointer: see `SessionController`. Internal so the
+    /// engine extensions (polling, actions) can route calls through the actor.
+    let sessionController: SessionController
+    /// Mirror of the actor's state for synchronous decisions (command gating,
+    /// UI state). The pointer itself never leaves the actor.
+    private(set) var hasSession = false
     var pollTask: Task<Void, Never>?
     var toastTask: Task<Void, Never>?
     var settingsApplyTask: Task<Void, Never>?
@@ -73,18 +56,11 @@ package final class TorrentEngine: ObservableObject {
     var sessionPexEnabled = true
     var shutdownCompletions: [() -> Void] = []
     var isShutdownComplete = false
-    /// All `vt_*` calls run on this serial queue. Creating, polling, reading
-    /// details and destroying a session are therefore ordered, and the poll no
-    /// longer blocks the main actor.
-    let sessionQueue = DispatchQueue(
-        label: "com.vertex.session",
-        qos: .userInitiated
-    )
     let decoder = JSONDecoder()
     var isPollInFlight = false
+    /// Bumped on every restart/shutdown: async results from the previous
+    /// session must not be applied to the new one.
     var sessionGeneration = 0
-    var nextPollID = 0
-    var lastAppliedPollID = 0
     var configurationOverride: SessionConfiguration?
     var lastAppliedConfiguration: SessionConfiguration?
     var proxyCheckTick = 0
@@ -119,6 +95,7 @@ package final class TorrentEngine: ObservableObject {
     private static let errorToastDedupWindow: TimeInterval = 8
 
     private init() {
+        sessionController = SessionController()
         Preferences.registerDefaults()
 
         #if DEBUG
@@ -133,53 +110,43 @@ package final class TorrentEngine: ObservableObject {
         startSession()
     }
 
-    /// Starts the libtorrent session on the serial session queue. Loading the
-    /// resume directory and creating a session can take seconds with a large
-    /// library, so it must not run on the main actor.
-    ///
-    /// The preference validation and the configuration snapshot are part of the
-    /// same block: `validateAllPreferences` reads the Keychain (proxy password)
-    /// and `currentConfiguration` must see the warmed cache, so both belong off
-    /// the main thread.
+    /// Starts the libtorrent session on the session actor. Loading the resume
+    /// directory and creating a session can take seconds with a large library,
+    /// so it must not run on the main actor; the actor validates the preferences
+    /// (Keychain read included) before building the configuration.
     private func startSession(configuration: SessionConfiguration? = nil) {
         isStarting = true
         startupError = nil
-        sessionQueue.async { [self] in
-            Self.validateAllPreferences()
-            let configuration = configuration ?? Self.currentConfiguration()
-            let creation = Self.makeSession(configuration)
-            DispatchQueue.main.async {
-                self.finishStartup(creation, configuration: configuration)
-            }
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.sessionController.create(configuration: configuration)
+            self.finishStartup(outcome)
         }
     }
 
-    private func finishStartup(
-        _ creation: SessionCreationResult,
-        configuration: SessionConfiguration
-    ) {
+    private func finishStartup(_ outcome: SessionCreationOutcome) {
         isStarting = false
 
         if isShuttingDown {
-            let pointer = SessionPointerBox(creation.pointer)
-            sessionQueue.async { pointer.destroy() }
+            Task { await sessionController.destroy() }
             return
         }
 
-        guard let newSession = creation.pointer else {
+        guard outcome.started else {
+            hasSession = false
             startupError = Self.sessionFailureDetail(
-                creation.error,
+                outcome.error,
                 fallback: L("Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.")
             )
             isReady = false
             return
         }
 
-        session = newSession
-        sessionPexEnabled = configuration.pex
+        hasSession = true
+        sessionPexEnabled = outcome.configuration.pex
         isReady = true
         startupError = nil
-        lastAppliedConfiguration = configuration
+        lastAppliedConfiguration = outcome.configuration
         startPolling()
     }
 
@@ -187,7 +154,7 @@ package final class TorrentEngine: ObservableObject {
     /// error view calls this; it is a no-op while a session or a startup is in
     /// flight.
     package func retryStartup() {
-        guard !isStarting, !isShuttingDown, session == nil else { return }
+        guard !isStarting, !isShuttingDown, !hasSession else { return }
         startSession(configuration: configurationOverride)
     }
 
@@ -198,8 +165,12 @@ package final class TorrentEngine: ObservableObject {
         Preferences.registerDefaults()
         configurationOverride = configuration
         sessionPexEnabled = configuration.pex
-        session = Self.makeSession(configuration).pointer
-        isReady = session != nil
+        // Tests need a session synchronously: the controller creates it in its
+        // initializer, so the pointer never crosses an isolation boundary.
+        let controller = SessionController(configuration: configuration)
+        sessionController = controller
+        hasSession = controller.started
+        isReady = hasSession
         if isReady {
             lastAppliedConfiguration = configuration
         }
@@ -210,75 +181,6 @@ package final class TorrentEngine: ObservableObject {
     #endif
 
     // MARK: - Session Lifecycle
-
-    /// Creates and configures a session. This runs off the main actor when
-    /// called by the lifecycle queue, so libtorrent I/O cannot block the UI.
-    nonisolated private static func makeSession(
-        _ configuration: SessionConfiguration
-    ) -> SessionCreationResult {
-        do {
-            try FileManager.default.createDirectory(
-                atPath: configuration.downloadPath,
-                withIntermediateDirectories: true
-            )
-            try FileManager.default.createDirectory(
-                atPath: configuration.resumePath,
-                withIntermediateDirectories: true
-            )
-        } catch {
-            return SessionCreationResult(pointer: nil, error: error.localizedDescription)
-        }
-
-        var errorPointer: UnsafeMutablePointer<CChar>?
-        let version = AppInfo.version == "—" ? "" : AppInfo.version
-        let pointer = configuration.downloadPath.withCString { downloadPath in
-            configuration.resumePath.withCString { resumePath in
-                configuration.bindAddress.withCString { bindAddress in
-                    configuration.proxyHost.withCString { hostPointer in
-                        configuration.proxyUser.withCString { userPointer in
-                            configuration.proxyPassword.withCString { passPointer in
-                                version.withCString { versionPointer in
-                                    vt_session_create_configured(
-                                        downloadPath,
-                                        resumePath,
-                                        configuration.port,
-                                        configuration.downloadLimit,
-                                        configuration.uploadLimit,
-                                        configuration.dht ? 1 : 0,
-                                        configuration.pex ? 1 : 0,
-                                        configuration.lsd ? 1 : 0,
-                                        configuration.upnp ? 1 : 0,
-                                        bindAddress,
-                                        configuration.proxyEnabled ? 1 : 0,
-                                        hostPointer,
-                                        configuration.proxyPort,
-                                        userPointer,
-                                        passPointer,
-                                        versionPointer,
-                                        &errorPointer
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let error = errorPointer.map { String(cString: $0) }
-        if let errorPointer {
-            vt_free_string(errorPointer)
-        }
-
-        if let pointer {
-            // Always apply the limit, including "unlimited": libtorrent's default
-            // is 3 downloads + 5 seeds, which would silently queue the torrents of
-            // a user who never asked for a queue.
-            _ = vt_set_active_limit(pointer, configuration.maxActive)
-        }
-
-        return SessionCreationResult(pointer: pointer, error: error)
-    }
 
     func recordErrorToast(_ text: String) {
         let now = Date()
@@ -302,8 +204,8 @@ package final class TorrentEngine: ObservableObject {
     }
 
     /// PEX is a session plugin in libtorrent: changing it requires recreating
-    /// the session. Destruction and creation run off the main thread, and the
-    /// previous PEX value is used as a fallback if the new session cannot start.
+    /// the session. Both destruction and creation run on the session actor, and
+    /// the previous PEX value is used as a fallback if the new session cannot start.
     func restartSessionForPeerExchange(
         configuration: SessionConfiguration,
         oldPex: Bool
@@ -312,14 +214,7 @@ package final class TorrentEngine: ObservableObject {
         isRestartingSession = true
         sessionGeneration += 1
         isPollInFlight = false
-        // The new session is a different libtorrent instance: poll IDs from
-        // before the restart are stale. Resetting here keeps the guard in
-        // `finishPoll` meaningful instead of relying on the monotonic counter
-        // to outlive the restart by accident.
-        lastAppliedPollID = 0
-
-        let previousSession = SessionPointerBox(session)
-        session = nil
+        hasSession = false
         lastAppliedConfiguration = nil
         isReady = false
         hasLoadedSnapshot = false
@@ -330,112 +225,105 @@ package final class TorrentEngine: ObservableObject {
 
         showToast(L("Riavvio del motore BitTorrent…"), kind: .info)
 
-        sessionQueue.async { [self] in
-            previousSession.destroy()
+        Task { [weak self] in
+            guard let self else { return }
+            await self.sessionController.destroy()
 
-            let creation = Self.makeSession(configuration)
-            let newSession = SessionPointerBox(creation.pointer)
-            let fallbackSession: SessionPointerBox?
-            if newSession.value == nil, configuration.pex != oldPex {
+            var outcome = await self.sessionController.create(configuration: configuration)
+            var restoredPreviousPex = false
+            if !outcome.started, configuration.pex != oldPex {
                 var fallbackConfiguration = configuration
                 fallbackConfiguration.pex = oldPex
-                fallbackSession = SessionPointerBox(Self.makeSession(fallbackConfiguration).pointer)
-            } else {
-                fallbackSession = nil
+                let fallback = await self.sessionController.create(configuration: fallbackConfiguration)
+                if fallback.started {
+                    outcome = fallback
+                    restoredPreviousPex = true
+                }
             }
 
-            DispatchQueue.main.async {
-                self.finishSessionRestart(
-                    newSession: newSession.value,
-                    fallbackSession: fallbackSession?.value,
-                    configuration: configuration,
-                    oldPex: oldPex,
-                    creationError: creation.error
-                )
-            }
+            self.finishSessionRestart(
+                outcome,
+                requested: configuration,
+                oldPex: oldPex,
+                restoredPreviousPex: restoredPreviousPex
+            )
         }
     }
 
     private func finishSessionRestart(
-        newSession: OpaquePointer?,
-        fallbackSession: OpaquePointer?,
-        configuration: SessionConfiguration,
+        _ outcome: SessionCreationOutcome,
+        requested: SessionConfiguration,
         oldPex: Bool,
-        creationError: String?
+        restoredPreviousPex: Bool
     ) {
         isRestartingSession = false
 
         if isShuttingDown {
-            let pointer = SessionPointerBox(newSession ?? fallbackSession)
-            sessionQueue.async { [self] in
-                pointer.destroy()
-                DispatchQueue.main.async { self.completeShutdown() }
+            // A shutdown arrived while the restart was in flight: it returned
+            // early, so the completion must be delivered here.
+            Task { [weak self] in
+                guard let self else { return }
+                await self.sessionController.destroy()
+                self.completeShutdown()
             }
             return
         }
 
-        if let newSession {
-            session = newSession
-            sessionPexEnabled = configuration.pex
+        if outcome.started {
+            if restoredPreviousPex {
+                // Put the preference back: the new PEX value could not start.
+                UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
+            }
+            hasSession = true
+            sessionPexEnabled = outcome.configuration.pex
             isReady = true
             startupError = nil
-            // The new session was created from this configuration: diffing the
+            // The session was created from this configuration: diffing the
             // current preferences against it applies only the edits made while
             // the restart was in progress, instead of rebinding the listening
             // port and remapping UPnP on every PEX toggle.
-            lastAppliedConfiguration = configuration
+            lastAppliedConfiguration = outcome.configuration
             startPolling()
             poll()
             applySettings()
+            if restoredPreviousPex {
+                showToast(
+                    L("La modifica a Peer Exchange non è stata applicata."),
+                    kind: .error,
+                    detail: Self.sessionFailureDetail(
+                        outcome.error,
+                        fallback: L("La sessione precedente è stata ripristinata.")
+                    )
+                )
+            }
             return
         }
 
-        // The new session failed. Put the preference back and, when possible,
-        // restore a session using the previous PEX value.
+        // Both attempts failed: put the preference back and surface a retry view.
         UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
         sessionPexEnabled = oldPex
-
-        if let fallbackSession {
-            session = fallbackSession
-            isReady = true
-            startupError = nil
-            lastAppliedConfiguration = configuration
-            startPolling()
-            poll()
-            // Changes made while the restart was in progress must not be lost.
-            applySettings()
-            showToast(
-                L("La modifica a Peer Exchange non è stata applicata."),
-                kind: .error,
-                detail: Self.sessionFailureDetail(
-                    creationError,
-                    fallback: L("La sessione precedente è stata ripristinata.")
-                )
+        hasSession = false
+        lastAppliedConfiguration = nil
+        isReady = false
+        // Without this the empty library is indistinguishable from a dead
+        // engine and the retry button never appears.
+        startupError = Self.sessionFailureDetail(
+            outcome.error,
+            fallback: L("Il motore BitTorrent non è disponibile. Riavvia Vertex.")
+        )
+        pollState = PollState()
+        detail = nil
+        selectedID = nil
+        selectedIDs = []
+        selectionAnchorID = nil
+        showToast(
+            L("Impossibile riavviare il motore BitTorrent"),
+            kind: .error,
+            detail: Self.sessionFailureDetail(
+                outcome.error,
+                fallback: L("La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.")
             )
-        } else {
-            session = nil
-            lastAppliedConfiguration = nil
-            isReady = false
-            // Without this the empty library is indistinguishable from a dead
-            // engine and the retry button never appears.
-            startupError = Self.sessionFailureDetail(
-                creationError,
-                fallback: L("Il motore BitTorrent non è disponibile. Riavvia Vertex.")
-            )
-            pollState = PollState()
-            detail = nil
-            selectedID = nil
-            selectedIDs = []
-            selectionAnchorID = nil
-            showToast(
-                L("Impossibile riavviare il motore BitTorrent"),
-                kind: .error,
-                detail: Self.sessionFailureDetail(
-                    creationError,
-                    fallback: L("La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.")
-                )
-            )
-        }
+        )
     }
 
     package func shutdown(completion: (() -> Void)? = nil) {
@@ -462,13 +350,13 @@ package final class TorrentEngine: ObservableObject {
             return
         }
 
-        let previousSession = SessionPointerBox(session)
-        session = nil
+        hasSession = false
         lastAppliedConfiguration = nil
         isReady = false
-        sessionQueue.async { [self] in
-            previousSession.destroy()
-            DispatchQueue.main.async { self.completeShutdown() }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.sessionController.destroy()
+            self.completeShutdown()
         }
     }
 
@@ -493,7 +381,7 @@ package final class TorrentEngine: ObservableObject {
         guard !Preferences.isProxyPasswordCacheLoaded,
               !isWarmingProxyPassword,
               !isShuttingDown,
-              session != nil,
+              hasSession,
               UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) else {
             return
         }
@@ -503,7 +391,7 @@ package final class TorrentEngine: ObservableObject {
         }
         lastProxyPasswordWarmAttempt = Date()
         isWarmingProxyPassword = true
-        sessionQueue.async { [weak self] in
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             Preferences.warmProxyPasswordCache()
             let loaded = Preferences.isProxyPasswordCacheLoaded
             DispatchQueue.main.async {
@@ -517,13 +405,7 @@ package final class TorrentEngine: ObservableObject {
         }
     }
 
-    nonisolated static func readLastError(_ session: OpaquePointer) -> String {
-        guard let pointer = vt_last_error(session) else { return "" }
-        defer { vt_free_string(pointer) }
-        return String(cString: pointer)
-    }
-
-    /// Runs `operation` on the session queue and reports the outcome on the
+    /// Runs `operation` on the session actor and reports the outcome on the
     /// main actor. Returns false when the command cannot be queued at all (no
     /// session, or the engine is shutting down), so callers that need to answer
     /// the user immediately can do it without waiting for a callback.
@@ -534,41 +416,36 @@ package final class TorrentEngine: ObservableObject {
         onSuccess: (@MainActor () -> Void)? = nil,
         onFailure: (@MainActor (String) -> Void)? = nil
     ) -> Bool {
-        guard !isShuttingDown, let session else { return false }
+        guard !isShuttingDown, hasSession else { return false }
         let generation = sessionGeneration
-        let pointer = SessionPointerBox(session)
-        sessionQueue.async { [weak self] in
-            guard let s = pointer.value else { return }
-            let code = operation(s)
-            let rawError = code != 0 ? Self.readLastError(s) : ""
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard !self.isShuttingDown, self.sessionGeneration == generation else {
-                    // The engine was shut down or restarted while the command
-                    // was in flight: the caller must not wait forever for an
-                    // outcome that no longer exists.
-                    if !self.isShuttingDown {
-                        onFailure?(L("Motore non disponibile."))
-                    }
-                    return
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.sessionController.perform(operation)
+            guard !self.isShuttingDown, self.sessionGeneration == generation else {
+                // The engine was shut down or restarted while the command was
+                // in flight: the caller must not wait forever for an outcome
+                // that no longer exists.
+                if !self.isShuttingDown {
+                    onFailure?(L("Motore non disponibile."))
                 }
-                if code != 0 {
-                    let message = self.localizedError(
-                        rawError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? L("Errore sconosciuto.")
-                            : rawError
-                    )
-                    if let onFailure {
-                        onFailure(message)
-                    } else if let errorTitle {
-                        self.showToast(errorTitle, kind: .error, detail: message)
-                    } else {
-                        self.showToast(message, kind: .error)
-                    }
-                    return
-                }
-                onSuccess?()
+                return
             }
+            if outcome.code != 0 {
+                let message = self.localizedError(
+                    outcome.error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? L("Errore sconosciuto.")
+                        : outcome.error
+                )
+                if let onFailure {
+                    onFailure(message)
+                } else if let errorTitle {
+                    self.showToast(errorTitle, kind: .error, detail: message)
+                } else {
+                    self.showToast(message, kind: .error)
+                }
+                return
+            }
+            onSuccess?()
         }
         return true
     }

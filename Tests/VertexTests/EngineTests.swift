@@ -621,6 +621,9 @@ enum EngineTests {
     private static func waitForTorrent(_ engine: TorrentEngine, timeout: TimeInterval = 10) throws {
         try TestsSupport.waitFor("torrent nell'engine", timeout: timeout) {
             onMain {
+                // Adds are async: pump the run loop so the Task can run before
+                // polling the snapshot.
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
                 engine.pollNowForTesting()
                 return !engine.torrents.isEmpty
             }
