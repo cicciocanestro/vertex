@@ -172,8 +172,14 @@ extension TorrentEngine {
     }
 
     func apply(_ snapshot: VertexSnapshot) {
-        if !snapshot.alertError.isEmpty {
-            let message = localizedError(snapshot.alertError)
+        // Every asynchronous error collected between two polls: the bridge used
+        // to keep a single slot, so with several torrents failing in the same
+        // window only the last message reached the user.
+        let alertMessages = snapshot.alertErrors.isEmpty
+            ? (snapshot.alertError.isEmpty ? [] : [snapshot.alertError])
+            : snapshot.alertErrors
+        for raw in alertMessages {
+            let message = localizedError(raw)
             if !hasRecentErrorToast(message) {
                 showToast(message, kind: .error)
             }

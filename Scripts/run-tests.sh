@@ -54,6 +54,17 @@ if [ -f "$PROFILE" ]; then
                 > "$COVERAGE_DIR/coverage.lcov"; then
             printf 'Report:    %s\n' "$REPORT"
             printf 'Coverage:  %s\n' "$COVERAGE_DIR/coverage.txt"
+
+            # Regression gate: the total line coverage may not fall below the
+            # recorded floor. Raise VERTEX_MIN_COVERAGE as coverage improves.
+            total="$(awk '/^TOTAL/ {gsub("%", "", $4); print $4}' "$COVERAGE_DIR/coverage.txt")"
+            minimum="${VERTEX_MIN_COVERAGE:-54}"
+            if [ -n "$total" ] && ! awk -v t="$total" -v m="$minimum" \
+                'BEGIN { exit (t + 0 >= m + 0) ? 0 : 1 }'; then
+                echo "✗ Coverage ${total}% sotto il minimo ${minimum}%" >&2
+                exit 1
+            fi
+            printf 'Coverage minima: %s%%\n' "$minimum"
         else
             echo "⚠ Generazione del report coverage fallita (i test restano validi)" >&2
         fi

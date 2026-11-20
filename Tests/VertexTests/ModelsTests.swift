@@ -599,5 +599,34 @@ enum ModelsTests {
             try TestRunner.assertEqual(all.selectedIDs, Set(visible))
             try TestRunner.assertEqual(all.anchorID, "t2")
         }
+
+        TestRunner.run("Snapshot: coda degli errori asincroni") {
+            let json = """
+            {
+                "download_rate": 0, "upload_rate": 0, "active": 0, "paused_count": 0,
+                "dht_nodes": 0, "alert_error": "secondo", "alert_errors": ["primo", "secondo"],
+                "listen_actual_port": 0, "listening": false, "bind_address": "",
+                "listen_error": "",
+                "portmap": {
+                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "error": ""
+                },
+                "port": 0, "torrents": []
+            }
+            """
+            let snapshot = try JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
+            try TestRunner.assertEqual(snapshot.alertErrors, ["primo", "secondo"])
+            try TestRunner.assertEqual(snapshot.alertError, "secondo")
+
+            // Older payloads without the array keep working.
+            let legacy = json.replacingOccurrences(
+                of: "\"alert_error\": \"secondo\", \"alert_errors\": [\"primo\", \"secondo\"],",
+                with: "\"alert_error\": \"unico\","
+            )
+            let fallback = try JSONDecoder().decode(VertexSnapshot.self, from: Data(legacy.utf8))
+            try TestRunner.assertEqual(fallback.alertErrors, [])
+            try TestRunner.assertEqual(fallback.alertError, "unico")
+        }
     }
 }

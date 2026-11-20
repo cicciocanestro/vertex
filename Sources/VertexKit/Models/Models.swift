@@ -358,6 +358,9 @@ package struct VertexSnapshot: Decodable {
     package let bindAddress: String
     package let listenError: String
     package let alertError: String
+    /// Every asynchronous error collected between two polls. `alertError` keeps
+    /// the last message for older payloads; the UI prefers this array.
+    package let alertErrors: [String]
     package let proxy: ProxyInfo
 
     enum CodingKeys: String, CodingKey {
@@ -374,6 +377,7 @@ package struct VertexSnapshot: Decodable {
         case bindAddress = "bind_address"
         case listenError = "listen_error"
         case alertError = "alert_error"
+        case alertErrors = "alert_errors"
         case proxy
     }
 
@@ -409,6 +413,7 @@ package struct VertexSnapshot: Decodable {
         bindAddress = try c.decode(String.self, forKey: .bindAddress)
         listenError = try c.decode(String.self, forKey: .listenError)
         alertError = try c.decode(String.self, forKey: .alertError)
+        alertErrors = try c.decodeIfPresent([String].self, forKey: .alertErrors) ?? []
         proxy = try c.decodeIfPresent(ProxyInfo.self, forKey: .proxy) ?? ProxyInfo()
     }
 }

@@ -27,6 +27,7 @@
 #include <cstdio>
 #include <exception>
 #include <cstdlib>
+#include <fcntl.h>
 #include <cstring>
 #include <deque>
 #include <filesystem>
@@ -364,10 +365,11 @@ struct vt_session
     int dht_nodes = 0;
     // Synchronous operation error, read and cleared by vt_last_error().
     std::string last_error;
-    // Asynchronous add_torrent/torrent_error alert, surfaced once by the
-    // snapshot. Keeping it separate prevents an alert from overwriting the
-    // error of an operation the UI is about to report.
-    std::string last_alert_error;
+    // Asynchronous add_torrent/torrent_error/storage alerts, surfaced once by
+    // the snapshot. A queue, not a single slot: with several torrents failing
+    // between two polls, a single string silently lost all but one message.
+    static constexpr std::size_t max_alert_errors = 8;
+    std::deque<std::string> alert_errors;
     int actual_listen_port = 0;
     bool listening = false;
     bool upnp_enabled = true;
@@ -446,6 +448,18 @@ void mark_removed(vt_session* session, std::string const& id)
         session->removed_ids_set.erase(session->removed_ids.front());
         session->removed_ids.pop_front();
     }
+}
+
+void push_alert_error(vt_session* session, std::string const& message)
+{
+    if (!session || message.empty())
+        return;
+    // libtorrent reports some adds twice (sync error + alert): one event.
+    if (!session->alert_errors.empty() && session->alert_errors.back() == message)
+        return;
+    session->alert_errors.push_back(message);
+    while (session->alert_errors.size() > vt_session::max_alert_errors)
+        session->alert_errors.pop_front();
 }
 
 void unmark_removed(vt_session* session, std::string const& id)
@@ -704,7 +718,19 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
             if (!file)
                 return false;
             file.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            return bool(file);
+            file.flush();
+            return file.good();
+        };
+
+        // The rename is atomic, but without fsync a power loss can leave the
+        // renamed file empty: flush the data first.
+        auto sync_file = [&]() -> bool {
+            int const fd = ::open(tmp_path.c_str(), O_RDONLY);
+            if (fd < 0)
+                return false;
+            bool const ok = ::fsync(fd) == 0;
+            ::close(fd);
+            return ok;
         };
 
         // The directory is created once with the session; recreate it only if
@@ -717,12 +743,27 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
                 return false;
         }
 
+        if (!sync_file())
+        {
+            std::error_code remove_ec;
+            fs::remove(tmp_path, remove_ec);
+            return false;
+        }
+
         std::error_code ec;
         fs::rename(tmp_path, final_path, ec);
         if (ec)
         {
             fs::remove(tmp_path, ec);
             return false;
+        }
+
+        // Persist the directory entry too, so the new name survives a crash.
+        int const dir_fd = ::open(resume_dir.c_str(), O_RDONLY | O_DIRECTORY);
+        if (dir_fd >= 0)
+        {
+            ::fsync(dir_fd);
+            ::close(dir_fd);
         }
         return true;
     }
@@ -896,6 +937,16 @@ vt_session* vt_session_create_configured(const char* download_dir,
 
         if (!session->resume_dir.empty())
         {
+            // A resume file that cannot be parsed would be retried at every
+            // startup and never reported. Move it aside instead, so it stops
+            // being read and the problem is visible in the folder.
+            auto quarantine = [](fs::path const& path) {
+                std::error_code qec;
+                fs::path target = path;
+                target += ".bad";
+                fs::rename(path, target, qec);
+            };
+
             std::error_code ec;
             for (auto const& entry : fs::directory_iterator(session->resume_dir, ec))
             {
@@ -913,7 +964,10 @@ vt_session* vt_session_create_configured(const char* download_dir,
                     auto const resume_size = fs::file_size(entry.path(), size_ec);
                     constexpr std::uintmax_t MAX_RESUME_FILE = 10 * 1024 * 1024; // 10 MiB
                     if (size_ec || resume_size == 0 || resume_size > MAX_RESUME_FILE)
+                    {
+                        quarantine(entry.path());
                         continue;
+                    }
 
                     std::ifstream file(entry.path(), std::ios::binary);
                     std::vector<char> data((std::istreambuf_iterator<char>(file)),
@@ -921,13 +975,19 @@ vt_session* vt_session_create_configured(const char* download_dir,
                     // Re-check after reading: the file may have grown between
                     // the stat and the read, and this bounds the int cast below.
                     if (data.empty() || data.size() > MAX_RESUME_FILE)
+                    {
+                        quarantine(entry.path());
                         continue;
+                    }
 
                     lt::error_code resume_ec;
                     auto params = lt::read_resume_data(
                         lt::span<char const>(data.data(), static_cast<int>(data.size())), resume_ec);
                     if (resume_ec)
+                    {
+                        quarantine(entry.path());
                         continue;
+                    }
 
                     params.save_path = prepared_save_path(params.save_path, session->default_save_path);
                     // The resume data carries the flags of the last session: a
@@ -1198,7 +1258,7 @@ void vt_session_poll(vt_session* session)
             }
             else if (auto* move_failed = lt::alert_cast<lt::storage_moved_failed_alert>(alert))
             {
-                session->last_alert_error = move_failed->error.message();
+                push_alert_error(session, move_failed->error.message());
             }
             else if (auto* stats = lt::alert_cast<lt::session_stats_alert>(alert))
             {
@@ -1270,11 +1330,11 @@ void vt_session_poll(vt_session* session)
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
             {
                 if (added->error)
-                    session->last_alert_error = added->error.message();
+                    push_alert_error(session, added->error.message());
             }
             else if (auto* error = lt::alert_cast<lt::torrent_error_alert>(alert))
             {
-                session->last_alert_error = error->error.message();
+                push_alert_error(session, error->error.message());
             }
             else if (auto* socks = lt::alert_cast<lt::socks5_alert>(alert))
             {
@@ -1302,8 +1362,8 @@ char* vt_snapshot_json(vt_session* session)
         std::ostringstream out;
         out.imbue(std::locale::classic());
 
-        std::string alert_error = session->last_alert_error;
-        session->last_alert_error.clear();
+        std::deque<std::string> alert_errors;
+        alert_errors.swap(session->alert_errors);
 
         std::int64_t download_rate = 0;
         std::int64_t upload_rate = 0;
@@ -1353,7 +1413,19 @@ char* vt_snapshot_json(vt_session* session)
         out << "\"active\":" << active << ",";
         out << "\"paused_count\":" << paused << ",";
         out << "\"dht_nodes\":" << session->dht_nodes << ",";
-        out << "\"alert_error\":\"" << json_escape(alert_error) << "\",";
+        // `alert_error` stays for compatibility (last message); the array is the
+        // complete set collected between two polls.
+        out << "\"alert_error\":\""
+            << json_escape(alert_errors.empty() ? std::string() : alert_errors.back())
+            << "\",";
+        out << "\"alert_errors\":[";
+        for (std::size_t i = 0; i < alert_errors.size(); ++i)
+        {
+            if (i)
+                out << ',';
+            out << '"' << json_escape(alert_errors[i]) << '"';
+        }
+        out << "],";
 
         try
         {
