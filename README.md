@@ -352,16 +352,22 @@ both architectures.
 ./Scripts/check-toolchain.sh --warn  # local, non-canonical toolchains are allowed
 ./build.sh debug
 ./build.sh test
+./Scripts/run-sanitizers.sh thread   # suite under ThreadSanitizer
+./Scripts/run-sanitizers.sh address  # suite under AddressSanitizer
 ./Scripts/build-deps.sh --force      # rebuild pinned dependencies
 ```
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/` (text plus
-LCOV). CI uploads both, treats every compiler warning as an error and enforces a coverage
-floor. The suite (89 tests) covers formatters, snapshot JSON decoding, models, preferences,
+LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
+floor and runs the suite under ThreadSanitizer and AddressSanitizer on every non-tag build.
+The suite (91 tests) covers formatters, snapshot JSON decoding, models, preferences,
 the offline GeoIP table, the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command
-routing. A 300-torrent benchmark guards the snapshot cache (local p95 ≈ 1.2 ms). Loopback
+routing. A 300-torrent benchmark guards the snapshot cache (local p95 ≈ 1.2 ms). A loopback
+leak test starts a direct tracker stub and a SOCKS5 stub and asserts that with the proxy
+enabled the tracker receives exactly zero connections, while the proxy is contacted (and
+the inverse without a proxy, so the assertion cannot be vacuous). Loopback
 integration tests exercise v1/v2 transfers, resume reload, file priorities, removal and
 failure paths without external trackers. SwiftUI views and modal variants are rendered
 off-screen with `ImageRenderer`; the UPnP/NAT-PMP smoke test runs only with

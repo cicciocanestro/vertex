@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **Network leak test**: a loopback tracker stub and a SOCKS5 stub prove that with the proxy enabled the tracker receives zero direct connections, while the proxy is contacted; the inverse run without a proxy keeps the assertion meaningful.
+- **Sanitizers in CI**: the whole suite now runs under ThreadSanitizer and AddressSanitizer on every non-tag build (`Scripts/run-sanitizers.sh thread|address`). 91 tests.
+
+### Italiano
+- **Test di leak di rete**: un tracker su loopback e uno stub SOCKS5 dimostrano che con il proxy attivo il tracker riceve zero connessioni dirette, mentre il proxy viene contattato; l'esecuzione inversa senza proxy rende l'asserzione significativa.
+- **Sanitizer in CI**: l'intera suite gira sotto ThreadSanitizer e AddressSanitizer su ogni build non di release (`Scripts/run-sanitizers.sh thread|address`). 91 test.
+
 ## [1.17.0] — 2026-11-20
 
 ### English

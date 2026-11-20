@@ -39,6 +39,56 @@ jobs:
         # release must not be blocked by style findings.
         run: shellcheck -S error build.sh Scripts/*.sh
 
+  sanitizers:
+    name: Sanitizers (${{ matrix.sanitizer }})
+    # Tagged builds are release builds: keep them focused. Pull requests and
+    # pushes run both sanitizers so a race or a buffer overrun fails early.
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [thread, address]
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify runner architecture
+        run: |
+          source Scripts/app.env
+          test "$(uname -m)" = "$VERTEX_ARCH"
+
+      - name: Select canonical Xcode
+        run: |
+          source Scripts/toolchain.env
+          if [ -d "$VERTEX_CANONICAL_XCODE_PATH" ]; then
+            sudo xcode-select --switch "$VERTEX_CANONICAL_XCODE_PATH"
+            echo "DEVELOPER_DIR=$VERTEX_CANONICAL_XCODE_PATH/Contents/Developer" >> "$GITHUB_ENV"
+            xcodebuild -version
+          else
+            echo "::warning::Xcode canonico non trovato; sanitizer su toolchain di sviluppo"
+          fi
+
+      - name: Cache pinned engine dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/vertex-deps
+          key: vertex-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/app.env', 'Scripts/deps.env', 'Scripts/build-deps.sh', 'Scripts/lib/macho.sh', 'Scripts/toolchain.env') }}
+          restore-keys: |
+            vertex-deps-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Build pinned engine dependencies
+        run: ./Scripts/build-deps.sh
+
+      - name: Run tests under ${{ matrix.sanitizer }} sanitizer
+        run: ./Scripts/run-sanitizers.sh ${{ matrix.sanitizer }}
+
   build-and-test:
     name: Build, Test & Package (macOS 15, arm64)
     runs-on: macos-15

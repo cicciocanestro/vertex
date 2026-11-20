@@ -27,6 +27,8 @@ AppCommandsTests.runAll()
 #endif
 TestRunner.beginSuite("TorrentIntegrationTests")
 TorrentIntegrationTests.runAll()
+TestRunner.beginSuite("NetworkLeakTests")
+NetworkLeakTests.runAll()
 
 let elapsed = String(format: "%.3f", Date().timeIntervalSince(startTime))
 
