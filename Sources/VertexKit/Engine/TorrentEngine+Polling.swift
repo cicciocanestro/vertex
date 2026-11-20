@@ -412,7 +412,7 @@ extension TorrentEngine {
 
     #if DEBUG
     package func pollNowForTesting() {
-        guard !isShuttingDown, let pointer = sessionController.testPointer else { return }
+        guard !isShuttingDown, let pointer = sessionController.testPointerBox.value else { return }
         let generation = sessionGeneration
         let snapshot = SessionController.readSnapshot(pointer)
         finishPoll(snapshot, generation: generation)
