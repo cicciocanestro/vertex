@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **Presentation logic leaves the views**: peer-flag labels, tracker input validation, file-priority labels and the diagnostics rules (UPnP disabled reason, external port to probe) now live in `Utilities/Presentation.swift` with unit tests. The inspector and the diagnostics window call the shared code instead of duplicating switches; the project's line coverage rises from 55.4% to 56.1% locally.
+- **Fuzzing for the snapshot encoder**: `Fuzz/strings_fuzzer.cpp` drives `json_escape` and the RFC 3629 UTF-8 validator with the invariants the encoder relies on (no unescaped quote/backslash, no raw control bytes, output always valid UTF-8, plain ASCII unchanged). `Scripts/run-fuzz.sh` uses libFuzzer when the toolchain ships it and falls back to a seeded mutation driver under ASan/UBSan; CI runs it for 60 s on every non-tag build. Locally: 10.2 million mutations in 40 s with no violation.
+
+### Italiano
+- **La logica di presentazione esce dalle viste**: etichette dei flag peer, validazione del tracker, etichette delle priorità file e regole della diagnostica (motivo UPnP disattivato, porta esterna da testare) ora vivono in `Utilities/Presentation.swift` con test unitari. Inspector e diagnostica chiamano il codice condiviso invece di duplicare gli switch; la copertura righe sale dal 55,4% al 56,1% in locale.
+- **Fuzzing per l'encoder dello snapshot**: `Fuzz/strings_fuzzer.cpp` esercita `json_escape` e il validatore UTF-8 RFC 3629 con gli invarianti su cui conta l'encoder (niente virgolette o backslash non escapati, niente byte di controllo grezzi, output sempre UTF-8 valido, ASCII semplice invariato). `Scripts/run-fuzz.sh` usa libFuzzer quando la toolchain lo include e altrimenti un driver mutazionale con ASan/UBSan; la CI lo esegue per 60 s su ogni build non di release. In locale: 10,2 milioni di mutazioni in 40 s senza violazioni.
+
 ## [1.17.1] — 2026-11-20
 
 ### English

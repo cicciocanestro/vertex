@@ -354,13 +354,15 @@ both architectures.
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite under ThreadSanitizer
 ./Scripts/run-sanitizers.sh address  # suite under AddressSanitizer
+./Scripts/run-fuzz.sh 60             # fuzz JSON escaping and UTF-8 validation
 ./Scripts/build-deps.sh --force      # rebuild pinned dependencies
 ```
 
 `./build.sh test` writes `dist/test-results.xml` (JUnit) and `dist/coverage/` (text plus
 LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
-floor and runs the suite under ThreadSanitizer and AddressSanitizer on every non-tag build.
-The suite (91 tests) covers formatters, snapshot JSON decoding, models, preferences,
+floor, runs the suite under ThreadSanitizer and AddressSanitizer, and fuzzes the JSON
+escaping and UTF-8 validation used by the snapshot on every non-tag build. The suite
+(95 tests) covers formatters, snapshot JSON decoding, models, preferences,
 the offline GeoIP table, the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command

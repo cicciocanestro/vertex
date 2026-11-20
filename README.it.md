@@ -358,13 +358,15 @@ richiede dipendenze per entrambe le architetture.
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite sotto ThreadSanitizer
 ./Scripts/run-sanitizers.sh address  # suite sotto AddressSanitizer
+./Scripts/run-fuzz.sh 60             # fuzzing di escaping JSON e validazione UTF-8
 ./Scripts/build-deps.sh --force      # ricompila le dipendenze fissate
 ```
 
 `./build.sh test` produce `dist/test-results.xml` (JUnit) e `dist/coverage/` (testo e
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
-soglia di copertura ed esegue la suite sotto ThreadSanitizer e AddressSanitizer su ogni build
-non di release. La suite (91 test) copre formattatori, decodifica snapshot JSON,
+soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
+di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
+(95 test) copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, tabella GeoIP offline, ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto

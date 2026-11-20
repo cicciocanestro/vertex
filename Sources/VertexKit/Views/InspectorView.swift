@@ -539,15 +539,14 @@ struct InspectorView: View {
     }
 
     private var trimmedNewTracker: String {
-        newTracker.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        TrackerInput.trimmed(newTracker.value)
     }
 
     private var canAddTracker: Bool {
-        let candidate = trimmedNewTracker
-        guard candidate.contains("://") else { return false }
-        return !(engine.detail?.trackers.contains {
-            $0.url.caseInsensitiveCompare(candidate) == .orderedSame
-        } ?? false)
+        TrackerInput.canAdd(
+            newTracker.value,
+            existing: engine.detail?.trackers.map(\.url) ?? []
+        )
     }
 
     private func commitTracker() {
@@ -693,22 +692,7 @@ struct InspectorView: View {
     }
 
     private func peerFlagsHelp(_ flags: String) -> String {
-        var parts: [String] = []
-        for ch in flags {
-            switch ch {
-            case "D": parts.append(L("Download attivo"))
-            case "d": parts.append(L("In attesa di sblocco"))
-            case "U": parts.append(L("Upload attivo"))
-            case "u": parts.append(L("Richiede pezzi"))
-            case "O": parts.append(L("Sblocco ottimistico"))
-            case "S": parts.append(L("Seed completo"))
-            case "I": parts.append(L("Connessione in ingresso"))
-            case "P": parts.append(L("Trasporto uTP"))
-            case "E": parts.append(L("Connessione cifrata"))
-            default: break
-            }
-        }
-        return parts.joined(separator: " · ")
+        PeerFlagPresentation.description(for: flags)
     }
 
     private func waiting(_ palette: Palette, text: String) -> some View {
@@ -724,19 +708,11 @@ struct InspectorView: View {
     }
 
     private func priorityLabel(_ level: FilePriority) -> String {
-        switch level {
-        case .skip: return L("Non scaricare")
-        case .normal: return L("Normale")
-        case .high: return L("Alta")
-        }
+        FilePriorityPresentation.label(level)
     }
 
     private func priorityIcon(_ level: FilePriority) -> String {
-        switch level {
-        case .skip: return "circle"
-        case .normal: return "checkmark.circle.fill"
-        case .high: return "bolt.circle.fill"
-        }
+        FilePriorityPresentation.symbolName(level)
     }
 
     private func priorityColor(_ level: FilePriority, _ palette: Palette) -> Color {

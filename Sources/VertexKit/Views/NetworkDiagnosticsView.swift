@@ -14,25 +14,18 @@ struct NetworkDiagnosticsView: View {
     @AppStorage(PrefKey.dhtEnabled) private var dhtEnabled = PrefDefault.dhtEnabled
     @AppStorage(PrefKey.upnpEnabled) private var upnpEnabled = PrefDefault.upnpEnabled
 
-    /// Why UPnP/NAT-PMP cannot run at all. When this is non-nil the mapping
-    /// rows must not look like a failure: the user disabled the feature, or the
-    /// SOCKS5 proxy disabled it on purpose to avoid leaking the local IP.
     private var upnpDisabledReason: String? {
-        if engine.stats.isProxyActive {
-            return L("Disattivato dal proxy SOCKS5 per prevenire leak.")
-        }
-        if !upnpEnabled {
-            return L("Disattivato in Impostazioni → Rete.")
-        }
-        return nil
+        DiagnosticsPresentation.upnpDisabledReason(
+            isProxyActive: engine.stats.isProxyActive,
+            upnpEnabled: upnpEnabled
+        )
     }
 
-    /// Port to probe from outside: the NAT-mapped external TCP port if any, otherwise the listen port.
     private var testPort: Int {
-        let mapping = engine.stats.portmap.tcp
-        return mapping.mapped && mapping.externalPort > 0
-            ? mapping.externalPort
-            : engine.stats.effectivePort
+        DiagnosticsPresentation.reachabilityPort(
+            tcp: engine.stats.portmap.tcp,
+            effectivePort: engine.stats.effectivePort
+        )
     }
 
     var body: some View {
