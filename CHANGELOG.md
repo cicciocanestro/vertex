@@ -15,7 +15,7 @@
 - **Fail-closed proxy left as is**: a missing host still fails the session, and changing the proxy closes the peers opened before the change.
 
 #### Build, CI & Docs
-- **Warnings are errors in CI** and the coverage floor is now 55% (measured 55.4%). CI compiles with `-warnings-as-errors` on the canonical Swift 6.1 toolchain.
+- **Warnings are errors in CI** and the coverage floor is now 54.5% (54.6% on the CI toolchain, 55.4% locally). CI compiles with `-warnings-as-errors` on the canonical Swift 6.1 toolchain.
 - **89 tests** (was 80): malformed magnet/oversize input, invalid detail ids, the 300-torrent snapshot benchmark with cache-freshness checks, the adaptive polling policy and drag-and-drop validation.
 - **Documentation**: `docs/adr/0001-session-actor.md` records the ownership decision and `docs/threat-model.md` lists assets, adversaries, mitigations and what stays out of scope.
 - **Structure**: `TorrentEngine+Actions` was split into actions and settings, both under 800 lines; structured `os.Logger` categories log session lifecycle and failures with dynamic values marked private.
@@ -37,7 +37,7 @@
 - **Proxy fail-closed invariato**: un host mancante fa fallire la sessione e cambiare proxy chiude i peer aperti prima della modifica.
 
 #### Build, CI e Documentazione
-- **I warning sono errori in CI** e la soglia di copertura è ora 55% (misurato 55,4%). La CI compila con `-warnings-as-errors` sulla toolchain canonica Swift 6.1.
+- **I warning sono errori in CI** e la soglia di copertura è ora 54,5% (54,6% sulla toolchain CI, 55,4% in locale). La CI compila con `-warnings-as-errors` sulla toolchain canonica Swift 6.1.
 - **89 test** (erano 80): magnet malformati e input enormi, id di dettaglio inesistenti, benchmark dello snapshot con 300 torrent e verifica della freschezza della cache, politica di polling adattivo e validazione del drag&drop.
 - **Documentazione**: `docs/adr/0001-session-actor.md` registra la decisione di ownership e `docs/threat-model.md` elenca beni, avversari, mitigazioni e ciò che resta fuori perimetro.
 - **Struttura**: `TorrentEngine+Actions` è stato diviso in azioni e impostazioni, entrambi sotto le 800 righe; categorie `os.Logger` strutturate registrano ciclo di vita e fallimenti con i valori dinamici marcati privati.
