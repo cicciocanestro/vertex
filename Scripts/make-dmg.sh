@@ -58,7 +58,25 @@ detach_image() {
     hdiutil detach "$1" >/dev/null 2>&1 || true
 }
 
+# The runner occasionally reports "Resource busy" from hdiutil while another
+# job is still releasing the volume; a short retry is cheaper than a red build
+# for an infrastructure race that has nothing to do with the artifact.
 create_image() {
+    local attempt
+    for attempt in 1 2 3; do
+        if create_image_once; then
+            return 0
+        fi
+        rm -f "$DMG"
+        if [[ "$attempt" -lt 3 ]]; then
+            echo "→ Creazione DMG fallita (tentativo $attempt/3), riprovo…" >&2
+            sleep $((attempt * 2))
+        fi
+    done
+    return 1
+}
+
+create_image_once() {
     local help
     help=$(diskutil image create from --help 2>/dev/null || true)
     if grep -q -- '--volumeName' <<<"$help" &&
