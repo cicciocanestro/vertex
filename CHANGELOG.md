@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.17.8] — 2026-11-21
+
 ### English
 - **Proxy password file**: the file backend is now created with mode 0600 from the first byte (temporary file with `O_EXCL | O_NOFOLLOW`, `fsync`, atomic rename) inside a 0700 folder, and a file found with group/other access is tightened to 0600 on read. Previously it briefly had the default 0644.
 - **Resume files**: a symlink named `*.resume` is no longer followed at startup; only regular files are loaded.
