@@ -2,7 +2,7 @@ import AppKit
 import CTorrent
 import Foundation
 
-/// Hands a string out of the session queue: written there, read on the main
+/// Hands a string out of the session actor: written there, read on the main
 /// actor after the operation completed.
 private final class StringBox: @unchecked Sendable {
     var value = ""
@@ -477,8 +477,8 @@ extension TorrentEngine {
     }
 
     /// Reads the magnet URI off the main thread. The old synchronous variant
-    /// blocked the main actor behind the session queue (up to seconds with a
-    /// large library), which is exactly what the queue exists to avoid.
+    /// blocked the main actor behind the session work (up to seconds with a
+    /// large library), which is exactly what the actor exists to avoid.
     func magnetURI(for torrent: Torrent, completion: @escaping @MainActor (String) -> Void) {
         let box = StringBox()
         let queued = enqueueSessionOperation { session in
