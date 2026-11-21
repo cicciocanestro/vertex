@@ -203,15 +203,19 @@ SIGN_ARGS=(--force --sign "$SIGN_IDENTITY")
 if [ "$SIGN_IDENTITY" = "-" ]; then
     echo "→ Firma ad-hoc…"
 else
-    echo "→ Firma con identità: $SIGN_IDENTITY (hardened runtime)"
-    SIGN_ARGS+=(--options runtime)
+    echo "→ Firma con identità: $SIGN_IDENTITY"
     case "$SIGN_IDENTITY" in
         "Developer ID Application"*)
+            # Hardened runtime is required for notarization. Library validation
+            # then requires every bundled dylib to share the app's Team ID.
+            SIGN_ARGS+=(--options runtime)
             # The Apple timestamp service only accepts Developer ID certificates.
             SIGN_ARGS+=(--timestamp)
             ;;
         *)
-            echo "  certificato non Developer ID: firma senza timestamp Apple"
+            # A self-signed identity has no Team ID: with the hardened runtime
+            # dyld rejects the bundled libtorrent at launch.
+            echo "  certificato non Developer ID: senza hardened runtime né timestamp Apple"
             ;;
     esac
 fi

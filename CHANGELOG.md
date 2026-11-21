@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.17.9] — 2026-11-21
+
+### English
+- **Launch fix**: releases signed with a self-signed identity are no longer built with the hardened runtime. That combination made macOS refuse the bundled libtorrent at launch ("different Team IDs"), so 1.17.7 and 1.17.8 did not start. Developer ID builds keep the hardened runtime and timestamp.
+
+### Italiano
+- **Correzione all'avvio**: le release firmate con un'identità self-signed non vengono più compilate con l'hardened runtime. Quella combinazione faceva rifiutare a macOS la libtorrent inclusa ("different Team IDs"), quindi 1.17.7 e 1.17.8 non si avviavano. Le build Developer ID mantengono hardened runtime e timestamp.
+
 ## [1.17.8] — 2026-11-21
 
 ### English
