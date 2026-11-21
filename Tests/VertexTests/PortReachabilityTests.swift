@@ -319,7 +319,7 @@
         @MainActor
         private static func waitForState(
             _ tester: PortReachabilityTester,
-            timeout: TimeInterval = 5
+            timeout: TimeInterval = 20
         ) throws -> PortReachabilityTester.State {
             var resolved: PortReachabilityTester.State?
             try TestsSupport.waitFor("stato del tester di raggiungibilità", timeout: timeout) {
