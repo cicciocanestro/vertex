@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.4] — 2026-11-21
 
 ### English
 - **Fuzzing beyond escaping**: the harness now also checks save-path normalization (trim, `~`, file→folder) and a deterministic Swift fuzzer feeds 10,000 mutated snapshot/detail payloads to the JSON decoders. 96 tests.
