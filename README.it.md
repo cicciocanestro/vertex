@@ -14,8 +14,9 @@ Niente Electron, niente pubblicità, nessuna telemetria. Open source con licenza
 
 ## Download
 
-> **Nota:** la build pubblicata è firmata ad-hoc e non notarizzata. Al primo avvio su un
-> altro Mac macOS può chiedere conferma; vedi [Firma e notarizzazione](#firma-e-notarizzazione).
+> **Nota:** la build pubblicata è firmata con un'identità self-signed stabile e non è
+> notarizzata. Al primo avvio su un altro Mac macOS può comunque chiedere conferma; vedi
+> [Firma e notarizzazione](#firma-e-notarizzazione).
 
 ### Homebrew (consigliato)
 
@@ -42,24 +43,25 @@ brew upgrade --cask cicciocanestro/tap/vertex
 
 ### Firma e notarizzazione
 
-La release attuale è **firmata ad-hoc e non notarizzata**. Su un altro Mac Gatekeeper può
-bloccare il primo avvio:
+La release attuale è **firmata con un'identità self-signed stabile e non è notarizzata**. Su
+un altro Mac Gatekeeper può bloccare il primo avvio:
 
 - fai clic destro su **Vertex** nel Finder e scegli **Apri**, oppure
 - vai in **Impostazioni di Sistema → Privacy e Sicurezza** e scegli **Apri comunque**.
 
 La firma Developer ID, l'hardened runtime e la notarizzazione Apple sono il prossimo passo
 per la distribuzione; la build li supporta già: `VERTEX_SIGN_IDENTITY` seleziona l'identità
-di firma (hardened runtime e timestamp al posto della firma ad-hoc) e `Scripts/notarize.sh`
-invia la DMG a `notarytool` e applica il ticket. Senza certificato la release resta ad-hoc,
-quindi aspettati questa conferma una tantum.
+di firma (le build Developer ID ricevono hardened runtime e timestamp) e `Scripts/notarize.sh`
+invia la DMG a `notarytool` e applica il ticket. Finché non è disponibile un certificato
+Developer ID, la release mantiene l'identità self-signed qui sopra, quindi aspettati questa
+conferma una tantum.
 
 #### Identità stabile senza account Developer
 
-La firma ad-hoc cambia a ogni build, quindi macOS vede ogni aggiornamento come un'app
-diversa e richiede di nuovo l'accesso al Portachiavi (dove sta la password SOCKS5). Un
-certificato self-signed di code signing dà al bundle un'identità stabile tra le build, senza
-account Apple:
+Una firma che cambia a ogni build fa sì che macOS veda ogni aggiornamento come un'app
+diversa e richieda di nuovo l'accesso al Portachiavi (dove sta la password SOCKS5). Per
+questo la release usa un certificato self-signed di code signing, che dà al bundle
+un'identità stabile tra le build senza account Apple:
 
 ```bash
 VERTEX_SIGN_P12_PASSWORD='scegli-una-password' ./Scripts/make-signing-cert.sh
@@ -126,9 +128,10 @@ cd vertex
 open dist/Vertex.app
 ```
 
-Per compilare servono Xcode Command Line Tools con Swift 6.0+ (testato con Swift 6.4) e
-CMake 3.20+. La prima build compila le dipendenze fissate in `Scripts/deps.env`; le build
-successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a runtime.
+Per compilare servono Xcode Command Line Tools con Swift 6.0+ (la CI usa Xcode 16.4 /
+Swift 6.1; le build locali sono testate con Swift 6.4) e CMake 3.20+. La prima build
+compila le dipendenze fissate in `Scripts/deps.env`; le build successive riusano
+`.build/vertex-deps`. Non serve alcuna libreria Homebrew a runtime.
 
 ```bash
 ./build.sh          # build release
@@ -352,7 +355,7 @@ richiede dipendenze per entrambe le architetture.
 - `Scripts/` — build dipendenze fissate, verifica bundle, DMG, controllo localizzazioni,
   controllo toolchain, generazione della tabella GeoIP e test runner.
 - `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabelle GeoIP incluse.
-- `docs/` — decision record architetturali, modello di minaccia, design della coda e audit del repository.
+- `docs/` — decision record architetturali, modello di minaccia, [design della coda](docs/queue-and-limits.md) e audit del repository.
 - `.github/workflows/ci.yml` — build/test su push e PR; release sui tag.
 
 ### Sviluppo e test
@@ -395,8 +398,8 @@ Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
 
 - macOS 15.0+ su Apple Silicon (arm64); per Intel serve una build universale con dipendenze
   per entrambe le architetture.
-- Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper. Il
-  supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
+- Firma self-signed, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper.
+  Il supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
 - Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
 - La DMG è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).

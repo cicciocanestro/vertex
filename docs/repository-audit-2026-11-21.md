@@ -26,7 +26,7 @@ Metodo (comandi eseguiti sul repository reale):
 
 | Controllo | Esito |
 |---|---|
-| Chiavi `PrefKey` | 25/25 usate, nessuna chiave o default orfano. |
+| Chiavi `PrefKey` | 26/26 usate, nessuna chiave o default orfano. |
 | Membri `Preferences` | Tutti usati (`migrateLegacyProxyPassword`, `rawDownloadPath`, …). |
 | Viste SwiftUI | Tutte referenziate; nessuna vista morta. |
 | API `vt_*` | Ogni funzione dichiarata in `vertex_torrent.h` è chiamata da Swift o dai test. |
@@ -37,17 +37,14 @@ Metodo (comandi eseguiti sul repository reale):
 | Localizzazioni | 348 chiavi EN/IT, 0 orfane. |
 | Documentazione | `docs/screenshot.jpg` è l'immagine di testa dei README; `queue-and-limits.md`, ADR e threat model sono attuali. |
 
-## Unico orfano trovato
+## Orfani trovati e risolti
 
-**`Typography.captionSemiboldText`** — `Sources/VertexKit/Design/Typography.swift:43`.
-Zero riferimenti in `Sources/` e `Tests/`. Impatto: nullo (un token in più).
-Proposta: rimuovere la riga, un commit senza effetti sul comportamento.
+**`Typography.captionSemiboldText`** — rimosso. Zero riferimenti in `Sources/` e `Tests/`;
+nessun altro token di design, vista, script, chiave o API senza uso.
 
 ## Osservazioni minori
 
-1. `THIRD_PARTY_NOTICES.md` indica "OpenSSL 3.5.x" mentre `Scripts/deps.env`
-   fissa `3.5.9`. Non è un errore, ma rendere la versione esatta rende il
-   confronto con l'SBOM immediato.
+1. `THIRD_PARTY_NOTICES.md` ora indica OpenSSL `3.5.9`, allineato a `Scripts/deps.env`.
 2. `HANDOFF.txt` non è tracciato per scelta (`.gitignore`): è un documento di
    lavoro locale, non un artefatto del repository.
 3. `dist/`, `.build/`, `.DS_Store`, `.vscode/` e `Resources/AppIcon.icns` sono
@@ -55,8 +52,8 @@ Proposta: rimuovere la riga, un commit senza effetti sul comportamento.
 4. La normalizzazione dei percorsi non è duplicata: `Preferences.resolvedDownloadPath`
    chiama `vt_normalize_save_path`, quindi la regola vive solo nel bridge.
 
-## Piano approvabile
+## Piano applicato
 
-1. Rimuovere `captionSemiboldText` (basso rischio, 1 riga).
-2. Allineare la versione OpenSSL nel notice a `3.5.9` (opzionale, documentale).
+1. `captionSemiboldText` rimosso (fatto).
+2. Versione OpenSSL allineata a `3.5.9` nel notice (fatto).
 3. Nessun altro intervento: non ci sono script, viste, chiavi o API morte.
