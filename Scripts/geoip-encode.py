@@ -14,9 +14,11 @@ Decompressed payload:
              varint  address range length
              uint8   country code index
 
-The table is IPv4 only: IPv6 endpoints are reported without a flag.
+The same format is used for IPv6 (`country-v6.bin.z`): start deltas and range
+lengths are varints over 128-bit unsigned values instead of 32-bit ones.
 """
 
+import ipaddress
 import struct
 import sys
 import zlib
@@ -46,7 +48,7 @@ def ipv4(text):
     )
 
 
-def encode(source, destination):
+def encode(source, destination, version="v4"):
     rows = []
     with open(source, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -54,11 +56,20 @@ def encode(source, destination):
             if not line:
                 continue
             start, end, code = line.split(",")
-            if ":" in start:
-                continue  # IPv6 is not part of this table
+            is_v6 = ":" in start
+            if version == "v6":
+                if not is_v6:
+                    continue
+                first = int(ipaddress.IPv6Address(start))
+                last = int(ipaddress.IPv6Address(end))
+            else:
+                if is_v6:
+                    continue
+                first = ipv4(start)
+                last = ipv4(end)
             if len(code) != 2:
                 raise ValueError(f"unexpected country code: {code}")
-            rows.append((ipv4(start), ipv4(end), code))
+            rows.append((first, last, code))
 
     rows.sort(key=lambda row: row[0])
     codes = sorted({row[2] for row in rows})
@@ -92,6 +103,11 @@ def encode(source, destination):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        raise SystemExit(f"usage: {sys.argv[0]} <dbip.csv> <country-v4.bin.z>")
-    encode(sys.argv[1], sys.argv[2])
+    if len(sys.argv) not in (3, 4):
+        raise SystemExit(
+            f"usage: {sys.argv[0]} <dbip.csv> <output.bin.z> [v4|v6]"
+        )
+    version = sys.argv[3] if len(sys.argv) == 4 else "v4"
+    if version not in ("v4", "v6"):
+        raise SystemExit("version must be v4 or v6")
+    encode(sys.argv[1], sys.argv[2], version)

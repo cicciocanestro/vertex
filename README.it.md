@@ -92,9 +92,9 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   torrent v1 e v2.
 - Aggiunta da magnet, file `.torrent`, trascinamento, appunti, Finder o browser.
 - Ricerca, filtri, ordinamento e pannello dettagli con statistiche, file (priorità Non scaricare/Normale/Alta), peer connessi e tracker.
-- **Bandiere dei paesi offline**: ogni peer connesso mostra la bandiera del paese (IPv4) o un
-  badge di rete locale. La tabella è inclusa nell'app (DB-IP Lite, CC BY 4.0): nessuna
-  richiesta di lookup e nessun indirizzo dei peer lascia la macchina.
+- **Bandiere dei paesi offline**: ogni peer connesso mostra la bandiera del paese (IPv4 o
+  IPv6) o un badge di rete locale. Le tabelle sono incluse nell'app (DB-IP Lite, CC BY 4.0):
+  nessuna richiesta di lookup e nessun indirizzo dei peer lascia la macchina.
 - Selezione multipla (`⌘`-clic, `⇧`-clic, `⌘A`) con pausa/ripresa e rimozione in blocco, più notifiche native macOS opzionali a download completato (su bundle firmato con Developer ID).
 - Pausa/ripresa, download sequenziale, resume data ed errori visibili.
 - Limiti globali di velocità, coda dei torrent attivi, porta, DHT, PEX, LSD e UPnP/NAT-PMP.
@@ -285,7 +285,8 @@ avviso.
 - Password del proxy SOCKS5: Portachiavi di macOS (voce `app.vertex.torrent`), non in chiaro.
   Se attivi **Impostazioni → Proxy SOCKS5 → Memorizza la password in un file locale**, si trova
   in `~/Library/Application Support/Vertex/proxy-password` con permessi `0600` (non cifrata).
-- Tabella dei paesi dei peer: inclusa nell'app (`Contents/Resources/GeoIP`), mai interrogata online
+- Tabelle dei paesi dei peer (IPv4 e IPv6): incluse nell'app (`Contents/Resources/GeoIP`),
+  mai interrogate online
 
 Non è presente alcuna telemetria. L'app non è sandboxed e accede alle cartelle scelte e
 alla cartella di download.
@@ -336,7 +337,7 @@ richiede dipendenze per entrambe le architetture.
   - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift`, `TorrentEngine+Settings.swift` — stato UI, polling adattivo e azioni utente instradate dall'actor;
   - `Engine/PortReachabilityTester.swift` — test TCP esterno;
   - `Views/` — lista (pill di stato, colonne estese, navigazione da tastiera), inspector ridimensionabile, impostazioni a sidebar, sheet di aggiunta, diagnostica, status bar;
-  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi, storage della password proxy, lookup GeoIP offline;
+  - `Utilities/` — validazione input, drag&drop, localizzazione, rete, Portachiavi, storage della password proxy, lookup GeoIP offline (IPv4 e IPv6);
   - `Diagnostics/Log.swift` — categorie `os.Logger` strutturate, valori dinamici privati per default;
   - `Design/` — palette, componenti condivisi, chrome delle modali;
   - `Models/` — modelli snapshot, filtri, ordinamento, navigazione da tastiera, priorità file;
@@ -346,7 +347,7 @@ richiede dipendenze per entrambe le architetture.
 - `Tests/Fixtures` — torrent deterministici v1/v2.
 - `Scripts/` — build dipendenze fissate, verifica bundle, DMG, controllo localizzazioni,
   controllo toolchain, generazione della tabella GeoIP e test runner.
-- `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabella GeoIP inclusa.
+- `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabelle GeoIP incluse.
 - `docs/` — decision record architetturali, modello di minaccia, design della coda e audit del repository.
 - `.github/workflows/ci.yml` — build/test su push e PR; release sui tag.
 
@@ -369,8 +370,8 @@ richiede dipendenze per entrambe le architetture.
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
 soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
 di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
-(95 test) copre formattatori, decodifica snapshot JSON,
-modelli, preferenze, tabella GeoIP offline, ciclo vitale del bridge C++, magnet malformati,
+(100 test) copre formattatori, decodifica snapshot JSON,
+modelli, preferenze, tabelle GeoIP offline (IPv4 e IPv6), ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto
 e routing dei comandi. Un benchmark con 300 torrent protegge la cache dello snapshot
@@ -391,7 +392,6 @@ Le build DEBUG offrono dati demo, cattura finestra e un toast di prova
   per entrambe le architetture.
 - Firma ad-hoc, non notarizzata: su un altro Mac aspettati la conferma di Gatekeeper. Il
   supporto per la firma Developer ID e la notarizzazione è già presente (vedi sopra).
-- Le bandiere dei peer coprono solo IPv4: i peer IPv6 non mostrano bandiera.
 - Interfaccia in italiano o inglese in base alla lingua di sistema; nessuna altra lingua.
 - Client volutamente minimale: niente RSS, ricerca torrent integrata o scheduler.
 - La DMG è specifica per l'architettura del Mac di build (arm64 su Apple Silicon).

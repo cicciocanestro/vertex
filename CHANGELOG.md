@@ -3,10 +3,12 @@
 ## [Unreleased]
 
 ### English
+- **IPv6 country flags**: the bundled DB-IP Lite data now includes IPv6 (369,798 ranges, 479 KB). Endpoints are parsed with `inet_pton`; private/ULA, link-local, multicast and IPv4-mapped addresses are handled, and the inspector shows the flag for IPv6 peers too.
 - **Repository hygiene**: `Models.swift` is split into `TorrentModels`, `SessionModels` and `ListModels`; a `.swift-format` baseline (4 spaces, 120 columns, multiline strings untouched) is enforced in CI with `--strict`; release notes older than 1.11.0 moved to `CHANGELOG-archive.md`; the stale Swift 6 report and the unused `captionSemiboldText` token are gone.
 - **Tap automation without a PAT**: the Homebrew tap repository now has an hourly workflow that reads the latest Vertex release with its own token and updates `Casks/vertex.rb` (version + checksum). The optional step in the Vertex release job remains for immediate updates when `HOMEBREW_TAP_TOKEN` is configured.
 
 ### Italiano
+- **Bandiere IPv6**: i dati DB-IP Lite inclusi ora coprono anche IPv6 (369.798 range, 479 KB). Gli endpoint sono interpretati con `inet_pton`; indirizzi privati/ULA, link-local, multicast e IPv4-mapped sono gestiti, e l'inspector mostra la bandiera anche per i peer IPv6.
 - **Igiene del repository**: `Models.swift` è diviso in `TorrentModels`, `SessionModels` e `ListModels`; una baseline `.swift-format` (4 spazi, 120 colonne, stringhe multiriga intatte) è imposta in CI con `--strict`; le note di release precedenti alla 1.11.0 sono in `CHANGELOG-archive.md`; rimossi il report obsoleto su Swift 6 e il token inutilizzato `captionSemiboldText`.
 - **Tap automatico senza PAT**: il repository del tap Homebrew ha ora un workflow orario che legge l'ultima release di Vertex con il proprio token e aggiorna `Casks/vertex.rb` (versione + checksum). Lo step opzionale nel job di release di Vertex resta per l'aggiornamento immediato quando `HOMEBREW_TAP_TOKEN` è configurato.
 

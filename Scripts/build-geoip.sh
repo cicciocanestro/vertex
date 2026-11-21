@@ -18,7 +18,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-mkdir -p "$DOWNLOADS" "$(dirname "$GEOIP_OUTPUT")"
+mkdir -p "$DOWNLOADS" "$(dirname "$GEOIP_V4_OUTPUT")"
 
 if [ ! -f "$ARCHIVE" ]; then
     echo "→ Download DB-IP Lite $GEOIP_VERSION"
@@ -47,7 +47,12 @@ fi
 CSV="$DOWNLOADS/dbip-country-lite-${GEOIP_VERSION}.csv"
 gzip -dc "$ARCHIVE" > "$CSV"
 
-echo "→ Codifica tabella paesi"
-python3 "$ROOT/Scripts/geoip-encode.py" "$CSV" "$GEOIP_OUTPUT"
+echo "→ Codifica tabella paesi IPv4"
+python3 "$ROOT/Scripts/geoip-encode.py" "$CSV" "$GEOIP_V4_OUTPUT" v4
 
-echo "✓ Tabella pronta: $GEOIP_OUTPUT ($(du -h "$GEOIP_OUTPUT" | awk '{print $1}'))"
+echo "→ Codifica tabella paesi IPv6"
+python3 "$ROOT/Scripts/geoip-encode.py" "$CSV" "$GEOIP_V6_OUTPUT" v6
+
+echo "✓ Tabelle pronte:"
+echo "  $GEOIP_V4_OUTPUT ($(du -h "$GEOIP_V4_OUTPUT" | awk '{print $1}'))"
+echo "  $GEOIP_V6_OUTPUT ($(du -h "$GEOIP_V6_OUTPUT" | awk '{print $1}'))"

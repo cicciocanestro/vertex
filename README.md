@@ -91,9 +91,9 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   v1 and v2 torrents.
 - Add from magnet links, `.torrent` files, drag and drop, clipboard, Finder or browser.
 - Search, filters, sorting and an inspector with statistics, files (Do not download/Normal/High priorities), live peers and trackers.
-- **Peer country flags, offline**: each connected peer shows its country flag (IPv4) or a
-  local-network badge. The table ships inside the app (DB-IP Lite, CC BY 4.0), so there is
-  no lookup request and no peer address ever leaves the machine.
+- **Peer country flags, offline**: each connected peer shows its country flag (IPv4 or IPv6)
+  or a local-network badge. The tables ship inside the app (DB-IP Lite, CC BY 4.0), so there
+  is no lookup request and no peer address ever leaves the machine.
 - Multi-selection (`⌘`-click, `⇧`-click, `⌘A`) with batch pause/resume and removal, plus optional macOS completion notifications (when signed with a Developer ID).
 - Pause/resume, sequential download, resume data and visible error details.
 - Global speed limits, active torrent queue, listening port, DHT, PEX, LSD and UPnP/NAT-PMP controls.
@@ -281,7 +281,8 @@ notice.
 - SOCKS5 proxy password: macOS Keychain (item `app.vertex.torrent`), not in plain text.
   If you enable **Settings → Proxy SOCKS5 → Store the password in a local file**, it lives in
   `~/Library/Application Support/Vertex/proxy-password` with `0600` permissions (not encrypted).
-- Peer country table: bundled with the app (`Contents/Resources/GeoIP`), never looked up online
+- Peer country tables (IPv4 and IPv6): bundled with the app (`Contents/Resources/GeoIP`),
+  never looked up online
 
 There is no telemetry. The app is not sandboxed and accesses the chosen folders and the
 download folder.
@@ -332,7 +333,7 @@ both architectures.
   - `Engine/TorrentEngine.swift`, `TorrentEngine+Polling.swift`, `TorrentEngine+Actions.swift`, `TorrentEngine+Settings.swift` — UI state, adaptive polling and user actions routed through the actor;
   - `Engine/PortReachabilityTester.swift` — external TCP test;
   - `Views/` — list (state pills, wide columns, keyboard navigation), resizable inspector, settings sidebar, add sheet, diagnostics, status bar;
-  - `Utilities/` — input validation, drop handling, localization, network info, Keychain, proxy-password storage, offline GeoIP lookup;
+  - `Utilities/` — input validation, drop handling, localization, network info, Keychain, proxy-password storage, offline GeoIP lookup (IPv4 and IPv6);
   - `Diagnostics/Log.swift` — structured `os.Logger` categories, dynamic values private by default;
   - `Design/` — palette, shared components, modal chrome;
   - `Models/` — snapshot models, filters, sorting, keyboard navigation, file priority levels;
@@ -342,7 +343,7 @@ both architectures.
 - `Tests/Fixtures` — deterministic v1/v2 torrent fixtures.
 - `Scripts/` — pinned dependency build, bundle verification, DMG, localization check,
   toolchain check, GeoIP table generation and test runner.
-- `Resources/` — `Info.plist`, localizations, third-party licenses and the bundled GeoIP table.
+- `Resources/` — `Info.plist`, localizations, third-party licenses and the bundled GeoIP tables.
 - `docs/` — architecture decision records, the threat model, the queue design and the repository audit.
 - `.github/workflows/ci.yml` — build/test on push and PR; release on tags.
 
@@ -365,8 +366,8 @@ both architectures.
 LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
 floor, runs the suite under ThreadSanitizer and AddressSanitizer, and fuzzes the JSON
 escaping and UTF-8 validation used by the snapshot on every non-tag build. The suite
-(95 tests) covers formatters, snapshot JSON decoding, models, preferences,
-the offline GeoIP table, the C++ bridge lifecycle, malformed magnet input, the engine (add,
+(100 tests) covers formatters, snapshot JSON decoding, models, preferences,
+the offline GeoIP tables (IPv4 and IPv6), the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command
 routing. A 300-torrent benchmark guards the snapshot cache (local p95 ≈ 1.2 ms). A loopback
@@ -386,7 +387,6 @@ DEBUG builds provide demo data, window capture and a sample actionable toast
 - macOS 15.0+ on Apple Silicon (arm64); Intel requires a universal build with dependencies
   for both architectures.
 - Ad-hoc, not notarized signature: expect a Gatekeeper confirmation on another Mac.
-- Peer country flags cover IPv4 only: IPv6 peers show no flag.
 - Italian or English interface based on the system language; no other translations.
 - Deliberately minimal: no RSS, built-in torrent search or scheduler.
 - The DMG is specific to the build Mac's architecture (arm64 on Apple Silicon).
