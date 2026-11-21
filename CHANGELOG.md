@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.5] — 2026-11-21
 
 ### English
 - **Settings sheet split**: the 1052-line file is now a 73-line shell plus content (436), rows (432) and models (137) files, all under 800 lines; no behavior change, all sections still rendered by the suite.
