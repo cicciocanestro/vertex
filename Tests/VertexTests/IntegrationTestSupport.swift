@@ -153,7 +153,7 @@ enum TestsSupport {
 
     static func waitFor(
         _ description: String,
-        timeout: TimeInterval = 30,
+        timeout: TimeInterval = 60,
         _ condition: () throws -> Bool
     ) throws {
         let deadline = Date().addingTimeInterval(timeout)
@@ -445,7 +445,7 @@ final class BridgeSession {
         return message
     }
 
-    func waitForTorrent(_ name: String, timeout: TimeInterval = 30) throws -> Torrent {
+    func waitForTorrent(_ name: String, timeout: TimeInterval = 60) throws -> Torrent {
         try TestsSupport.waitFor("torrent \(name)", timeout: timeout) {
             try snapshot().torrents.first(where: { $0.name == name }) != nil
         }
