@@ -3,9 +3,15 @@
 ## [Unreleased]
 
 ### English
+- **Proxy password file**: the file backend is now created with mode 0600 from the first byte (temporary file with `O_EXCL | O_NOFOLLOW`, `fsync`, atomic rename) inside a 0700 folder, and a file found with group/other access is tightened to 0600 on read. Previously it briefly had the default 0644.
+- **Resume files**: a symlink named `*.resume` is no longer followed at startup; only regular files are loaded.
+- **Docs**: the threat model now lists the Cask/release trust chain, the missing hardened runtime and the on-demand port test, and describes GeoIP as IPv4 + IPv6; HANDOFF figures refreshed.
 - **Architecture records**: ADR 0002 documents why the snapshot reads the `state_update_alert` cache (with the cold-cache fallback and its benchmark) and ADR 0003 the adaptive polling cadence and its testable policy.
 
 ### Italiano
+- **File della password proxy**: il backend su file nasce con permessi 0600 fin dal primo byte (file temporaneo con `O_EXCL | O_NOFOLLOW`, `fsync`, rinomina atomica) in una cartella 0700, e un file trovato con accesso a gruppo/altri viene ristretto a 0600 alla lettura. Prima aveva per un attimo i permessi 0644 predefiniti.
+- **File di resume**: un symlink chiamato `*.resume` non viene più seguito all'avvio; si caricano solo file regolari.
+- **Documentazione**: il modello di minaccia elenca ora la catena di fiducia Cask/release, l'assenza dell'hardened runtime e il test porta su richiesta, e descrive GeoIP come IPv4 + IPv6; aggiornati i numeri di HANDOFF.
 - **Registri di architettura**: l'ADR 0002 documenta perché lo snapshot legge la cache di `state_update_alert` (con il ripiego a cache fredda e il benchmark) e l'ADR 0003 la cadenza adattiva del polling e la sua policy testabile.
 
 ## [1.17.7] — 2026-11-21

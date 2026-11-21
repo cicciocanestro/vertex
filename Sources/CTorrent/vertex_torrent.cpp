@@ -764,7 +764,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
             && !ensure_directory(session->resume_dir))
             return nullptr;
 
-        std::string const version_str = (app_version && *app_version) ? app_version : "1.16.0";
+        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.7";
         lt::settings_pack settings;
         settings.set_str(lt::settings_pack::user_agent,
                          "Vertex/" + version_str + " libtorrent/" LIBTORRENT_VERSION);
@@ -836,7 +836,11 @@ vt_session* vt_session_create_configured(const char* download_dir,
             {
                 if (ec)
                     break;
-                if (!entry.is_regular_file() || entry.path().extension() != ".resume")
+                // symlink_status does not follow links: a symlink named
+                // *.resume must never make the bridge read another file.
+                std::error_code type_ec;
+                if (!fs::is_regular_file(fs::symlink_status(entry.path(), type_ec))
+                    || type_ec || entry.path().extension() != ".resume")
                     continue;
 
                 try

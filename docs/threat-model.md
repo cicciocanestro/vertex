@@ -17,9 +17,9 @@ Questo documento elenca cosa protegge, da chi e cosa resta fuori perimetro.
 |---|---|---|
 | Peer malevoli nel swarm | Inviano messaggi BEP malformati, nomi con escape, metadati enormi | Parsing libtorrent, limiti sul `.resume`, escaping JSON nel bridge |
 | Rete locale / ISP | Osserva connessioni in chiaro | Il proxy SOCKS5 è **fail-closed**: senza host la sessione non parte, non c'è fallback silenzioso |
-| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale `0600`, dichiarato non cifrato |
+| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale creato direttamente `0600` in una cartella `0700` (mai visibile con permessi più larghi) e ristretto a `0600` alla lettura se trovato più permissivo; dichiarato non cifrato |
 | Sito che distribuisce il DMG | Sostituisce il binario | Firma (ad-hoc o self-signed) + checksum SHA-256 pubblicato + Cask che rimuove la quarantena |
-| Malware con accesso alla sessione utente | Modifica i file di resume | `fsync` su file e directory prima della rinomina atomica; i file corrotti vengono messi in quarantena `.bad` |
+| Malware con accesso alla sessione utente | Modifica i file di resume | `fsync` su file e directory prima della rinomina atomica; i file corrotti vengono messi in quarantena `.bad`; i symlink `.resume` non vengono seguiti |
 
 ## Fuori perimetro (accettato)
 
@@ -29,9 +29,20 @@ Questo documento elenca cosa protegge, da chi e cosa resta fuori perimetro.
   attaccante che può già scrivere nel DMG.
 - **Nessun sandboxing**: l'app legge la cartella Download e la libreria scelta
   dall'utente; non c'è App Sandbox (la distribuzione è fuori Mac App Store).
-- **IPv6 non mappato nelle bandiere**: la tabella GeoIP è IPv4-only; i peer IPv6
-  mostrano la bandiera generica. Non è un rischio per la privacy: la lookup è
-  offline, nessun IP lascia la macchina.
+- **Hardened runtime solo con Developer ID**: le build ad-hoc o self-signed non
+  lo abilitano (`--options runtime` richiede un'identità Developer ID) e il
+  bundle non ha entitlements.
+- **Catena Cask/release**: la Cask rimuove la quarantena e il tap si aggiorna ogni
+  ora dall'ultima release, con il checksum pubblicato dalla stessa release. Chi
+  compromette la release o il tap raggiunge gli utenti Homebrew senza avviso
+  Gatekeeper; il checksum protegge dalla corruzione, non da questo scenario.
+- **Test di raggiungibilità della porta**: è l'unica richiesta di rete dell'app
+  verso terzi e parte solo su azione dell'utente (Diagnostica rete). Invia l'IP
+  pubblico e la porta a `api.ipify.org` e `check-host.net`; è disabilitato con il
+  proxy SOCKS5 attivo. "Nessuna telemetria" significa nessun invio automatico.
+- **GeoIP offline**: le tabelle IPv4 e IPv6 sono incluse nel bundle; la lookup
+  non contatta nessun servizio, nessun IP di peer lascia la macchina. Un IP non
+  presente nelle tabelle mostra la bandiera generica.
 - **DHT e tracker sono visibili al primo salto**: il proxy li copre quando è
   attivo, ma un utente che lo disattiva accetta di esporre il proprio IP.
 

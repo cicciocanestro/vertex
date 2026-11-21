@@ -102,10 +102,22 @@ package enum ProxyPasswordStore {
         }
         do {
             let data = try Data(contentsOf: url)
+            tightenPermissions(of: url)
             return .success(String(data: data, encoding: .utf8) ?? "")
         } catch {
             return .failure(.unavailable)
         }
+    }
+
+    /// A file left readable by group or others (older versions, manual copy)
+    /// is brought back to 0600 the next time it is read.
+    private static func tightenPermissions(of url: URL) {
+        guard
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+            let mode = (attributes[.posixPermissions] as? NSNumber)?.intValue,
+            mode & 0o077 != 0
+        else { return }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     private static func writeFile(_ value: String) -> Bool {
@@ -114,16 +126,31 @@ package enum ProxyPasswordStore {
             return true
         }
         let url = fileURL
+        let temporary = url.deletingLastPathComponent()
+            .appendingPathComponent(".proxy-password-\(UUID().uuidString).tmp")
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
             )
-            try Data(value.utf8).write(to: url, options: [.atomic])
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: url.path
-            )
+            // Created with 0600 from the start: the password is never on disk
+            // with the umask-derived mode, not even for an instant.
+            let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+            guard descriptor >= 0 else { return false }
+            let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            do {
+                try handle.write(contentsOf: Data(value.utf8))
+                try handle.synchronize()
+                try handle.close()
+            } catch {
+                try? FileManager.default.removeItem(at: temporary)
+                return false
+            }
+            guard rename(temporary.path, url.path) == 0 else {
+                try? FileManager.default.removeItem(at: temporary)
+                return false
+            }
             return true
         } catch {
             return false

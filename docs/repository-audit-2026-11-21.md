@@ -34,7 +34,7 @@ Metodo (comandi eseguiti sul repository reale):
 | Script | Tutti i 21 file in `Scripts/` sono usati da build, CI, README o altri script. |
 | Risorse | `Resources/Licenses` è copiata in blocco dal `build.sh`; GeoIP e plist sono usati. |
 | Fixture | Gli SHA-256 in `Tests/Fixtures/README.md` corrispondono ai due `.torrent`. |
-| Localizzazioni | 335 chiavi EN/IT, 0 orfane. |
+| Localizzazioni | 335 chiavi EN/IT, 0 orfane (348 dopo le release successive). |
 | Documentazione | `docs/screenshot.jpg` è l'immagine di testa dei README; `queue-and-limits.md`, ADR e threat model sono attuali. |
 
 ## Unico orfano trovato

@@ -551,6 +551,59 @@ enum CTorrentBridgeTests {
             )
         }
 
+        TestRunner.run("Resume: un symlink .resume non viene caricato") {
+            let workspace = try IntegrationWorkspace()
+            defer { workspace.cleanup() }
+            let download = try workspace.directory("downloads")
+            let resume = try workspace.directory("resume")
+            let elsewhere = try workspace.directory("elsewhere")
+            let port = Int32(try TestsSupport.freeTCPPort())
+
+            func openSession() -> OpaquePointer? {
+                download.path.withCString { dlPath in
+                    resume.path.withCString { resPath in
+                        vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, nil)
+                    }
+                }
+            }
+
+            let first = try TestRunner.assertNotNil(openSession())
+            let added = IntegrationFixture.v1.torrentURL.path.withCString { pathPtr in
+                download.path.withCString { dlPtr in
+                    vt_add_torrent_file(first, pathPtr, dlPtr, 1, 0)
+                }
+            }
+            try TestRunner.assertEqual(added, 0)
+            vt_session_destroy(first)
+
+            let files = try FileManager.default.contentsOfDirectory(atPath: resume.path)
+                .filter { $0.hasSuffix(".resume") }
+            let name = try TestRunner.assertNotNil(files.first, "Il resume deve essere stato scritto")
+            let original = resume.appendingPathComponent(name)
+            let moved = elsewhere.appendingPathComponent(name)
+            try FileManager.default.moveItem(at: original, to: moved)
+            try FileManager.default.createSymbolicLink(at: original, withDestinationURL: moved)
+
+            let second = try TestRunner.assertNotNil(openSession())
+            let snapshot = try sessionSnapshot(of: second)
+            vt_session_destroy(second)
+            try TestRunner.assertEqual(
+                snapshot.torrents.count,
+                0,
+                "Un symlink .resume non deve essere seguito"
+            )
+
+            try FileManager.default.removeItem(at: original)
+            try FileManager.default.moveItem(at: moved, to: original)
+            let third = try TestRunner.assertNotNil(openSession())
+            defer { vt_session_destroy(third) }
+            try TestRunner.assertEqual(
+                try sessionSnapshot(of: third).torrents.count,
+                1,
+                "Lo stesso file, regolare, deve essere caricato"
+            )
+        }
+
         TestRunner.run("Session: smoke UPnP/NAT-PMP (solo con VERTEX_TEST_UPNP=1)") {
             try upnpSmoke()
         }
