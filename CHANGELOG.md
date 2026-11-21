@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **RootView coverage**: the event guards, deletion prompt, drop policy and inspector width now live in `RootActions`/`InspectorResize` and are unit-tested; the demo sheet/toast/select hooks and the dynamic-type branch are exercised by the renderer. `RootView` line coverage 49.4% → 62.2%, total 65.5% (CI floor 63%).
+
+### Italiano
+- **Copertura RootView**: le guardie degli eventi, il prompt di eliminazione, la policy del drop e la larghezza dell'inspector ora stanno in `RootActions`/`InspectorResize` e sono testate: gli hook demo (sheet, toast, select) e il ramo del tipo dinamico sono esercitati dal renderer. Copertura righe di `RootView` 49,4% → 62,2%, totale 65,5% (soglia CI 63%).
+
 ## [1.17.6] — 2026-11-21
 
 ### English

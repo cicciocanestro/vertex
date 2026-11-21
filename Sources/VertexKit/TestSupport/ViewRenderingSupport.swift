@@ -144,6 +144,11 @@
                     width: 1180,
                     height: 760
                 ),
+                "RootViewAddSheetMagnet": render(
+                    RootView(engine: engine, showAddSheet: true, addMode: .magnet),
+                    width: 1180,
+                    height: 760
+                ),
                 "RootViewNoResults": render(
                     RootView(engine: engine, search: "nessun-risultato-possibile"),
                     width: 1180,
@@ -151,6 +156,16 @@
                 ),
                 "RootViewFiltered": render(
                     RootView(engine: engine, filter: .downloading, sort: .name),
+                    width: 1180,
+                    height: 760
+                ),
+                "RootViewFilteredCompletedAscending": render(
+                    RootView(
+                        engine: engine,
+                        filter: .completed,
+                        sort: .name,
+                        sortAscending: true
+                    ),
                     width: 1180,
                     height: 760
                 ),
@@ -205,10 +220,14 @@
                 state.torrents = [torrent, synthetic]
                 state.torrentsByID[synthetic.id] = synthetic
                 engine.pollState = state
+                // The DEBUG initializer clears the selection, so restore the
+                // two-item selection after building the view and before the
+                // renderer evaluates its body.
+                let multiSelection = RootView(engine: engine)
                 engine.setSelection(
                     TorrentListSelection.State(selectedIDs: [torrent.id, synthetic.id], anchorID: torrent.id))
                 results["RootViewMultiSelection"] = render(
-                    RootView(engine: engine),
+                    multiSelection,
                     width: 1180,
                     height: 760
                 )
@@ -225,7 +244,16 @@
                 results["RootViewDeleteConfirmation"] = render(
                     RootView(
                         engine: engine,
-                        pendingDeletion: torrent,
+                        pendingDeletions: [torrent],
+                        showDeleteConfirmation: true
+                    ),
+                    width: 1180,
+                    height: 760
+                )
+                results["RootViewDeleteConfirmationMultiple"] = render(
+                    RootView(
+                        engine: engine,
+                        pendingDeletions: [torrent, synthetic],
                         showDeleteConfirmation: true
                     ),
                     width: 1180,
@@ -467,12 +495,14 @@
                 height: 44
             )
             let originalReady = engine.isReady
+            let originalStarting = engine.isStarting
             let originalStartup = engine.startupError
             let originalLoaded = engine.hasLoadedSnapshot
             let originalToast = engine.toast
             defer {
                 engine.pollState = originalState
                 engine.isReady = originalReady
+                engine.isStarting = originalStarting
                 engine.startupError = originalStartup
                 engine.hasLoadedSnapshot = originalLoaded
                 engine.toast = originalToast
@@ -489,6 +519,13 @@
                 RootView(engine: engine), width: 1180, height: 760
             )
 
+            engine.isStarting = true
+            engine.startupError = nil
+            results["RootView.starting"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
+
+            engine.isStarting = false
             engine.isReady = false
             engine.startupError = "Errore di avvio"
             results["RootView.unavailable"] = render(
@@ -513,7 +550,63 @@
                 RootView(engine: engine), width: 1180, height: 760
             )
 
+            // The DEBUG demo hooks are how the screenshots are produced; walk
+            // them so they cannot rot unnoticed.
+            withEnvironment("VERTEX_DEMO_SHEET", "add") {
+                results["RootView.demoAdd"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+            }
+            withEnvironment("VERTEX_DEMO_SHEET", "settings") {
+                results["RootView.demoSettings"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+            }
+            withEnvironment("VERTEX_DEMO_SHEET", "diagnostics") {
+                results["RootView.demoDiagnostics"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+            }
+            withEnvironment("VERTEX_DEMO_TOAST", "1") {
+                results["RootView.demoToast"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+            }
+            withEnvironment("VERTEX_DYNAMIC_TYPE", "xxxLarge") {
+                results["RootView.demoXXXLarge"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+            }
+            withEnvironment("VERTEX_DEMO_SELECT", "1") {
+                results["RootView.demoSelect"] = render(
+                    RootView(engine: engine), width: 1180, height: 760
+                )
+                // The demo selection is scheduled after 700 ms.
+                RunLoop.main.run(until: Date().addingTimeInterval(0.9))
+            }
+
             return results
+        }
+
+        private static func withEnvironment(
+            _ key: String,
+            _ value: String?,
+            _ body: () -> Void
+        ) {
+            let previous = getenv(key).map { String(cString: $0) }
+            if let value {
+                setenv(key, value, 1)
+            } else {
+                unsetenv(key)
+            }
+            defer {
+                if let previous {
+                    setenv(key, previous, 1)
+                } else {
+                    unsetenv(key)
+                }
+            }
+            body()
         }
 
         @MainActor

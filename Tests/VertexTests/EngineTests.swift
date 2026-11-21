@@ -526,7 +526,7 @@
                 let variants = onMain {
                     ViewRenderingSupport.renderStateVariants(engine: engine, torrents: engine.torrents)
                 }
-                try TestRunner.assertEqual(variants.count, 17)
+                try TestRunner.assertEqual(variants.count, 20)
                 for (name, area) in variants {
                     try TestRunner.assertTrue(
                         area > 0,
@@ -537,7 +537,7 @@
                 let extended = onMain {
                     ViewRenderingSupport.renderExtendedViews(engine: engine, torrents: engine.torrents)
                 }
-                try TestRunner.assertEqual(extended.count, 20)
+                try TestRunner.assertEqual(extended.count, 27)
                 for (name, area) in extended {
                     try TestRunner.assertTrue(
                         area > 0,

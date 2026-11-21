@@ -35,7 +35,7 @@ package struct RootView: View {
             showSettings: Bool = false,
             showDiagnostics: Bool = false,
             dropTargeted: Bool = false,
-            pendingDeletion: Torrent? = nil,
+            pendingDeletions: [Torrent] = [],
             showDeleteConfirmation: Bool = false
         ) {
             self.engine = engine
@@ -60,7 +60,7 @@ package struct RootView: View {
             _search = StateObject(wrappedValue: UIState(search))
             _activeModal = StateObject(wrappedValue: UIState(modal))
             _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
-            _pendingDeletions = StateObject(wrappedValue: UIState(pendingDeletion.map { [$0] } ?? []))
+            _pendingDeletions = StateObject(wrappedValue: UIState(pendingDeletions))
             _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
         }
     #endif
@@ -75,7 +75,7 @@ package struct RootView: View {
     @AppStorage(PrefKey.uiFilter) private var filterRaw = TorrentFilter.all.rawValue
     @AppStorage(PrefKey.uiSort) private var sortRaw = TorrentSort.recent.rawValue
     @AppStorage(PrefKey.uiSortAscending) private var sortAscending = TorrentSort.recent.defaultAscending
-    @AppStorage(PrefKey.uiInspectorWidth) private var inspectorWidth = Double(Self.defaultInspectorWidth)
+    @AppStorage(PrefKey.uiInspectorWidth) private var inspectorWidth = Double(InspectorResize.defaultValue)
     @StateObject private var search = UIState("")
     @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
@@ -83,9 +83,6 @@ package struct RootView: View {
     @StateObject private var showDeleteConfirmation = UIState(false)
 
     @FocusState private var searchFocused: Bool
-
-    private static let defaultInspectorWidth: CGFloat = 350
-    private static let inspectorWidthRange: ClosedRange<CGFloat> = 320...520
 
     /// A corrupted or outdated value falls back to the default instead of
     /// leaving the list with an impossible filter.
@@ -103,9 +100,7 @@ package struct RootView: View {
     /// Clamped on read as well as on write: a window that was shrunk on another
     /// display must not produce a negative or oversized inspector.
     private var inspectorWidthValue: CGFloat {
-        min(
-            max(CGFloat(inspectorWidth), Self.inspectorWidthRange.lowerBound),
-            Self.inspectorWidthRange.upperBound)
+        InspectorResize.clamped(CGFloat(inspectorWidth))
     }
 
     private var inspectorWidthBinding: Binding<CGFloat> {
@@ -122,9 +117,7 @@ package struct RootView: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: activeModal.value)
             .alert(
-                pendingDeletions.value.count > 1
-                    ? LF("Rimuovere %ld torrent?", pendingDeletions.value.count)
-                    : L("Rimuovere il torrent?"),
+                RootActionFactory.deletionTitle(count: pendingDeletions.value.count),
                 isPresented: $showDeleteConfirmation.value,
                 presenting: pendingDeletions.value.isEmpty ? nil : pendingDeletions.value
             ) { targets in
@@ -136,14 +129,11 @@ package struct RootView: View {
                 }
                 Button(L("Annulla"), role: .cancel) {}
             } message: { targets in
-                if targets.count == 1, let single = targets.first {
-                    Text(
-                        LF(
-                            "“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.",
-                            single.name))
-                } else {
-                    Text(L("I file scaricati restano sul disco se scegli di rimuovere solo dalla lista."))
-                }
+                Text(
+                    RootActionFactory.deletionMessage(
+                        count: targets.count,
+                        name: targets.first?.name
+                    ))
             }
             .sheet(isPresented: addSheetPresented) {
                 AddTorrentSheet(
@@ -152,70 +142,7 @@ package struct RootView: View {
                     onClose: { activeModal.value = nil }
                 )
             }
-            .modifier(
-                RootEventHandlers(
-                    actions: RootEventHandlerActions(
-                        onAddFile: {
-                            guard !hasModalOverlay else { return }
-                            chooseTorrentFile()
-                        },
-                        onAddMagnet: {
-                            activeModal.value = .add(.magnet)
-                        },
-                        onPasteMagnet: pasteMagnet,
-                        onPauseResume: {
-                            guard !hasModalOverlay else { return }
-                            togglePauseSelected()
-                        },
-                        onRemove: {
-                            guard !hasModalOverlay else { return }
-                            let selected = engine.selectedTorrents
-                            guard !selected.isEmpty else {
-                                engine.showToast(L("Seleziona un torrent"), kind: .info)
-                                return
-                            }
-                            requestDeletion(selected)
-                        },
-                        onReveal: {
-                            guard !hasModalOverlay else { return }
-                            if let torrent = selectedTorrent {
-                                engine.reveal(torrent)
-                            }
-                        },
-                        onMoveStorage: {
-                            guard !hasModalOverlay else { return }
-                            if let torrent = selectedTorrent {
-                                engine.chooseAndMoveStorage(for: torrent)
-                            }
-                        },
-                        onCopyMagnet: {
-                            guard !hasModalOverlay else { return }
-                            if let torrent = selectedTorrent {
-                                engine.copyMagnet(for: torrent)
-                            }
-                        },
-                        onFind: {
-                            guard !hasModalOverlay else { return }
-                            searchFocused = true
-                        },
-                        onToggleInspector: {
-                            guard !hasModalOverlay else { return }
-                            toggleInspector()
-                        },
-                        onSettings: {
-                            activeModal.value = .settings
-                        },
-                        onDiagnostics: {
-                            activeModal.value = .diagnostics
-                        },
-                        onFilter: { raw in
-                            guard let value = TorrentFilter(rawValue: raw) else { return }
-                            withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                                filterRaw = value.rawValue
-                            }
-                        }
-                    ))
-            )
+            .modifier(RootEventHandlers(actions: rootActions))
             .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
                 handleRootDrop(providers)
             }
@@ -461,7 +388,12 @@ package struct RootView: View {
             .padding(.horizontal, 20)
             // Sit above the status bar, and above the multi-selection bar when
             // that one is visible, instead of covering the controls.
-            .padding(.bottom, engine.selectedTorrents.count > 1 ? 96 : 56)
+            .padding(
+                .bottom,
+                RootActionFactory.toastBottomPadding(
+                    multiSelection: engine.selectedTorrents.count > 1
+                )
+            )
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .zIndex(4)
         }
@@ -571,20 +503,41 @@ package struct RootView: View {
         showDeleteConfirmation.value = true
     }
 
-    private func togglePauseSelected() {
-        let selected = engine.selectedTorrents
-        guard !selected.isEmpty else {
-            engine.showToast(L("Seleziona un torrent"), kind: .info)
-            return
-        }
-        engine.togglePause(selected)
+    /// Built outside the body so the guards and side effects can be unit-tested
+    /// without installing the window.
+    private var rootActions: RootEventHandlerActions {
+        RootActionFactory.make(
+            engine: engine,
+            RootActionDependencies(
+                isModalOpen: { hasModalOverlay },
+                selectedTorrent: { selectedTorrent },
+                selectedTorrents: { engine.selectedTorrents },
+                setModal: { activeModal.value = $0 },
+                focusSearch: { searchFocused = true },
+                toggleInspector: toggleInspector,
+                requestDeletion: requestDeletion,
+                chooseFile: chooseTorrentFile,
+                pasteMagnet: pasteMagnet,
+                setFilter: { value in
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+                        filterRaw = value.rawValue
+                    }
+                }
+            )
+        )
     }
 
     private func toggleInspector() {
-        if !engine.selectedIDs.isEmpty {
+        switch RootActionFactory.inspectorToggle(
+            selectedIDs: engine.selectedIDs,
+            visible: listResult.torrents
+        ) {
+        case .deselect:
             select(nil)
-        } else if let first = listResult.torrents.first {
-            select(first)
+        case .select(let id):
+            engine.select(id)
+        case .none:
+            break
         }
     }
 
@@ -592,35 +545,34 @@ package struct RootView: View {
     /// model stays a pure value and can be tested without AppKit.
     private func handleToastAction(_ action: ToastMessage.Action) {
         engine.dismissToast()
-        switch action {
-        case .reveal(let path):
-            let url = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: path) {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            } else {
-                NSWorkspace.shared.open(url.deletingLastPathComponent())
-            }
+        let route = RootActionFactory.toastActionRoute(action) {
+            FileManager.default.fileExists(atPath: $0)
+        }
+        switch route {
+        case .revealExisting(let path):
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        case .revealParent(let path):
+            NSWorkspace.shared.open(URL(fileURLWithPath: path).deletingLastPathComponent())
         case .openFolder(let path):
             NSWorkspace.shared.open(URL(fileURLWithPath: path))
         }
     }
 
     private func pasteMagnet() {
-        let clipboard = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let clipboard, TorrentInput.isMagnet(clipboard) else {
+        guard
+            let magnet = RootActionFactory.magnetToAdd(
+                from: NSPasteboard.general.string(forType: .string)
+            )
+        else {
             activeModal.value = .add(.magnet)
             return
         }
 
-        let paused = Preferences.startPaused
-        let sequential = Preferences.sequentialDefault
         _ = engine.addMagnet(
-            clipboard,
+            magnet,
             destination: nil,
-            startPaused: paused,
-            sequential: sequential
+            startPaused: Preferences.startPaused,
+            sequential: Preferences.sequentialDefault
         )
     }
 
@@ -645,9 +597,12 @@ package struct RootView: View {
     }
 
     private func handleRootDrop(_ providers: [NSItemProvider]) -> Bool {
-        if activeModal.value != nil || !engine.isReady {
-            return false
-        }
+        guard
+            RootActionFactory.acceptsDrop(
+                modalOpen: hasModalOverlay,
+                isReady: engine.isReady
+            )
+        else { return false }
 
         let paused = Preferences.startPaused
         let sequential = Preferences.sequentialDefault
@@ -688,9 +643,6 @@ private struct InspectorResizeHandle: View {
     @StateObject private var hover = UIState(false)
     @StateObject private var dragStart = UIState<CGFloat?>(nil)
 
-    private let minimum: CGFloat = 320
-    private let maximum: CGFloat = 520
-
     var body: some View {
         let palette = Palette(scheme: scheme)
         ZStack {
@@ -721,7 +673,10 @@ private struct InspectorResizeHandle: View {
                 .onChanged { value in
                     if dragStart.value == nil { dragStart.value = width }
                     let start = dragStart.value ?? width
-                    width = min(max(start - value.translation.width, minimum), maximum)
+                    width = InspectorResize.dragged(
+                        from: start,
+                        translation: value.translation.width
+                    )
                 }
                 .onEnded { _ in dragStart.value = nil }
         )
@@ -730,9 +685,9 @@ private struct InspectorResizeHandle: View {
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                width = min(width + 20, maximum)
+                width = InspectorResize.stepped(width, direction: .increment)
             case .decrement:
-                width = max(width - 20, minimum)
+                width = InspectorResize.stepped(width, direction: .decrement)
             @unknown default:
                 break
             }
