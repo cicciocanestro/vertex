@@ -40,7 +40,6 @@ enum Typography {
     static let captionText = Font.system(.caption)
     static let captionSmallText = Font.system(.caption)
     static let captionMediumText = Font.system(.caption).weight(.medium)
-    static let captionSemiboldText = Font.system(.caption).weight(.semibold)
     static let captionMediumRoundedText = Font.system(.caption, design: .rounded).weight(.medium)
     static let captionRegularRoundedText = Font.system(.caption, design: .rounded)
     static let captionMonoText = Font.system(.caption, design: .monospaced)
