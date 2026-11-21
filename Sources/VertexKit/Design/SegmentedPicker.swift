@@ -33,6 +33,7 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
     /// derived state (e.g. an error message) exactly when the selection moves.
     let onSelect: ((T) -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var thumb
 
     init<L: View>(
         _ options: [T] = Array(T.allCases),
@@ -76,10 +77,16 @@ struct SegmentedPicker<T>: View where T: Equatable, T: CaseIterable, T: Identifi
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: height)
                     .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: corner, style: .continuous)
-                            .fill(selected ? palette.cardHover : .clear)
-                    )
+                    .background {
+                        // One shared thumb slides between segments; each
+                        // segment used to paint its own fill, which changed
+                        // colour without moving.
+                        if selected {
+                            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                                .fill(palette.cardHover)
+                                .matchedGeometryEffect(id: "segmented-thumb", in: thumb)
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

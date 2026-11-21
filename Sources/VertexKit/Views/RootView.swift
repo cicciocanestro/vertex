@@ -420,7 +420,8 @@ package struct RootView: View {
         } else if engine.torrents.isEmpty && search.value.isEmpty {
             EmptyStateView(
                 onAdd: openAddSheet,
-                onPasteMagnet: pasteMagnet
+                onPasteMagnet: pasteMagnet,
+                onOpenSettings: { activeModal.value = .settings }
             )
         } else if torrents.isEmpty {
             NoResultsView(query: search.value) {

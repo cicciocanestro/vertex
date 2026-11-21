@@ -12,6 +12,50 @@
             TestRunner.run("Root: prompt di eliminazione, drop e larghezza inspector") {
                 try pureDecisions()
             }
+            TestRunner.run("Root: densità della lista e badge dei tab") {
+                try densityAndBadges()
+            }
+        }
+
+        private static func densityAndBadges() throws {
+            try TestRunner.assertEqual(ListDensity(rawValue: "compact"), .compact)
+            try TestRunner.assertEqual(
+                ListDensity(rawValue: "bogus") ?? .comfortable,
+                .comfortable
+            )
+            try TestRunner.assertEqual(ListDensity.comfortable.rowSpacing, 7)
+            try TestRunner.assertEqual(ListDensity.comfortable.rowPadding, 9)
+            try TestRunner.assertEqual(ListDensity.comfortable.ringSize, 42)
+            try TestRunner.assertEqual(ListDensity.compact.rowSpacing, 4)
+            try TestRunner.assertEqual(ListDensity.compact.rowPadding, 5)
+            try TestRunner.assertEqual(ListDensity.compact.ringSize, 36)
+
+            let json = """
+                {"files":[
+                    {"index":0,"path":"a.bin","size":10,"progress":1,"priority":4},
+                    {"index":1,"path":"b.bin","size":20,"progress":1,"priority":4}
+                ],
+                "trackers":[
+                    {"url":"udp://tracker","verified":true,"fails":0,"message":"","peers":2,"seeds":1}
+                ],
+                "peers":[
+                    {"endpoint":"1.2.3.4:6881","client":"v","progress":1,"downloadRate":0,"uploadRate":0,"flags":"","source":"tracker"}
+                ],
+                "metadata":true}
+                """
+            let detail = try JSONDecoder().decode(
+                TorrentDetail.self,
+                from: Data(json.utf8)
+            )
+            try TestRunner.assertEqual(
+                InspectorBadge.count(for: .files, detail: detail), 2)
+            try TestRunner.assertEqual(
+                InspectorBadge.count(for: .peers, detail: detail), 1)
+            try TestRunner.assertEqual(
+                InspectorBadge.count(for: .trackers, detail: detail), 1)
+            try TestRunner.assertEqual(
+                InspectorBadge.count(for: .files, detail: nil), 0,
+                "Senza dettaglio caricato il badge è assente, non uno spinner")
         }
 
         private static func guardsAndCommands() throws {

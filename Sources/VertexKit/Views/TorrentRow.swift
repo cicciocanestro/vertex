@@ -10,13 +10,18 @@ struct TorrentListView: View {
     let onDeleteSelection: ([Torrent]) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(PrefKey.uiDensity) private var densityRaw = PrefDefault.uiDensity
     @FocusState private var listFocused: Bool
     @StateObject private var navigationHeadID = UIState<String?>(nil)
+
+    private var density: ListDensity {
+        ListDensity(rawValue: densityRaw) ?? .comfortable
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 7) {
+                LazyVStack(spacing: density.rowSpacing) {
                     ForEach(torrents) { torrent in
                         let isSelected = selectedIDs.contains(torrent.id)
                         TorrentRow(
@@ -24,6 +29,7 @@ struct TorrentListView: View {
                             torrent: torrent,
                             selected: isSelected,
                             multiSelectionCount: isSelected ? selectedIDs.count : 1,
+                            density: density,
                             onSelect: { command, shift in
                                 navigationHeadID.value = torrent.id
                                 onSelectClick(torrent, command, shift)
@@ -99,6 +105,7 @@ struct TorrentRow: View {
     let torrent: Torrent
     let selected: Bool
     var multiSelectionCount: Int = 1
+    var density: ListDensity = .comfortable
     let onSelect: (_ command: Bool, _ shift: Bool) -> Void
     let onDeleteWithFiles: () -> Void
 
@@ -112,7 +119,7 @@ struct TorrentRow: View {
     var body: some View {
         let palette = Palette(scheme: scheme)
         HStack(spacing: 13) {
-            ProgressRing(progress: torrent.displayProgress, phase: torrent.phase, size: 42)
+            ProgressRing(progress: torrent.displayProgress, phase: torrent.phase, size: density.ringSize)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -266,13 +273,13 @@ struct TorrentRow: View {
             .accessibilityHidden(!(hover.value || selected))
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .padding(.vertical, density.rowPadding)
         .background {
             // The progress track lives inside the card background so it is
             // clipped by the rounded corners. It is padded on the leading side
-            // (14 pt padding + 42 pt ring + 13 pt spacing = 69 pt) so it sits
-            // cleanly under the content area without crossing or cutting through
-            // the progress ring. Drawn only while there is progress to show.
+            // (14 pt padding + ring + 13 pt spacing) so it sits cleanly under
+            // the content area without crossing the progress ring. Drawn only
+            // while there is progress to show.
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(backgroundFill(palette))
                 .overlay(alignment: .bottom) {
@@ -281,7 +288,7 @@ struct TorrentRow: View {
                             progress: torrent.displayProgress,
                             color: palette.phaseAccent(torrent.phase)
                         )
-                        .padding(.leading, 69)
+                        .padding(.leading, 14 + density.ringSize + 13)
                         .padding(.trailing, 16)
                         .padding(.bottom, 6)
                     }

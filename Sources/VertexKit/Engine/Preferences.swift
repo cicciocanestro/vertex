@@ -29,6 +29,7 @@ package enum PrefKey {
     /// Interface state (filter, sort, inspector width). Persisted separately
     /// from the engine preferences and not registered as defaults: a missing
     /// value falls back to the view's own default.
+    package static let uiDensity = "uiDensity"
     package static let uiFilter = "uiFilter"
     package static let uiSort = "uiSort"
     package static let uiSortAscending = "uiSortAscending"
@@ -308,6 +309,7 @@ package enum PrefDefault {
     /// Follow the system appearance unless the user chose otherwise: opening a
     /// light-mode Mac into a dark window is a surprising default.
     package static let appearance = "system"
+    package static let uiDensity = ListDensity.comfortable.rawValue
     package static let proxyEnabled = false
     package static let proxyHost = "127.0.0.1"
     package static let proxyPort = 1080
@@ -332,6 +334,7 @@ package enum PrefDefault {
             PrefKey.seedRatioLimit: seedRatioLimit,
             PrefKey.notificationsEnabled: notificationsEnabled,
             PrefKey.appearance: appearance,
+            PrefKey.uiDensity: uiDensity,
             PrefKey.proxyEnabled: proxyEnabled,
             PrefKey.proxyHost: proxyHost,
             PrefKey.proxyPort: proxyPort,

@@ -382,3 +382,23 @@
 "Non configurato" = "Not configured";
 
 "In attesa" = "Waiting";
+
+"Cartella" = "Folder";
+
+"Proxy" = "Proxy";
+
+"Apri impostazioni" = "Open settings";
+
+"File .torrent o link magnet" = "A .torrent file or magnet link";
+
+"Scegli dove salvare i file" = "Choose where files are saved";
+
+"Facoltativo, per la privacy" = "Optional, for privacy";
+
+"Densità elenco" = "List density";
+
+"Comoda" = "Comfortable";
+
+"Compatta" = "Compact";
+
+"Righe più compatte mostrano più torrent" = "Compact rows show more torrents";

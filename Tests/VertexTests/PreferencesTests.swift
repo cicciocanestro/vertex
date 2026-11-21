@@ -106,6 +106,7 @@ enum PreferencesTests {
                 PrefKey.seedRatioLimit,
                 PrefKey.notificationsEnabled,
                 PrefKey.appearance,
+                PrefKey.uiDensity,
                 PrefKey.proxyEnabled,
                 PrefKey.proxyHost,
                 PrefKey.proxyPort,

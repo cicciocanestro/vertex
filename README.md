@@ -109,6 +109,7 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   prevent local IP leaks, halts traffic immediately if the proxy is unreachable, and drops
   the connections already open when the proxy is enabled or changed.
 - **Network diagnostics**: a status checklist plus effective port, local IP, proxy status, mapping state and TCP reachability.
+- **First-run onboarding**: the empty library shows three steps (add, folder, proxy) and a settings shortcut.
 - Italian or English interface based on the system language.
 - **No telemetry**. The only network traffic is BitTorrent and, when you start the port
   test, api.ipify.org and check-host.net.
@@ -175,6 +176,7 @@ needed at runtime.
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
 - A search field in the rail filters sections by title, ignoring case and accents.
+- **List density**: Comfortable or Compact rows, persisted across launches.
 - **SOCKS5 proxy**: toggle and configure an anonymous proxy (host, port, and optional RFC 1929
   user/password). Credentials are sent when the **Username** field is filled in: the bridge
   switches libtorrent to the `socks5_pw` type; without a username it stays `socks5`.
@@ -369,7 +371,7 @@ both architectures.
 LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
 floor, runs the suite under ThreadSanitizer and AddressSanitizer, and fuzzes the JSON
 escaping and UTF-8 validation used by the snapshot on every non-tag build. The suite
-(105 tests) covers formatters, snapshot JSON decoding, models, preferences,
+(106 tests) covers formatters, snapshot JSON decoding, models, preferences,
 the offline GeoIP tables (IPv4 and IPv6), the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command

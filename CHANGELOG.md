@@ -3,9 +3,17 @@
 ## [Unreleased]
 
 ### English
+- **List density**: Settings → Appearance now offers Comfortable (default) and Compact rows. Compact tightens list spacing, row padding and the progress ring (7/9/42 → 4/5/36 pt), persisted across launches.
+- **First-run onboarding**: an empty library shows three compact steps (add, download folder, optional proxy) and a direct link to Settings.
+- **Inspector badges**: the tracker tab now shows its count too, and files/peers/trackers share one `InspectorBadge` counter.
+- **Animated segmented thumb**: segmented controls (appearance, density, inspector tabs) use a single shared thumb that slides between segments instead of repainting each segment.
 - **RootView coverage**: the event guards, deletion prompt, drop policy and inspector width now live in `RootActions`/`InspectorResize` and are unit-tested; the demo sheet/toast/select hooks and the dynamic-type branch are exercised by the renderer. `RootView` line coverage 49.4% → 62.2%, total 65.5% (CI floor 63%).
 
 ### Italiano
+- **Densità elenco**: Impostazioni → Aspetto offre righe Comode (predefinite) e Compatte. Compatta riduce spaziatura, padding e anello di progresso (7/9/42 → 4/5/36 pt), con la scelta persistita.
+- **Onboarding al primo avvio**: la libreria vuota mostra tre passi compatti (aggiungi, cartella, proxy opzionale) e un collegamento diretto alle Impostazioni.
+- **Badge dell'inspector**: anche il tab Tracker mostra il conteggio; file, peer e tracker usano un unico contatore `InspectorBadge`.
+- **Thumb animato dei segmenti**: i controlli segmentati (aspetto, densità, tab inspector) usano un unico thumb condiviso che scivola tra i segmenti invece di ridipingere ogni segmento.
 - **Copertura RootView**: le guardie degli eventi, il prompt di eliminazione, la policy del drop e la larghezza dell'inspector ora stanno in `RootActions`/`InspectorResize` e sono testate: gli hook demo (sheet, toast, select) e il ramo del tipo dinamico sono esercitati dal renderer. Copertura righe di `RootView` 49,4% → 62,2%, totale 65,5% (soglia CI 63%).
 
 ## [1.17.6] — 2026-11-21

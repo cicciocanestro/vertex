@@ -332,6 +332,8 @@ extension SettingsSheet {
             section(.appearance, palette) {
                 appearancePicker(palette)
                     .padding(.vertical, 9)
+                Hairline(palette: palette)
+                densityPicker(palette)
             }
         case .info:
             section(.info, palette) {

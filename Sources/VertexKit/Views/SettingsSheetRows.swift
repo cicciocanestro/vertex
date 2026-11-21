@@ -401,6 +401,47 @@ extension SettingsSheet {
         }
     }
 
+    private var densitySelection: Binding<ListDensity> {
+        Binding(
+            get: { ListDensity(rawValue: densityRaw) ?? .comfortable },
+            set: { densityRaw = $0.rawValue }
+        )
+    }
+
+    func densityPicker(_ palette: Palette) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "list.bullet")
+                .font(Typography.bodyMediumText)
+                .foregroundStyle(palette.secondary)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L("Densità elenco"))
+                    .font(Typography.bodyLargeMediumText)
+                    .foregroundStyle(palette.text)
+                Text(L("Righe più compatte mostrano più torrent"))
+                    .font(Typography.microText)
+                    .foregroundStyle(palette.tertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            SegmentedPicker(
+                selection: densitySelection,
+                palette: palette,
+                height: 24,
+                corner: 7,
+                horizontalPadding: 2,
+                verticalPadding: 2,
+                font: Typography.captionMediumText
+            ) { (option: ListDensity, _) in
+                Text(option.label)
+            }
+            .frame(width: 168)
+        }
+        .padding(.vertical, 8)
+    }
+
     func versionRow(_ palette: Palette) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle")

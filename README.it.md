@@ -111,6 +111,7 @@ shasum -a 256 -c Vertex-*.dmg.sha256
   per prevenire leak dell'IP locale del router, blocca il traffico se il proxy cade e chiude
   le connessioni già aperte quando il proxy viene attivato o modificato.
 - **Diagnostica rete**: una checklist di stato più porta effettiva, IP locale, stato proxy, stato dei mapping e raggiungibilità TCP.
+- **Onboarding al primo avvio**: la libreria vuota mostra tre passi (aggiungi, cartella, proxy) e una scorciatoia alle impostazioni.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
 - **Nessuna telemetria**. Le uniche connessioni sono quelle BitTorrent e, solo quando avvii
   il test porta, api.ipify.org e check-host.net.
@@ -179,6 +180,7 @@ successive riusano `.build/vertex-deps`. Non serve alcuna libreria Homebrew a ru
 - Cartella di download, limiti globali di velocità, porta di ascolto, DHT, PEX, LSD,
   UPnP/NAT-PMP.
 - Un campo di ricerca nel rail filtra le sezioni per titolo, ignorando maiuscole e accenti.
+- **Densità elenco**: righe Comode o Compatte, persistite tra un avvio e l'altro.
 - **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali
   RFC 1929). Le credenziali vengono inviate quando il campo **Utente** è compilato: in quel
   caso il bridge usa il tipo `socks5_pw` di libtorrent; senza utente il proxy resta `socks5`.
@@ -373,7 +375,7 @@ richiede dipendenze per entrambe le architetture.
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
 soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
 di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
-(105 test) copre formattatori, decodifica snapshot JSON,
+(106 test) copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, tabelle GeoIP offline (IPv4 e IPv6), ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto

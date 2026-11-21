@@ -21,6 +21,7 @@ struct SettingsSheet: View {
     @AppStorage(PrefKey.sequentialDefault) var sequentialDefault = PrefDefault.sequentialDefault
     @AppStorage(PrefKey.seedRatioLimit) var seedRatioLimit = PrefDefault.seedRatioLimit
     @AppStorage(PrefKey.notificationsEnabled) var notificationsEnabled = PrefDefault.notificationsEnabled
+    @AppStorage(PrefKey.uiDensity) var densityRaw = PrefDefault.uiDensity
     @AppStorage(PrefKey.proxyEnabled) var proxyEnabled = PrefDefault.proxyEnabled
     @AppStorage(PrefKey.proxyHost) var proxyHost = PrefDefault.proxyHost
     @AppStorage(PrefKey.proxyPort) var proxyPort = PrefDefault.proxyPort

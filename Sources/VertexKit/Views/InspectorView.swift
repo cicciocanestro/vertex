@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Counts shown as badges on the inspector tabs. The detail may not be loaded
+/// yet, so a missing detail is zero rather than a spinner.
+enum InspectorBadge {
+    static func count(for tab: DetailTab, detail: TorrentDetail?) -> Int {
+        guard let detail else { return 0 }
+        switch tab {
+        case .files: return detail.files.count
+        case .peers: return detail.peers.count
+        case .trackers: return detail.trackers.count
+        }
+    }
+}
+
 enum DetailTab: String, CaseIterable, Identifiable {
     case files = "files"
     case peers = "peers"
@@ -335,15 +348,10 @@ struct InspectorView: View {
             horizontalPadding: 2,
             verticalPadding: 2,
             font: Typography.smallMediumText
-        ) { option, selected in
+        ) { option, _ in
             Text(option.label)
-            if option == .files, let count = engine.detail?.files.count, count > 0 {
-                Text(verbatim: "\(count)")
-                    .font(Typography.microRoundedSemiboldText)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.primary.opacity(0.07)))
-            } else if option == .peers, let count = engine.detail?.peers.count, count > 0 {
+            let count = InspectorBadge.count(for: option, detail: engine.detail)
+            if count > 0 {
                 Text(verbatim: "\(count)")
                     .font(Typography.microRoundedSemiboldText)
                     .padding(.horizontal, 4)

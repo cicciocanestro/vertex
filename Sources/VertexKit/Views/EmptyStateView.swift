@@ -3,6 +3,7 @@ import SwiftUI
 struct EmptyStateView: View {
     let onAdd: () -> Void
     let onPasteMagnet: () -> Void
+    let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var scheme
 
@@ -27,6 +28,30 @@ struct EmptyStateView: View {
                     .foregroundStyle(palette.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 360)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                onboardingStep(
+                    "1",
+                    icon: "plus.circle",
+                    title: L("Aggiungi"),
+                    detail: L("File .torrent o link magnet"),
+                    palette: palette
+                )
+                onboardingStep(
+                    "2",
+                    icon: "folder",
+                    title: L("Cartella"),
+                    detail: L("Scegli dove salvare i file"),
+                    palette: palette
+                )
+                onboardingStep(
+                    "3",
+                    icon: "shield.lefthalf.filled",
+                    title: L("Proxy"),
+                    detail: L("Facoltativo, per la privacy"),
+                    palette: palette
+                )
             }
 
             HStack(spacing: 9) {
@@ -60,9 +85,63 @@ struct EmptyStateView: View {
                     )
             )
             .padding(.top, 2)
+
+            Button(action: onOpenSettings) {
+                Label(L("Apri impostazioni"), systemImage: "gearshape")
+                    .font(Typography.smallMediumText)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(palette.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 22)
+    }
+
+    private func onboardingStep(
+        _ number: String,
+        icon: String,
+        title: String,
+        detail: String,
+        palette: Palette
+    ) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Theme.mint.opacity(0.16))
+                    .frame(width: 20, height: 20)
+                Text(verbatim: number)
+                    .font(Typography.captionTinySemiboldText)
+                    .foregroundStyle(Theme.mint)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(Typography.captionTinySemiboldText)
+                        .foregroundStyle(palette.tertiary)
+                    Text(title)
+                        .font(Typography.smallSemiboldText)
+                        .foregroundStyle(palette.text)
+                }
+                Text(detail)
+                    .font(Typography.microText)
+                    .foregroundStyle(palette.tertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(width: 176, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(palette.card)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(palette.stroke, lineWidth: 1)
+        )
     }
 }
 

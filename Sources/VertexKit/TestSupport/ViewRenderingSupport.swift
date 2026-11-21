@@ -50,7 +50,7 @@
                 height: 44
             )
             results["EmptyStateView"] = render(
-                EmptyStateView(onAdd: {}, onPasteMagnet: {}),
+                EmptyStateView(onAdd: {}, onPasteMagnet: {}, onOpenSettings: {}),
                 width: 760,
                 height: 520
             )
@@ -231,6 +231,23 @@
                     width: 1180,
                     height: 760
                 )
+
+                let previousDensity = UserDefaults.standard.string(forKey: PrefKey.uiDensity)
+                UserDefaults.standard.set(
+                    ListDensity.compact.rawValue,
+                    forKey: PrefKey.uiDensity
+                )
+                results["RootViewCompact"] = render(
+                    RootView(engine: engine),
+                    width: 1180,
+                    height: 760
+                )
+                if let previousDensity {
+                    UserDefaults.standard.set(previousDensity, forKey: PrefKey.uiDensity)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: PrefKey.uiDensity)
+                }
+
                 state.torrents = torrents
                 state.torrentsByID = Dictionary(torrents.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
                 engine.pollState = state

@@ -1,5 +1,42 @@
 import Foundation
 
+/// Row density for the torrent list. Compact fits more rows without changing
+/// what a row shows; it only tightens spacing, padding and the progress ring.
+package enum ListDensity: String, CaseIterable, Identifiable {
+    case comfortable
+    case compact
+
+    package var id: String { rawValue }
+
+    package var label: String {
+        switch self {
+        case .comfortable: return L("Comoda")
+        case .compact: return L("Compatta")
+        }
+    }
+
+    package var rowSpacing: CGFloat {
+        switch self {
+        case .comfortable: return 7
+        case .compact: return 4
+        }
+    }
+
+    package var rowPadding: CGFloat {
+        switch self {
+        case .comfortable: return 9
+        case .compact: return 5
+        }
+    }
+
+    package var ringSize: CGFloat {
+        switch self {
+        case .comfortable: return 42
+        case .compact: return 36
+        }
+    }
+}
+
 package enum TorrentFilter: String, CaseIterable, Identifiable {
     case all
     case downloading
