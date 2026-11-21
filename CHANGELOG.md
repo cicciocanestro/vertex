@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.3] — 2026-11-21
 
 ### English
 - **UI coverage**: the headless renderer now walks every settings section, the three inspector tabs with real trackers/peers, the row states (downloading, seeding, queued, error), the file-mode add sheet and an empty status bar. Line coverage rises from 56.1% to 62.2% locally, and the CI floor moves from 54.5% to 60.5%.
