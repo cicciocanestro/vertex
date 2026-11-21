@@ -70,6 +70,7 @@ final class PortReachabilityTester: ObservableObject {
 
             var lastOpen = 0
             var lastCompleted = 0
+            var stablePolls = 0
 
             for _ in 0..<15 {
                 do {
@@ -93,9 +94,6 @@ final class PortReachabilityTester: ObservableObject {
                     }
                 }
 
-                lastOpen = open
-                lastCompleted = completed
-
                 if completed == expectedNodes.count {
                     state =
                         open > 0
@@ -103,6 +101,26 @@ final class PortReachabilityTester: ObservableObject {
                         : .closed(totalNodes: completed)
                     return
                 }
+
+                // A node may never answer (check-host drops it). Once at least
+                // one result has arrived and the set stops changing for two
+                // polls, report the partial outcome instead of waiting for all
+                // 15 polls: the UI answers in seconds, not in half a minute.
+                if completed > 0, completed == lastCompleted, open == lastOpen {
+                    stablePolls += 1
+                    if stablePolls >= 2 {
+                        state =
+                            open > 0
+                            ? .open(openNodes: open, totalNodes: completed)
+                            : .closed(totalNodes: completed)
+                        return
+                    }
+                } else {
+                    stablePolls = 0
+                }
+
+                lastOpen = open
+                lastCompleted = completed
             }
 
             if lastCompleted > 0 {

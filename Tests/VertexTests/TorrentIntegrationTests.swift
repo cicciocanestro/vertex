@@ -478,19 +478,24 @@ enum TorrentIntegrationTests {
             try session.snapshot().torrents.filter { !$0.paused }.count == 1
         }
 
-        // Resuming puts it back in the queue; the single slot is still taken.
+        // Resuming puts it back under the manager, but libtorrent may keep the
+        // other torrent active instead: assert the invariant (one running, one
+        // queued), not which of the two wins the slot.
         try session.control(torrentID: queuedID, action: "resume")
+        var requeuedID = ""
         try TestsSupport.waitFor("di nuovo in coda") {
-            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
-                return false
-            }
-            return torrent.paused && torrent.autoManaged
+            let torrents = try session.snapshot().torrents
+            let queued = torrents.filter { $0.paused && $0.autoManaged }
+            let active = torrents.filter { !$0.paused }
+            guard queued.count == 1, active.count == 1 else { return false }
+            requeuedID = queued[0].id
+            return true
         }
 
         // Force start bypasses the limit immediately by disabling auto_managed and resuming.
-        try session.control(torrentID: queuedID, action: "force_start")
+        try session.control(torrentID: requeuedID, action: "force_start")
         try TestsSupport.waitFor("forzato l'avvio ignorando il limite") {
-            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == queuedID }) else {
+            guard let torrent = try session.snapshot().torrents.first(where: { $0.id == requeuedID }) else {
                 return false
             }
             return !torrent.paused && !torrent.autoManaged
