@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.2] — 2026-11-20
 
 ### English
 - **Presentation logic leaves the views**: peer-flag labels, tracker input validation, file-priority labels and the diagnostics rules (UPnP disabled reason, external port to probe) now live in `Utilities/Presentation.swift` with unit tests. The inspector and the diagnostics window call the shared code instead of duplicating switches; the project's line coverage rises from 55.4% to 56.1% locally.
