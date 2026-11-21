@@ -8,7 +8,7 @@
 - **Bridge mutation fuzzing**: the suite now throws 300 mutated magnets and 60 mutated `.torrent` files at a real session, keeping the snapshot decodable; it runs under the address/thread sanitizers in CI.
 - **UI coverage**: render states for the empty library, loading, unavailable engine and success/error toasts, plus the two settings-search states. Line coverage 62.2% → 64.0% locally.
 - **Flakes found by the stress harness**: the two-torrent setup waits for full progress (the seeding state can lag behind the piece check), the reachability tester reports a partial result after two stable polls instead of waiting for all 15, and the queue test asserts "one running, one queued" instead of which torrent wins the slot. `waitForCompletion` now has a 90s ceiling.
-- **50-run stability**: `Scripts/stress-tests.sh` builds once and runs the suite 50 times; the run found and fixed the two flakes above before turning green.
+- **50-run stability**: `Scripts/stress-tests.sh` builds once and runs the suite 50 times; the run found and fixed the flakes above before turning green.
 
 ### Italiano
 - **Ricerca nelle impostazioni**: un campo sopra il rail filtra le sezioni per titolo localizzato, ignorando maiuscole e accenti; una ricerca vuota mostra tutto e una senza risultati lo dice invece di lasciare il rail vuoto.
@@ -16,7 +16,7 @@
 - **Fuzz mutazionale del bridge**: la suite invia 300 magnet e 60 file `.torrent` mutati a una sessione reale, verificando che lo snapshot resti decodificabile; gira sotto i sanitizer ASan/TSan in CI.
 - **Copertura UI**: stati di rendering per libreria vuota, caricamento, motore non disponibile e toast successo/errore, più i due stati della ricerca impostazioni. Copertura righe 62,2% → 64,0% in locale.
 - **Flake trovati dallo stress harness**: il setup dei due torrent aspetta il progresso completo (lo stato seeding può arrivare dopo il check dei pezzi), il tester di raggiungibilità riporta un risultato parziale dopo due poll stabili invece di aspettare tutti e 15, e il test della coda verifica "uno attivo, uno in coda" invece di quale torrent vince lo slot. `waitForCompletion` ha ora un tetto di 90 s.
-- **Stabilità su 50 run**: `Scripts/stress-tests.sh` compila una volta ed esegue la suite 50 volte; il ciclo ha trovato e fatto correggere i due flake prima di diventare verde.
+- **Stabilità su 50 run**: `Scripts/stress-tests.sh` compila una volta ed esegue la suite 50 volte; il ciclo ha trovato e fatto correggere i flake prima di diventare verde.
 
 ## [1.17.5] — 2026-11-21
 
