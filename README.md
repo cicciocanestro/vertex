@@ -354,7 +354,9 @@ both architectures.
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite under ThreadSanitizer
 ./Scripts/run-sanitizers.sh address  # suite under AddressSanitizer
-./Scripts/run-fuzz.sh 60             # fuzz JSON escaping and UTF-8 validation
+./Scripts/run-fuzz.sh 60             # fuzz JSON escaping, UTF-8 and path handling
+./Scripts/generate-sbom.sh           # CycloneDX SBOM of the pinned dependencies
+./Scripts/check-deps.sh              # OSV advisories for the pinned versions
 ./Scripts/build-deps.sh --force      # rebuild pinned dependencies
 ```
 

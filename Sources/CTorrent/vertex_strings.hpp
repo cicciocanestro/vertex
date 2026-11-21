@@ -7,6 +7,8 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 
 namespace vertex {
@@ -129,6 +131,52 @@ inline std::string json_escape(std::string const& input)
         }
     }
     return out;
+}
+
+/// Trims whitespace, expands a leading `~`, and turns a file destination (for
+/// example a dropped `.torrent`) into its folder. Kept here so the fuzz harness
+/// can exercise it without linking libtorrent.
+inline std::string normalized_save_path(
+    std::string const& requested,
+    std::string const& fallback)
+{
+    namespace fs = std::filesystem;
+    std::string candidate = requested.empty() ? fallback : requested;
+
+    // MEDIUM #7: trim and expand ~ exactly like Preferences.resolvedDownloadPath,
+    // so the path the Swift side normalizes and the one the C++ side uses for
+    // resume data and save_path can never drift apart.
+    auto trim = [](std::string& s) {
+        auto first = s.find_first_not_of(" \t\n\r");
+        if (first == std::string::npos) { s.clear(); return; }
+        auto last = s.find_last_not_of(" \t\n\r");
+        s = s.substr(first, last - first + 1);
+    };
+    trim(candidate);
+    if (!candidate.empty() && candidate[0] == '~')
+    {
+        char const* home = std::getenv("HOME");
+        if (home && *home)
+            candidate = std::string(home) + candidate.substr(1);
+    }
+
+    std::error_code ec;
+    fs::path path(candidate);
+    auto status = fs::status(path, ec);
+    if (!ec)
+    {
+        if (fs::is_regular_file(status))
+        {
+            // A file was used as destination (often a .torrent): use its folder.
+            candidate = path.parent_path().string();
+        }
+    }
+    else if (path.extension() == ".torrent")
+    {
+        candidate = path.parent_path().string();
+    }
+
+    return candidate.empty() ? fallback : candidate;
 }
 
 } // namespace vertex

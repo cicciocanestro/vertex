@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **Fuzzing beyond escaping**: the harness now also checks save-path normalization (trim, `~`, file→folder) and a deterministic Swift fuzzer feeds 10,000 mutated snapshot/detail payloads to the JSON decoders. 96 tests.
+- **SBOM and dependency advisories**: `Scripts/generate-sbom.sh` emits a CycloneDX 1.5 SBOM from the same hashes `build-deps.sh` verifies; CI uploads it with every build and attaches it to releases. A weekly workflow queries OSV for the pinned versions and fails only on HIGH/CRITICAL findings (Boost 1.92.0 currently reports two low/medium OSS-Fuzz findings in modules Vertex does not use).
+- **Stable signing**: the three signing secrets are configured, so CI builds and releases use the self-signed identity instead of ad-hoc. Gatekeeper still warns: removing that requires a Developer ID and notarization.
+
+### Italiano
+- **Fuzzing oltre l'escaping**: l'harness ora verifica anche la normalizzazione dei percorsi (trim, `~`, file→cartella) e un fuzzer Swift deterministico invia 10.000 payload mutati di snapshot/dettaglio ai decoder JSON. 96 test.
+- **SBOM e avvisi sulle dipendenze**: `Scripts/generate-sbom.sh` produce un SBOM CycloneDX 1.5 dagli stessi hash verificati da `build-deps.sh`; la CI lo carica a ogni build e lo allega alle release. Un workflow settimanale interroga OSV per le versioni fissate e fallisce solo su HIGH/CRITICAL (Boost 1.92.0 ha due segnalazioni OSS-Fuzz low/medium in moduli che Vertex non usa).
+- **Firma stabile**: i tre secret di firma sono configurati, quindi build e release CI usano l'identità self-signed invece della firma ad-hoc. Gatekeeper avvisa ancora: per toglierlo servono Developer ID e notarizzazione.
+
 ## [1.17.3] — 2026-11-21
 
 ### English

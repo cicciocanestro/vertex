@@ -189,6 +189,9 @@ jobs:
       - name: Build pinned engine dependencies
         run: ./Scripts/build-deps.sh
 
+      - name: Generate SBOM
+        run: ./Scripts/generate-sbom.sh
+
       - name: Run test suite
         env:
           # Enables the best-effort UPnP/NAT-PMP smoke test. Local test runs
@@ -213,6 +216,7 @@ jobs:
           path: |
             dist/test-results.xml
             dist/coverage/
+            dist/sbom.cdx.json
           if-no-files-found: warn
 
       - name: Import signing certificate (optional)
@@ -303,6 +307,7 @@ jobs:
           path: |
             dist/Vertex-*.dmg
             dist/Vertex-*.dmg.sha256
+            dist/sbom.cdx.json
           if-no-files-found: error
 
       - name: Remove temporary signing keychain
@@ -346,11 +351,13 @@ jobs:
             gh release upload "${GITHUB_REF_NAME}" \
               dist/Vertex-*.dmg \
               dist/Vertex-*.dmg.sha256 \
+              dist/sbom.cdx.json \
               --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
               dist/Vertex-*.dmg \
               dist/Vertex-*.dmg.sha256 \
+              dist/sbom.cdx.json \
               --title "Vertex ${GITHUB_REF_NAME#v}" \
               --generate-notes
           fi

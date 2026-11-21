@@ -358,7 +358,9 @@ richiede dipendenze per entrambe le architetture.
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite sotto ThreadSanitizer
 ./Scripts/run-sanitizers.sh address  # suite sotto AddressSanitizer
-./Scripts/run-fuzz.sh 60             # fuzzing di escaping JSON e validazione UTF-8
+./Scripts/run-fuzz.sh 60             # fuzzing di escaping JSON, UTF-8 e percorsi
+./Scripts/generate-sbom.sh           # SBOM CycloneDX delle dipendenze fissate
+./Scripts/check-deps.sh              # avvisi OSV per le versioni fissate
 ./Scripts/build-deps.sh --force      # ricompila le dipendenze fissate
 ```
 

@@ -25,6 +25,7 @@
 
 using vertex::is_valid_utf8;
 using vertex::json_escape;
+using vertex::normalized_save_path;
 
 #include <algorithm>
 #include <chrono>
@@ -111,50 +112,6 @@ bool from_hex(std::string const& hex, char* out, std::size_t outSize)
 std::string torrent_id(lt::torrent_status const& status)
 {
     return to_hex(status.info_hashes.get_best());
-}
-
-// Mirrors Preferences.resolvedDownloadPath on the Swift side. The C++ copy is
-// the last-resort safety net for resume data and callers without a save path;
-// keep the two rule sets aligned and covered by the path tests.
-std::string normalized_save_path(std::string const& requested, std::string const& fallback)
-{
-    namespace fs = std::filesystem;
-    std::string candidate = requested.empty() ? fallback : requested;
-
-    // MEDIUM #7: trim and expand ~ exactly like Preferences.resolvedDownloadPath,
-    // so the path the Swift side normalizes and the one the C++ side uses for
-    // resume data and save_path can never drift apart.
-    auto trim = [](std::string& s) {
-        auto first = s.find_first_not_of(" \t\n\r");
-        if (first == std::string::npos) { s.clear(); return; }
-        auto last = s.find_last_not_of(" \t\n\r");
-        s = s.substr(first, last - first + 1);
-    };
-    trim(candidate);
-    if (!candidate.empty() && candidate[0] == '~')
-    {
-        char const* home = std::getenv("HOME");
-        if (home && *home)
-            candidate = std::string(home) + candidate.substr(1);
-    }
-
-    std::error_code ec;
-    fs::path path(candidate);
-    auto status = fs::status(path, ec);
-    if (!ec)
-    {
-        if (fs::is_regular_file(status))
-        {
-            // A file was used as destination (often a .torrent): use its folder.
-            candidate = path.parent_path().string();
-        }
-    }
-    else if (path.extension() == ".torrent")
-    {
-        candidate = path.parent_path().string();
-    }
-
-    return candidate.empty() ? fallback : candidate;
 }
 
 bool is_usable_directory(std::string const& path)

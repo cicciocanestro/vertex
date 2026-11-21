@@ -63,5 +63,19 @@ extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size
     if (!needsEscape && escaped != input)
         fail("plain ASCII input was modified");
 
+    // Path normalization must never crash, never return an empty string when a
+    // fallback exists, and never smuggle a NUL byte into a save path. The real
+    // callers pass C strings, so the fuzz input is cut at the first NUL: an
+    // embedded NUL is outside the function's contract.
+    std::string const pathInput = input.substr(0, input.find('\0'));
+    std::string const fallback = "/tmp/vertex-fuzz";
+    std::string const normalized = vertex::normalized_save_path(pathInput, fallback);
+    if (normalized.empty())
+        fail("path normalization returned an empty string");
+    if (normalized.find('\0') != std::string::npos)
+        fail("NUL byte in normalized path");
+    if (pathInput.empty() && normalized != fallback)
+        fail("empty request did not use the fallback");
+
     return 0;
 }

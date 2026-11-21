@@ -1,0 +1,24 @@
+name: Dependency advisories
+
+on:
+  schedule:
+    # Weekly, Monday 06:00 UTC: a red run is the notification.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  osv:
+    name: OSV query for pinned dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Query OSV
+        run: ./Scripts/check-deps.sh
