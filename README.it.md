@@ -375,7 +375,7 @@ richiede dipendenze per entrambe le architetture.
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
 soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
 di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
-(106 test) copre formattatori, decodifica snapshot JSON,
+(110 test) copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, tabelle GeoIP offline (IPv4 e IPv6), ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto

@@ -31,10 +31,10 @@ Metodo (comandi eseguiti sul repository reale):
 | Viste SwiftUI | Tutte referenziate; nessuna vista morta. |
 | API `vt_*` | Ogni funzione dichiarata in `vertex_torrent.h` è chiamata da Swift o dai test. |
 | C++ (`-Wunused-function`) | Nessuna funzione o variabile statica non usata. |
-| Script | Tutti i 21 file in `Scripts/` sono usati da build, CI, README o altri script. |
+| Script | Tutti i 25 file in `Scripts/` sono usati da build, CI, README o altri script. |
 | Risorse | `Resources/Licenses` è copiata in blocco dal `build.sh`; GeoIP e plist sono usati. |
 | Fixture | Gli SHA-256 in `Tests/Fixtures/README.md` corrispondono ai due `.torrent`. |
-| Localizzazioni | 335 chiavi EN/IT, 0 orfane (348 dopo le release successive). |
+| Localizzazioni | 348 chiavi EN/IT, 0 orfane. |
 | Documentazione | `docs/screenshot.jpg` è l'immagine di testa dei README; `queue-and-limits.md`, ADR e threat model sono attuali. |
 
 ## Unico orfano trovato

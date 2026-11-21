@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### English
+- **Proxy password hardening**: the containing folder is forced to 0700 even on existing installs (1.17.8 only set it when creating the folder), and reads use `O_RDONLY | O_NOFOLLOW`, `fstat` and `fchmod` on the descriptor: a symlink is ignored and its target is neither read nor chmod'ed. The file is capped at 64 KiB.
+- **Launch smoke test**: CI executes the signed bundle for five seconds after signing and fails if it exits early or logs dyld errors; a static check also rejects hardened runtime without a Team ID. This closes the gap that let 1.17.7 and 1.17.8 ship unlaunchable.
+
+### Italiano
+- **Hardening della password proxy**: la cartella viene forzata a 0700 anche sulle installazioni esistenti (la 1.17.8 la impostava solo alla creazione), e la lettura usa `O_RDONLY | O_NOFOLLOW`, `fstat` e `fchmod` sul descrittore: un symlink viene ignorato e il file puntato non viene né letto né chmodato. Il file è limitato a 64 KiB.
+- **Smoke test di avvio**: la CI esegue il bundle firmato per cinque secondi dopo la firma e fallisce se esce subito o registra errori dyld; un controllo statico rifiuta anche hardened runtime senza Team ID. Chiude il buco che ha fatto uscire 1.17.7 e 1.17.8 non avviabili.
+
 ## [1.17.9] — 2026-11-21
 
 ### English

@@ -256,6 +256,12 @@ jobs:
           fi
           echo "✓ Firma stabile applicata"
 
+      - name: Smoke test app launch
+        # 1.17.7 and 1.17.8 passed every other gate but dyld refused the
+        # bundled libtorrent because hardened runtime + self-signed identity
+        # have no shared Team ID. Keep a real launch in the pipeline.
+        run: ./Scripts/check-launch.sh
+
       - name: Enforce signed release (opt-in)
         # Set the repository variable VERTEX_REQUIRE_RELEASE_SIGNING=1 once a
         # Developer ID certificate is available: from then on a tag cannot

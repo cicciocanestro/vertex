@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Storage for the SOCKS5 password.
@@ -97,27 +98,49 @@ package enum ProxyPasswordStore {
 
     private static func readFile() -> Result<String?, ReadError> {
         let url = fileURL
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            return .success(nil)
-        }
-        do {
-            let data = try Data(contentsOf: url)
-            tightenPermissions(of: url)
-            return .success(String(data: data, encoding: .utf8) ?? "")
-        } catch {
+        // O_NOFOLLOW is the read counterpart of the write path: a symlink is
+        // not a password file. It is ignored (the next save replaces it) and
+        // the file it points to is neither read nor chmod'ed.
+        let descriptor = url.path.withCString { open($0, O_RDONLY | O_NOFOLLOW) }
+        guard descriptor >= 0 else {
+            if errno == ENOENT || errno == ELOOP {
+                return .success(nil)
+            }
             return .failure(.unavailable)
         }
-    }
+        defer { close(descriptor) }
 
-    /// A file left readable by group or others (older versions, manual copy)
-    /// is brought back to 0600 the next time it is read.
-    private static func tightenPermissions(of url: URL) {
+        var info = stat()
         guard
-            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-            let mode = (attributes[.posixPermissions] as? NSNumber)?.intValue,
-            mode & 0o077 != 0
-        else { return }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            fstat(descriptor, &info) == 0,
+            (info.st_mode & S_IFMT) == S_IFREG
+        else {
+            return .failure(.unavailable)
+        }
+        // Tighten through the descriptor, so the mode change cannot be
+        // redirected to a different path between check and chmod.
+        if info.st_mode & 0o077 != 0 {
+            _ = fchmod(descriptor, 0o600)
+        }
+
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let limit = 64 * 1024
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count == 0 { break }
+            if count < 0 {
+                if errno == EINTR { continue }
+                return .failure(.unavailable)
+            }
+            data.append(contentsOf: buffer[0..<count])
+            if data.count > limit {
+                return .failure(.unavailable)
+            }
+        }
+        return .success(String(data: data, encoding: .utf8) ?? "")
     }
 
     private static func writeFile(_ value: String) -> Bool {
@@ -126,13 +149,22 @@ package enum ProxyPasswordStore {
             return true
         }
         let url = fileURL
-        let temporary = url.deletingLastPathComponent()
+        let folder = url.deletingLastPathComponent()
+        let temporary =
+            folder
             .appendingPathComponent(".proxy-password-\(UUID().uuidString).tmp")
         do {
             try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
+                at: folder,
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700]
+            )
+            // `createDirectory` ignores attributes when the folder already
+            // exists: older installs have ~/Library/Application Support/Vertex
+            // at 0755. Enforce the documented mode explicitly.
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: folder.path
             )
             // Created with 0600 from the start: the password is never on disk
             // with the umask-derived mode, not even for an instant.

@@ -17,9 +17,9 @@ Questo documento elenca cosa protegge, da chi e cosa resta fuori perimetro.
 |---|---|---|
 | Peer malevoli nel swarm | Inviano messaggi BEP malformati, nomi con escape, metadati enormi | Parsing libtorrent, limiti sul `.resume`, escaping JSON nel bridge |
 | Rete locale / ISP | Osserva connessioni in chiaro | Il proxy SOCKS5 è **fail-closed**: senza host la sessione non parte, non c'è fallback silenzioso |
-| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale creato direttamente `0600` in una cartella `0700` (mai visibile con permessi più larghi) e ristretto a `0600` alla lettura se trovato più permissivo; dichiarato non cifrato |
+| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale creato `0600` in una cartella forzata a `0700` anche se preesistente. La lettura usa `O_NOFOLLOW`, `fstat` e `fchmod` sul descrittore: un symlink viene ignorato e il file puntato non viene né letto né modificato; dichiarato non cifrato |
 | Sito che distribuisce il DMG | Sostituisce il binario | Firma (ad-hoc o self-signed) + checksum SHA-256 pubblicato + Cask che rimuove la quarantena |
-| Malware con accesso alla sessione utente | Modifica i file di resume | `fsync` su file e directory prima della rinomina atomica; i file corrotti vengono messi in quarantena `.bad`; i symlink `.resume` non vengono seguiti |
+| Malware con accesso alla sessione utente | Modifica i file di resume | `fsync` su file e directory prima della rinomina atomica; i file corrotti vengono messi in quarantena `.bad`; i symlink `.resume` non vengono enumerati (`symlink_status`) |
 
 ## Fuori perimetro (accettato)
 
