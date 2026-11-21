@@ -328,6 +328,27 @@
                 )
             }
 
+            results["SettingsSheet.searchProxy"] = render(
+                SettingsSheet(
+                    engine: engine,
+                    initialQuery: "proxy",
+                    onClose: {},
+                    onOpenDiagnostics: {}
+                ),
+                width: 700,
+                height: 540
+            )
+            results["SettingsSheet.searchNone"] = render(
+                SettingsSheet(
+                    engine: engine,
+                    initialQuery: "zzz",
+                    onClose: {},
+                    onOpenDiagnostics: {}
+                ),
+                width: 700,
+                height: 540
+            )
+
             results["AddTorrentSheetFile"] = render(
                 AddTorrentSheet(engine: engine, initialMode: .file, onClose: {}),
                 width: 580,
@@ -445,7 +466,48 @@
                 width: 900,
                 height: 44
             )
+            let originalReady = engine.isReady
+            let originalStartup = engine.startupError
+            let originalLoaded = engine.hasLoadedSnapshot
+            let originalToast = engine.toast
+            defer {
+                engine.pollState = originalState
+                engine.isReady = originalReady
+                engine.startupError = originalStartup
+                engine.hasLoadedSnapshot = originalLoaded
+                engine.toast = originalToast
+            }
+
+            engine.pollState = TorrentEngine.PollState()
+            engine.hasLoadedSnapshot = true
+            results["RootView.empty"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
+
+            engine.hasLoadedSnapshot = false
+            results["RootView.loading"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
+
+            engine.isReady = false
+            engine.startupError = "Errore di avvio"
+            results["RootView.unavailable"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
+
+            engine.isReady = originalReady
+            engine.startupError = nil
+            engine.hasLoadedSnapshot = true
             engine.pollState = originalState
+
+            engine.toast = ToastMessage(kind: .success, text: "Download completato")
+            results["RootView.toastSuccess"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
+            engine.toast = ToastMessage(kind: .error, text: "Errore", detail: "dettaglio")
+            results["RootView.toastError"] = render(
+                RootView(engine: engine), width: 1180, height: 760
+            )
 
             return results
         }

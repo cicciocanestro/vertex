@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **Settings search**: a field above the settings rail filters sections by their localized title, ignoring case and accents; an empty query shows everything and a no-match query says so instead of leaving a blank rail.
+- **Diagnostics checklist**: the network diagnostics window starts with a four-row summary (listening, UPnP/NAT-PMP, SOCKS5, DHT) with ok/warning/error/info status, so the first question ("is anything wrong?") is answered before the detailed cards.
+- **Bridge mutation fuzzing**: the suite now throws 300 mutated magnets and 60 mutated `.torrent` files at a real session, keeping the snapshot decodable; it runs under the address/thread sanitizers in CI.
+- **UI coverage**: render states for the empty library, loading, unavailable engine and success/error toasts, plus the two settings-search states. Line coverage 62.2% → 64.0% locally.
+
+### Italiano
+- **Ricerca nelle impostazioni**: un campo sopra il rail filtra le sezioni per titolo localizzato, ignorando maiuscole e accenti; una ricerca vuota mostra tutto e una senza risultati lo dice invece di lasciare il rail vuoto.
+- **Checklist diagnostica**: la finestra di diagnostica rete inizia con un riepilogo a quattro righe (ascolto, UPnP/NAT-PMP, SOCKS5, DHT) con stato ok/attenzione/errore/info, così la prima domanda ("c'è qualcosa che non va?") ha risposta prima delle schede dettagliate.
+- **Fuzz mutazionale del bridge**: la suite invia 300 magnet e 60 file `.torrent` mutati a una sessione reale, verificando che lo snapshot resti decodificabile; gira sotto i sanitizer ASan/TSan in CI.
+- **Copertura UI**: stati di rendering per libreria vuota, caricamento, motore non disponibile e toast successo/errore, più i due stati della ricerca impostazioni. Copertura righe 62,2% → 64,0% in locale.
+
+
 ## [1.17.5] — 2026-11-21
 
 ### English

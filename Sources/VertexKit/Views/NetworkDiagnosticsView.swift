@@ -28,6 +28,14 @@ struct NetworkDiagnosticsView: View {
         )
     }
 
+    private var checks: [DiagnosticCheck] {
+        DiagnosticsChecklist.checks(
+            stats: engine.stats,
+            upnpEnabled: upnpEnabled,
+            dhtEnabled: dhtEnabled
+        )
+    }
+
     var body: some View {
         let palette = Palette(scheme: scheme)
 
@@ -42,6 +50,7 @@ struct NetworkDiagnosticsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
+                    checklistCard(palette)
                     statusGrid(palette)
                     proxyCard(palette)
                     listenErrorCard(palette)
@@ -72,6 +81,58 @@ struct NetworkDiagnosticsView: View {
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
         .onChange(of: testPort) { _, _ in tester.reset() }
+    }
+
+    private func checklistCard(_ palette: Palette) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            SectionLabel(text: "Stato")
+            ForEach(checks) { check in
+                HStack(spacing: 8) {
+                    Image(systemName: checklistSymbol(check.status))
+                        .font(Typography.smallSemiboldText)
+                        .foregroundStyle(checklistColor(check.status, palette))
+                        .frame(width: 16)
+                    Text(check.title)
+                        .font(Typography.smallMediumText)
+                        .foregroundStyle(palette.text)
+                    Text(check.detail)
+                        .font(Typography.smallText)
+                        .foregroundStyle(palette.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(palette.card)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(palette.stroke, lineWidth: 1)
+        )
+    }
+
+    private func checklistSymbol(_ status: DiagnosticCheckStatus) -> String {
+        switch status {
+        case .ok: return "checkmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .error: return "xmark.octagon.fill"
+        case .info: return "info.circle"
+        }
+    }
+
+    private func checklistColor(_ status: DiagnosticCheckStatus, _ palette: Palette) -> Color {
+        switch status {
+        case .ok: return Theme.green
+        case .warning: return .orange
+        case .error: return Theme.coral
+        case .info: return palette.tertiary
+        }
     }
 
     private func statusGrid(_ palette: Palette) -> some View {

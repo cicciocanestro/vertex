@@ -537,7 +537,7 @@
                 let extended = onMain {
                     ViewRenderingSupport.renderExtendedViews(engine: engine, torrents: engine.torrents)
                 }
-                try TestRunner.assertEqual(extended.count, 13)
+                try TestRunner.assertEqual(extended.count, 20)
                 for (name, area) in extended {
                     try TestRunner.assertTrue(
                         area > 0,

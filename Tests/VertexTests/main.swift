@@ -15,6 +15,8 @@ TestRunner.beginSuite("ProxyPasswordStorageTests")
 ProxyPasswordStorageTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
+TestRunner.beginSuite("BridgeFuzzTests")
+BridgeFuzzTests.runAll()
 #if DEBUG
     TestRunner.beginSuite("UtilityTests")
     UtilityTests.runAll()

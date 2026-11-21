@@ -54,6 +54,7 @@ struct SettingsSheet: View {
     static let proxyHostPlaceholder = "127.0.0.1"
     static let proxyPortPlaceholder = "1080"
     @StateObject var selectedSection = UIState<SettingsSection>(.folders)
+    @StateObject var sectionQuery = UIState("")
 
     let onClose: () -> Void
     let onOpenDiagnostics: () -> Void
@@ -61,11 +62,13 @@ struct SettingsSheet: View {
     init(
         engine: TorrentEngine,
         initialSection: SettingsSection = .folders,
+        initialQuery: String = "",
         onClose: @escaping () -> Void,
         onOpenDiagnostics: @escaping () -> Void
     ) {
         _engine = ObservedObject(wrappedValue: engine)
         _selectedSection = StateObject(wrappedValue: UIState(initialSection))
+        _sectionQuery = StateObject(wrappedValue: UIState(initialQuery))
         self.onClose = onClose
         self.onOpenDiagnostics = onOpenDiagnostics
     }

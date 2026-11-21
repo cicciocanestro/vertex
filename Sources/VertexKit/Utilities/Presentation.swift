@@ -65,6 +65,146 @@ package enum FilePriorityPresentation {
     }
 }
 
+package enum DiagnosticCheckStatus: Equatable {
+    case ok
+    case warning
+    case error
+    case info
+}
+
+package struct DiagnosticCheck: Identifiable, Equatable {
+    package let id: String
+    package let title: String
+    package let detail: String
+    package let status: DiagnosticCheckStatus
+}
+
+/// Compact "is anything wrong?" summary for the diagnostics window. It does not
+/// replace the detailed cards: it answers the first question a user asks.
+package enum DiagnosticsChecklist {
+    package static func checks(
+        stats: SessionStats,
+        upnpEnabled: Bool,
+        dhtEnabled: Bool
+    ) -> [DiagnosticCheck] {
+        var checks: [DiagnosticCheck] = []
+
+        if stats.isListening {
+            checks.append(
+                DiagnosticCheck(
+                    id: "listen",
+                    title: L("Porta di ascolto"),
+                    detail: "\(L("In ascolto")) · \(stats.effectivePort)",
+                    status: .ok
+                ))
+        } else {
+            checks.append(
+                DiagnosticCheck(
+                    id: "listen",
+                    title: L("Porta di ascolto"),
+                    detail: stats.listenError.isEmpty ? L("Non in ascolto") : stats.listenError,
+                    status: .error
+                ))
+        }
+
+        if let reason = DiagnosticsPresentation.upnpDisabledReason(
+            isProxyActive: stats.isProxyActive,
+            upnpEnabled: upnpEnabled
+        ) {
+            checks.append(
+                DiagnosticCheck(
+                    id: "mapping",
+                    title: L("UPnP / NAT-PMP"),
+                    detail: reason,
+                    status: .info
+                ))
+        } else if stats.portmap.tcp.mapped {
+            checks.append(
+                DiagnosticCheck(
+                    id: "mapping",
+                    title: L("UPnP / NAT-PMP"),
+                    detail: String(
+                        format: L("porta esterna %ld"),
+                        stats.portmap.tcp.externalPort
+                    ),
+                    status: .ok
+                ))
+        } else if stats.portmap.hasError {
+            checks.append(
+                DiagnosticCheck(
+                    id: "mapping",
+                    title: L("UPnP / NAT-PMP"),
+                    detail: L(
+                        "Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."
+                    ),
+                    status: .warning
+                ))
+        } else {
+            checks.append(
+                DiagnosticCheck(
+                    id: "mapping",
+                    title: L("UPnP / NAT-PMP"),
+                    detail: L("non mappata"),
+                    status: .warning
+                ))
+        }
+
+        if !stats.proxy.enabled {
+            checks.append(
+                DiagnosticCheck(
+                    id: "proxy",
+                    title: L("Proxy SOCKS5"),
+                    detail: L("Non configurato"),
+                    status: .info
+                ))
+        } else if stats.proxy.hasError {
+            checks.append(
+                DiagnosticCheck(
+                    id: "proxy",
+                    title: L("Proxy SOCKS5"),
+                    detail: stats.proxy.error,
+                    status: .error
+                ))
+        } else {
+            checks.append(
+                DiagnosticCheck(
+                    id: "proxy",
+                    title: L("Proxy SOCKS5"),
+                    detail: L("Proxy attivo"),
+                    status: .ok
+                ))
+        }
+
+        if !dhtEnabled {
+            checks.append(
+                DiagnosticCheck(
+                    id: "dht",
+                    title: L("DHT"),
+                    detail: L("DHT disattivato"),
+                    status: .info
+                ))
+        } else if stats.dhtNodes > 0 {
+            checks.append(
+                DiagnosticCheck(
+                    id: "dht",
+                    title: L("DHT"),
+                    detail: "\(L("Nodi DHT")): \(stats.dhtNodes)",
+                    status: .ok
+                ))
+        } else {
+            checks.append(
+                DiagnosticCheck(
+                    id: "dht",
+                    title: L("DHT"),
+                    detail: L("In attesa"),
+                    status: .warning
+                ))
+        }
+
+        return checks
+    }
+}
+
 package enum DiagnosticsPresentation {
     /// Why UPnP/NAT-PMP cannot run at all. When this is non-nil the mapping rows
     /// must not look like a failure: the user disabled the feature, or the

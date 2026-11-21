@@ -12,9 +12,16 @@ RUNS="${1:-20}"
 LOG_DIR="${VERTEX_STRESS_DIR:-$ROOT/.build/stress}"
 mkdir -p "$LOG_DIR"
 
+# Build once, then run the same binary: rebuilding for every iteration would
+# measure the compiler, not the tests.
+swift build -c debug
+BIN="$(swift build -c debug --show-bin-path)/VertexTestRunner"
+
 for run in $(seq 1 "$RUNS"); do
     echo "→ Run $run/$RUNS"
-    if ! ./build.sh test >"$LOG_DIR/run-$run.log" 2>&1; then
+    if ! VERTEX_TEST_REPORT="$LOG_DIR/run-$run.xml" \
+        VERTEX_KEYCHAIN_DISABLED=1 \
+        "$BIN" >"$LOG_DIR/run-$run.log" 2>&1; then
         echo "✗ Run $run fallita: $LOG_DIR/run-$run.log" >&2
         tail -20 "$LOG_DIR/run-$run.log" >&2
         exit 1
