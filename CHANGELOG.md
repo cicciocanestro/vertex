@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.6] — 2026-11-21
 
 ### English
 - **Settings search**: a field above the settings rail filters sections by their localized title, ignoring case and accents; an empty query shows everything and a no-match query says so instead of leaving a blank rail.
