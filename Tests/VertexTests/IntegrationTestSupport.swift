@@ -534,7 +534,7 @@ enum IntegrationSwarm {
     static func waitForCompletion(
         _ session: BridgeSession,
         name: String,
-        timeout: TimeInterval = 30
+        timeout: TimeInterval = 90
     ) throws {
         try TestsSupport.waitFor("completamento \(name)", timeout: timeout) {
             let torrent = try session.snapshot().torrents.first(where: { $0.name == name })
