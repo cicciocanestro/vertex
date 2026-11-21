@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.7] — 2026-11-21
 
 ### English
 - **List density**: Settings → Appearance now offers Comfortable (default) and Compact rows. Compact tightens list spacing, row padding and the progress ring (7/9/42 → 4/5/36 pt), persisted across launches.
