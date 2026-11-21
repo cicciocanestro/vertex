@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **Architecture records**: ADR 0002 documents why the snapshot reads the `state_update_alert` cache (with the cold-cache fallback and its benchmark) and ADR 0003 the adaptive polling cadence and its testable policy.
+
+### Italiano
+- **Registri di architettura**: l'ADR 0002 documenta perché lo snapshot legge la cache di `state_update_alert` (con il ripiego a cache fredda e il benchmark) e l'ADR 0003 la cadenza adattiva del polling e la sua policy testabile.
+
 ## [1.17.7] — 2026-11-21
 
 ### English
