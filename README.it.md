@@ -347,7 +347,7 @@ richiede dipendenze per entrambe le architetture.
 - `Scripts/` — build dipendenze fissate, verifica bundle, DMG, controllo localizzazioni,
   controllo toolchain, generazione della tabella GeoIP e test runner.
 - `Resources/` — `Info.plist`, localizzazioni, licenze di terze parti e tabella GeoIP inclusa.
-- `docs/` — decision record architetturali e modello di minaccia.
+- `docs/` — decision record architetturali, modello di minaccia, design della coda e audit del repository.
 - `.github/workflows/ci.yml` — build/test su push e PR; release sui tag.
 
 ### Sviluppo e test

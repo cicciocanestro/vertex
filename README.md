@@ -343,7 +343,7 @@ both architectures.
 - `Scripts/` — pinned dependency build, bundle verification, DMG, localization check,
   toolchain check, GeoIP table generation and test runner.
 - `Resources/` — `Info.plist`, localizations, third-party licenses and the bundled GeoIP table.
-- `docs/` — architecture decision records and the threat model.
+- `docs/` — architecture decision records, the threat model, the queue design and the repository audit.
 - `.github/workflows/ci.yml` — build/test on push and PR; release on tags.
 
 ### Development and tests
