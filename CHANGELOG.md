@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.17.10] — 2026-11-21
 
 ### English
 - **Proxy password hardening**: the containing folder is forced to 0700 even on existing installs (1.17.8 only set it when creating the folder), and reads use `O_RDONLY | O_NOFOLLOW`, `fstat` and `fchmod` on the descriptor: a symlink is ignored and its target is neither read nor chmod'ed. The file is capped at 64 KiB.
