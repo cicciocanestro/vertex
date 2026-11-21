@@ -28,7 +28,7 @@ private enum AppearanceOption: String, CaseIterable, Identifiable {
 /// Sections of the settings sheet. The order is the same as the scroll content
 /// and drives the section index shown at the top, so a section that is below
 /// the fold (for example the SOCKS5 proxy) is always discoverable.
-private enum SettingsSection: String, CaseIterable, Identifiable {
+enum SettingsSection: String, CaseIterable, Identifiable {
     case folders
     case performance
     case network
@@ -124,10 +124,12 @@ struct SettingsSheet: View {
 
     init(
         engine: TorrentEngine,
+        initialSection: SettingsSection = .folders,
         onClose: @escaping () -> Void,
         onOpenDiagnostics: @escaping () -> Void
     ) {
         _engine = ObservedObject(wrappedValue: engine)
+        _selectedSection = StateObject(wrappedValue: UIState(initialSection))
         self.onClose = onClose
         self.onOpenDiagnostics = onOpenDiagnostics
     }

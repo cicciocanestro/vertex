@@ -302,6 +302,153 @@ package enum ViewRenderingSupport {
         return results
     }
 
+    /// Renders every settings section, the inspector tabs with real data, the
+    /// row states and an empty status bar. These paths are otherwise reachable
+    /// only by clicking through the window, and they are where most of the view
+    /// code lives.
+    @MainActor
+    package static func renderExtendedViews(
+        engine: TorrentEngine,
+        torrents: [Torrent]
+    ) -> [String: Int] {
+        _ = NSApplication.shared
+
+        var results: [String: Int] = [:]
+        for section in SettingsSection.allCases {
+            results["SettingsSheet.\(section.rawValue)"] = render(
+                SettingsSheet(
+                    engine: engine,
+                    initialSection: section,
+                    onClose: {},
+                    onOpenDiagnostics: {}
+                ),
+                width: 700,
+                height: 540
+            )
+        }
+
+        results["AddTorrentSheetFile"] = render(
+            AddTorrentSheet(engine: engine, initialMode: .file, onClose: {}),
+            width: 580,
+            height: 560
+        )
+
+        let rowStates: [Torrent] = [
+            Torrent(
+                id: "ext-download", name: "Ubuntu-24.04-desktop-amd64.iso",
+                stateCode: 3, progress: 0.42, size: 5_000_000_000,
+                downloaded: 2_100_000_000, uploaded: 10_000_000,
+                downloadRate: 4_500_000, uploadRate: 120_000,
+                peers: 12, seeds: 30, eta: 640,
+                finished: false, seeding: false, paused: false,
+                sequential: true, hasMetadata: true,
+                savePath: "/tmp", ratio: 0.1, added: 0, error: ""
+            ),
+            Torrent(
+                id: "ext-seed", name: "Debian-13-netinst.iso",
+                stateCode: 5, progress: 1, size: 800_000_000,
+                downloaded: 800_000_000, uploaded: 1_600_000_000,
+                downloadRate: 0, uploadRate: 900_000,
+                peers: 4, seeds: 9, eta: -1,
+                finished: true, seeding: true, paused: false,
+                sequential: false, hasMetadata: true,
+                savePath: "/tmp", ratio: 2.0, added: 0, error: ""
+            ),
+            Torrent(
+                id: "ext-queued", name: "Queued.mkv",
+                stateCode: 1, progress: 0.2, size: 10_000_000,
+                downloaded: 2_000_000, uploaded: 0,
+                downloadRate: 0, uploadRate: 0,
+                peers: 0, seeds: 0, eta: -1,
+                finished: false, seeding: false, paused: true,
+                autoManaged: true, sequential: false, hasMetadata: false,
+                savePath: "/tmp", ratio: 0, added: 0, error: ""
+            ),
+            Torrent(
+                id: "ext-error", name: "Broken.iso",
+                stateCode: 3, progress: 0, size: 50_000_000,
+                downloaded: 0, uploaded: 0,
+                downloadRate: 0, uploadRate: 0,
+                peers: 0, seeds: 0, eta: -1,
+                finished: false, seeding: false, paused: false,
+                sequential: false, hasMetadata: true,
+                savePath: "/tmp", ratio: 0, added: 0,
+                error: "tracker timeout"
+            )
+        ]
+        results["TorrentListViewStates"] = render(
+            TorrentListView(
+                engine: engine,
+                torrents: rowStates,
+                selectedIDs: ["ext-download"],
+                onSelectClick: { _, _, _ in },
+                onSelectAll: {},
+                onDeleteSelection: { _ in }
+            ),
+            width: 900,
+            height: 460
+        )
+
+        if let torrent = torrents.first {
+            let originalDetail = engine.detail
+            defer { engine.detail = originalDetail }
+            engine.detail = TorrentDetail(
+                files: [
+                    TorrentFile(index: 0, path: "video.mkv", size: 1_000_000, progress: 0.5, priority: 4),
+                    TorrentFile(index: 1, path: "sample.mkv", size: 10_000, progress: 0, priority: 0)
+                ],
+                trackers: [
+                    TorrentTracker(
+                        url: "udp://tracker.example:1337", verified: true, fails: 0,
+                        message: "", peers: 12, seeds: 30
+                    ),
+                    TorrentTracker(
+                        url: "https://tracker.invalid/announce", verified: false, fails: 3,
+                        message: "timeout", peers: 0, seeds: 0
+                    )
+                ],
+                peers: [
+                    TorrentPeer(
+                        endpoint: "203.0.113.10:51413", client: "qBittorrent 4.6",
+                        progress: 0.8, downloadRate: 1_000, uploadRate: 0,
+                        flags: "DUEPIS", source: "tracker"
+                    ),
+                    TorrentPeer(
+                        endpoint: "198.51.100.7:6881", client: "Unknown",
+                        progress: 0.3, downloadRate: 0, uploadRate: 500,
+                        flags: "D", source: "dht"
+                    )
+                ],
+                metadata: true
+            )
+
+            for tab in DetailTab.allCases {
+                results["InspectorView.\(tab.rawValue)"] = render(
+                    InspectorView(
+                        engine: engine,
+                        torrent: torrent,
+                        initialTab: tab,
+                        onClose: {},
+                        onDeleteWithFiles: { _ in }
+                    ),
+                    width: 360,
+                    height: 700
+                )
+            }
+        }
+
+        let originalState = engine.pollState
+        engine.pollState = TorrentEngine.PollState()
+        results["StatusBarEmpty"] = render(
+            StatusBarView(engine: engine),
+            width: 900,
+            height: 44
+        )
+        engine.pollState = originalState
+
+        return results
+    }
+
     @MainActor
     private static func render<V: View>(
         _ view: V,

@@ -63,7 +63,7 @@ if [ -f "$PROFILE" ]; then
             # Regression gate: the total line coverage may not fall below the
             # recorded floor. Raise VERTEX_MIN_COVERAGE as coverage improves.
             total="$(awk '/^TOTAL/ {gsub("%", "", $4); print $4}' "$COVERAGE_DIR/coverage.txt")"
-            minimum="${VERTEX_MIN_COVERAGE:-54.5}"
+            minimum="${VERTEX_MIN_COVERAGE:-60.5}"
             if [ -n "$total" ] && ! awk -v t="$total" -v m="$minimum" \
                 'BEGIN { exit (t + 0 >= m + 0) ? 0 : 1 }'; then
                 echo "✗ Coverage ${total}% sotto il minimo ${minimum}%" >&2

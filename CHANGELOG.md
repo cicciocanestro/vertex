@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### English
+- **UI coverage**: the headless renderer now walks every settings section, the three inspector tabs with real trackers/peers, the row states (downloading, seeding, queued, error), the file-mode add sheet and an empty status bar. Line coverage rises from 56.1% to 62.2% locally, and the CI floor moves from 54.5% to 60.5%.
+
+### Italiano
+- **Copertura UI**: il renderer headless ora percorre tutte le sezioni delle impostazioni, i tre tab dell'inspector con tracker/peer reali, gli stati delle righe (download, seed, in coda, errore), la sheet di aggiunta in modalità file e una status bar vuota. La copertura righe sale dal 56,1% al 62,2% in locale e la soglia CI passa dal 54,5% al 60,5%.
+
 ## [1.17.2] — 2026-11-20
 
 ### English

@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum DetailTab: String, CaseIterable, Identifiable {
+enum DetailTab: String, CaseIterable, Identifiable {
     case files = "files"
     case peers = "peers"
     case trackers = "trackers"
@@ -25,6 +25,20 @@ struct InspectorView: View {
     @Environment(\.colorScheme) private var scheme
     @StateObject private var tab = UIState<DetailTab>(.files)
     @StateObject private var newTracker = UIState("")
+
+    init(
+        engine: TorrentEngine,
+        torrent: Torrent,
+        initialTab: DetailTab = .files,
+        onClose: @escaping () -> Void,
+        onDeleteWithFiles: @escaping (Torrent) -> Void
+    ) {
+        _engine = ObservedObject(wrappedValue: engine)
+        self.torrent = torrent
+        _tab = StateObject(wrappedValue: UIState(initialTab))
+        self.onClose = onClose
+        self.onDeleteWithFiles = onDeleteWithFiles
+    }
 
     var body: some View {
         let palette = Palette(scheme: scheme)

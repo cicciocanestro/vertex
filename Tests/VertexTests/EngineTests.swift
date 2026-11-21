@@ -534,6 +534,17 @@ enum EngineTests {
                 )
             }
 
+            let extended = onMain {
+                ViewRenderingSupport.renderExtendedViews(engine: engine, torrents: engine.torrents)
+            }
+            try TestRunner.assertEqual(extended.count, 13)
+            for (name, area) in extended {
+                try TestRunner.assertTrue(
+                    area > 0,
+                    "La vista estesa \(name) non ha prodotto un'immagine"
+                )
+            }
+
             // Verify libtorrent error localization and absence of false positives
             try TestRunner.assertEqual(
                 onMain { engine.localizedError("missing info-hash from URI") },
