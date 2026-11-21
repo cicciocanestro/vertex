@@ -50,7 +50,7 @@ enum AppCommand: Equatable {
         .vertexToggleInspector,
         .vertexSettings,
         .vertexDiagnostics,
-        .vertexFilter
+        .vertexFilter,
     ]
 
     var notification: Notification.Name {

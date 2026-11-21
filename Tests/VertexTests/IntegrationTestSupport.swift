@@ -1,6 +1,6 @@
+import CTorrent
 import Darwin
 import Foundation
-import CTorrent
 import VertexKit
 
 enum IntegrationTestError: Error, CustomStringConvertible {
@@ -60,7 +60,8 @@ enum IntegrationFixture {
 
     func writeSource(in root: URL) throws {
         for file in files {
-            let url = root
+            let url =
+                root
                 .appendingPathComponent(rootName, isDirectory: true)
                 .appendingPathComponent(file.path)
             try FileManager.default.createDirectory(
@@ -86,7 +87,8 @@ enum IntegrationFixture {
     func isFullyWritten(in root: URL, path: String) -> Bool {
         let url = downloadedURL(in: root, path: path)
         guard let actual = try? Data(contentsOf: url),
-              let expected = try? bytes(for: path) else {
+            let expected = try? bytes(for: path)
+        else {
             return false
         }
         return actual == expected
@@ -354,9 +356,11 @@ final class BridgeSession {
     }
 
     func detail(torrentID: String) throws -> TorrentDetail {
-        guard let cDetail = torrentID.withCString({
-            vt_detail_json(pointer, $0)
-        }) else {
+        guard
+            let cDetail = torrentID.withCString({
+                vt_detail_json(pointer, $0)
+            })
+        else {
             throw IntegrationTestError.bridge("vt_detail_json ha restituito nil")
         }
         let json = String(cString: cDetail)

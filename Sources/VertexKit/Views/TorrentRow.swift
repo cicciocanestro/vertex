@@ -67,16 +67,19 @@ struct TorrentListView: View {
     private func move(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
         guard direction == .up || direction == .down, !torrents.isEmpty else { return }
         let shift = (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift)
-        let cursorID = (shift ? navigationHeadID.value : nil)
+        let cursorID =
+            (shift ? navigationHeadID.value : nil)
             ?? engine.selectedID
             ?? navigationHeadID.value
             ?? selectedIDs.first
         let current = torrents.firstIndex { $0.id == cursorID }
-        guard let next = TorrentListNavigation.nextIndex(
-            current: current,
-            count: torrents.count,
-            delta: direction == .up ? -1 : 1
-        ) else {
+        guard
+            let next = TorrentListNavigation.nextIndex(
+                current: current,
+                count: torrents.count,
+                delta: direction == .up ? -1 : 1
+            )
+        else {
             return
         }
         if let current, current == next { return }
@@ -438,7 +441,9 @@ struct TorrentRow: View {
     private var metaDetails: String {
         if wide.value {
             if torrent.hasMetadata && !torrent.finished && torrent.size > 0 && torrent.downloaded > 0 {
-                return LF("%@ di %@ · %@", Fmt.bytes(torrent.downloaded), Fmt.bytes(torrent.size), Fmt.percent(torrent.displayProgress))
+                return LF(
+                    "%@ di %@ · %@", Fmt.bytes(torrent.downloaded), Fmt.bytes(torrent.size),
+                    Fmt.percent(torrent.displayProgress))
             }
             return ""
         }

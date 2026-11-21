@@ -140,15 +140,18 @@ struct SettingsSheet: View {
             // Minimum sizes let the sheet grow with Dynamic Type instead of
             // clipping the sidebar and the footer at large text sizes.
             .frame(minWidth: 640, idealWidth: 700, minHeight: 440, idealHeight: 540)
-            .modifier(SettingsSheetEventHandlers(
-                onAppearAction: handleOnAppear,
-                onDisappearAction: handleOnDisappear
-            ))
-            .modifier(SettingsSheetChangeHandlers(
-                engine: engine,
-                proxyPasswordValue: proxyPasswordValue,
-                scheduleSave: scheduleProxyPasswordSave
-            ))
+            .modifier(
+                SettingsSheetEventHandlers(
+                    onAppearAction: handleOnAppear,
+                    onDisappearAction: handleOnDisappear
+                )
+            )
+            .modifier(
+                SettingsSheetChangeHandlers(
+                    engine: engine,
+                    proxyPasswordValue: proxyPasswordValue,
+                    scheduleSave: scheduleProxyPasswordSave
+                ))
     }
 
     private func handleOnAppear() {
@@ -217,11 +220,13 @@ struct SettingsSheet: View {
 
     private func modalFooter(_ palette: Palette) -> some View {
         ModalFooterBar(palette: palette) {
-            Text(engine.isRestartingSession
-                ? L("Riavvio del motore BitTorrent…")
-                : L("Le modifiche di rete vengono applicate automaticamente."))
-                .font(Typography.microText)
-                .foregroundStyle(palette.tertiary)
+            Text(
+                engine.isRestartingSession
+                    ? L("Riavvio del motore BitTorrent…")
+                    : L("Le modifiche di rete vengono applicate automaticamente.")
+            )
+            .font(Typography.microText)
+            .foregroundStyle(palette.tertiary)
         } trailing: {
             Button(L("Fine")) {
                 onClose()
@@ -366,11 +371,15 @@ struct SettingsSheet: View {
             .disabled(engine.isRestartingSession)
 
             if !bindAddress.isEmpty {
-                Text(L("Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."))
-                    .font(Typography.captionTinyNarrowText)
-                    .foregroundStyle(palette.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
+                Text(
+                    L(
+                        "Con un indirizzo associato Vertex rifiuta il traffico sulle altre interfacce. Se l'indirizzo sparisce, per esempio perché il tunnel è spento, la porta non viene aperta."
+                    )
+                )
+                .font(Typography.captionTinyNarrowText)
+                .foregroundStyle(palette.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
             }
         case .proxy:
             section(.proxy, palette) {
@@ -404,11 +413,15 @@ struct SettingsSheet: View {
             }
 
             if proxyEnabled {
-                Text(L("Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."))
-                    .font(Typography.captionTinyNarrowText)
-                    .foregroundStyle(palette.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 4)
+                Text(
+                    L(
+                        "Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."
+                    )
+                )
+                .font(Typography.captionTinyNarrowText)
+                .foregroundStyle(palette.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
             }
         case .behavior:
             section(.behavior, palette) {
@@ -504,9 +517,10 @@ struct SettingsSheet: View {
                     .frame(minHeight: 30)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selected
-                                  ? Theme.mint.opacity(scheme == .dark ? 0.16 : 0.2)
-                                  : Color.clear)
+                            .fill(
+                                selected
+                                    ? Theme.mint.opacity(scheme == .dark ? 0.16 : 0.2)
+                                    : Color.clear)
                     )
                     .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
@@ -1017,7 +1031,8 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
     @AppStorage(PrefKey.appearance) private var appearanceRaw = PrefDefault.appearance
 
     func body(content: Content) -> some View {
-        let v1 = content
+        let v1 =
+            content
             .onChange(of: downloadLimitKB) { engine.applySettingsSoon() }
             .onChange(of: uploadLimitKB) { engine.applySettingsSoon() }
             .onChange(of: listenPort) { engine.applySettingsSoon() }
@@ -1025,7 +1040,8 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
             .onChange(of: bindAddress) { engine.applySettingsNow() }
             .onChange(of: dhtEnabled) { engine.applySettingsSoon() }
 
-        let v2 = v1
+        let v2 =
+            v1
             .onChange(of: pexEnabled) { engine.applySettingsSoon() }
             .onChange(of: lsdEnabled) { engine.applySettingsSoon() }
             .onChange(of: upnpEnabled) { engine.applySettingsSoon() }
@@ -1036,7 +1052,8 @@ private struct SettingsSheetChangeHandlers: ViewModifier {
                 }
             }
 
-        return v2
+        return
+            v2
             .onChange(of: proxyEnabled) { _, enabled in
                 if enabled, proxyPasswordValue.value.isEmpty {
                     proxyPasswordValue.value = Preferences.proxyPassword

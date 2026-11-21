@@ -19,50 +19,50 @@ package struct RootView: View {
     }
 
     #if DEBUG
-    /// Test-only initializer: lets the rendering tests start from a specific UI
-    /// state (selected torrent, active modal, search query) without driving the
-    /// view through AppKit. Production always uses `init()`.
-    @MainActor
-    init(
-        engine: TorrentEngine,
-        filter: TorrentFilter = .all,
-        sort: TorrentSort = .recent,
-        sortAscending: Bool = false,
-        search: String = "",
-        selectedID: String? = nil,
-        showAddSheet: Bool = false,
-        addMode: AddTorrentMode = .magnet,
-        showSettings: Bool = false,
-        showDiagnostics: Bool = false,
-        dropTargeted: Bool = false,
-        pendingDeletion: Torrent? = nil,
-        showDeleteConfirmation: Bool = false
-    ) {
-        self.engine = engine
-        engine.select(selectedID)
-        let modal: ActiveModal?
-        if showDiagnostics {
-            modal = .diagnostics
-        } else if showSettings {
-            modal = .settings
-        } else if showAddSheet {
-            modal = .add(addMode)
-        } else {
-            modal = nil
+        /// Test-only initializer: lets the rendering tests start from a specific UI
+        /// state (selected torrent, active modal, search query) without driving the
+        /// view through AppKit. Production always uses `init()`.
+        @MainActor
+        init(
+            engine: TorrentEngine,
+            filter: TorrentFilter = .all,
+            sort: TorrentSort = .recent,
+            sortAscending: Bool = false,
+            search: String = "",
+            selectedID: String? = nil,
+            showAddSheet: Bool = false,
+            addMode: AddTorrentMode = .magnet,
+            showSettings: Bool = false,
+            showDiagnostics: Bool = false,
+            dropTargeted: Bool = false,
+            pendingDeletion: Torrent? = nil,
+            showDeleteConfirmation: Bool = false
+        ) {
+            self.engine = engine
+            engine.select(selectedID)
+            let modal: ActiveModal?
+            if showDiagnostics {
+                modal = .diagnostics
+            } else if showSettings {
+                modal = .settings
+            } else if showAddSheet {
+                modal = .add(addMode)
+            } else {
+                modal = nil
+            }
+            // `@AppStorage` cannot be assigned from an initializer, and it reads the
+            // process' UserDefaults when the view is installed: writing here is what
+            // makes the DEBUG initializer drive the persisted state. The test runner
+            // has its own suite, so the app preferences are never touched.
+            UserDefaults.standard.set(filter.rawValue, forKey: PrefKey.uiFilter)
+            UserDefaults.standard.set(sort.rawValue, forKey: PrefKey.uiSort)
+            UserDefaults.standard.set(sortAscending, forKey: PrefKey.uiSortAscending)
+            _search = StateObject(wrappedValue: UIState(search))
+            _activeModal = StateObject(wrappedValue: UIState(modal))
+            _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
+            _pendingDeletions = StateObject(wrappedValue: UIState(pendingDeletion.map { [$0] } ?? []))
+            _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
         }
-        // `@AppStorage` cannot be assigned from an initializer, and it reads the
-        // process' UserDefaults when the view is installed: writing here is what
-        // makes the DEBUG initializer drive the persisted state. The test runner
-        // has its own suite, so the app preferences are never touched.
-        UserDefaults.standard.set(filter.rawValue, forKey: PrefKey.uiFilter)
-        UserDefaults.standard.set(sort.rawValue, forKey: PrefKey.uiSort)
-        UserDefaults.standard.set(sortAscending, forKey: PrefKey.uiSortAscending)
-        _search = StateObject(wrappedValue: UIState(search))
-        _activeModal = StateObject(wrappedValue: UIState(modal))
-        _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
-        _pendingDeletions = StateObject(wrappedValue: UIState(pendingDeletion.map { [$0] } ?? []))
-        _showDeleteConfirmation = StateObject(wrappedValue: UIState(showDeleteConfirmation))
-    }
     #endif
 
     @Environment(\.colorScheme) private var scheme
@@ -103,7 +103,8 @@ package struct RootView: View {
     /// Clamped on read as well as on write: a window that was shrunk on another
     /// display must not produce a negative or oversized inspector.
     private var inspectorWidthValue: CGFloat {
-        min(max(CGFloat(inspectorWidth), Self.inspectorWidthRange.lowerBound),
+        min(
+            max(CGFloat(inspectorWidth), Self.inspectorWidthRange.lowerBound),
             Self.inspectorWidthRange.upperBound)
     }
 
@@ -136,7 +137,10 @@ package struct RootView: View {
                 Button(L("Annulla"), role: .cancel) {}
             } message: { targets in
                 if targets.count == 1, let single = targets.first {
-                    Text(LF("“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.", single.name))
+                    Text(
+                        LF(
+                            "“%@”\nI file scaricati restano sul disco se scegli di rimuovere solo il torrent.",
+                            single.name))
                 } else {
                     Text(L("I file scaricati restano sul disco se scegli di rimuovere solo dalla lista."))
                 }
@@ -149,135 +153,136 @@ package struct RootView: View {
                 )
             }
             .modifier(
-                RootEventHandlers(actions: RootEventHandlerActions(
-                    onAddFile: {
-                        guard !hasModalOverlay else { return }
-                        chooseTorrentFile()
-                    },
-                    onAddMagnet: {
-                        activeModal.value = .add(.magnet)
-                    },
-                    onPasteMagnet: pasteMagnet,
-                    onPauseResume: {
-                        guard !hasModalOverlay else { return }
-                        togglePauseSelected()
-                    },
-                    onRemove: {
-                        guard !hasModalOverlay else { return }
-                        let selected = engine.selectedTorrents
-                        guard !selected.isEmpty else {
-                            engine.showToast(L("Seleziona un torrent"), kind: .info)
-                            return
+                RootEventHandlers(
+                    actions: RootEventHandlerActions(
+                        onAddFile: {
+                            guard !hasModalOverlay else { return }
+                            chooseTorrentFile()
+                        },
+                        onAddMagnet: {
+                            activeModal.value = .add(.magnet)
+                        },
+                        onPasteMagnet: pasteMagnet,
+                        onPauseResume: {
+                            guard !hasModalOverlay else { return }
+                            togglePauseSelected()
+                        },
+                        onRemove: {
+                            guard !hasModalOverlay else { return }
+                            let selected = engine.selectedTorrents
+                            guard !selected.isEmpty else {
+                                engine.showToast(L("Seleziona un torrent"), kind: .info)
+                                return
+                            }
+                            requestDeletion(selected)
+                        },
+                        onReveal: {
+                            guard !hasModalOverlay else { return }
+                            if let torrent = selectedTorrent {
+                                engine.reveal(torrent)
+                            }
+                        },
+                        onMoveStorage: {
+                            guard !hasModalOverlay else { return }
+                            if let torrent = selectedTorrent {
+                                engine.chooseAndMoveStorage(for: torrent)
+                            }
+                        },
+                        onCopyMagnet: {
+                            guard !hasModalOverlay else { return }
+                            if let torrent = selectedTorrent {
+                                engine.copyMagnet(for: torrent)
+                            }
+                        },
+                        onFind: {
+                            guard !hasModalOverlay else { return }
+                            searchFocused = true
+                        },
+                        onToggleInspector: {
+                            guard !hasModalOverlay else { return }
+                            toggleInspector()
+                        },
+                        onSettings: {
+                            activeModal.value = .settings
+                        },
+                        onDiagnostics: {
+                            activeModal.value = .diagnostics
+                        },
+                        onFilter: { raw in
+                            guard let value = TorrentFilter(rawValue: raw) else { return }
+                            withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+                                filterRaw = value.rawValue
+                            }
                         }
-                        requestDeletion(selected)
-                    },
-                    onReveal: {
-                        guard !hasModalOverlay else { return }
-                        if let torrent = selectedTorrent {
-                            engine.reveal(torrent)
-                        }
-                    },
-                    onMoveStorage: {
-                        guard !hasModalOverlay else { return }
-                        if let torrent = selectedTorrent {
-                            engine.chooseAndMoveStorage(for: torrent)
-                        }
-                    },
-                    onCopyMagnet: {
-                        guard !hasModalOverlay else { return }
-                        if let torrent = selectedTorrent {
-                            engine.copyMagnet(for: torrent)
-                        }
-                    },
-                    onFind: {
-                        guard !hasModalOverlay else { return }
-                        searchFocused = true
-                    },
-                    onToggleInspector: {
-                        guard !hasModalOverlay else { return }
-                        toggleInspector()
-                    },
-                    onSettings: {
-                        activeModal.value = .settings
-                    },
-                    onDiagnostics: {
-                        activeModal.value = .diagnostics
-                    },
-                    onFilter: { raw in
-                        guard let value = TorrentFilter(rawValue: raw) else { return }
-                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                            filterRaw = value.rawValue
-                        }
-                    }
-                ))
+                    ))
             )
             .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
                 handleRootDrop(providers)
             }
             #if DEBUG
-            .onAppear {
-                if ProcessInfo.processInfo.environment["VERTEX_DEMO_SELECT"] == "1" {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 700_000_000)
-                        if engine.selectedID == nil, let first = engine.torrents.first {
-                            select(first)
+                .onAppear {
+                    if ProcessInfo.processInfo.environment["VERTEX_DEMO_SELECT"] == "1" {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 700_000_000)
+                            if engine.selectedID == nil, let first = engine.torrents.first {
+                                select(first)
+                            }
                         }
                     }
-                }
 
-                switch ProcessInfo.processInfo.environment["VERTEX_DEMO_SHEET"] {
-                case "add":
-                    activeModal.value = .add(.magnet)
-                case "settings":
-                    activeModal.value = .settings
-                case "diagnostics":
-                    activeModal.value = .diagnostics
-                default:
-                    break
-                }
+                    switch ProcessInfo.processInfo.environment["VERTEX_DEMO_SHEET"] {
+                    case "add":
+                        activeModal.value = .add(.magnet)
+                    case "settings":
+                        activeModal.value = .settings
+                    case "diagnostics":
+                        activeModal.value = .diagnostics
+                    default:
+                        break
+                    }
 
-                if ProcessInfo.processInfo.environment["VERTEX_DEMO_TOAST"] == "1" {
-                    engine.showToast(
-                        L("Download completato"),
-                        kind: .success,
-                        detail: "Big.Buck.Bunny.4K.OPEN.MOVIE.mkv",
-                        actionTitle: L("Mostra nel Finder"),
-                        action: .reveal(path: NSHomeDirectory() + "/Downloads")
-                    )
+                    if ProcessInfo.processInfo.environment["VERTEX_DEMO_TOAST"] == "1" {
+                        engine.showToast(
+                            L("Download completato"),
+                            kind: .success,
+                            detail: "Big.Buck.Bunny.4K.OPEN.MOVIE.mkv",
+                            actionTitle: L("Mostra nel Finder"),
+                            action: .reveal(path: NSHomeDirectory() + "/Downloads")
+                        )
+                    }
                 }
-            }
             #endif
     }
 
     @ViewBuilder
     private var styledLayout: some View {
         #if DEBUG
-        if let debugDynamicTypeSize {
-            layout.dynamicTypeSize(debugDynamicTypeSize)
-        } else {
-            layout
-        }
+            if let debugDynamicTypeSize {
+                layout.dynamicTypeSize(debugDynamicTypeSize)
+            } else {
+                layout
+            }
         #else
-        layout
+            layout
         #endif
     }
 
     #if DEBUG
-    /// Pinning the type size unconditionally hid every large-text layout from
-    /// development and from the rendering tests: only an explicit
-    /// `VERTEX_DYNAMIC_TYPE` now overrides the system setting.
-    private var debugDynamicTypeSize: DynamicTypeSize? {
-        switch ProcessInfo.processInfo.environment["VERTEX_DYNAMIC_TYPE"] {
-        case "xSmall": return .xSmall
-        case "small": return .small
-        case "medium": return .medium
-        case "large": return .large
-        case "xLarge": return .xLarge
-        case "xxLarge": return .xxLarge
-        case "xxxLarge": return .xxxLarge
-        default: return nil
+        /// Pinning the type size unconditionally hid every large-text layout from
+        /// development and from the rendering tests: only an explicit
+        /// `VERTEX_DYNAMIC_TYPE` now overrides the system setting.
+        private var debugDynamicTypeSize: DynamicTypeSize? {
+            switch ProcessInfo.processInfo.environment["VERTEX_DYNAMIC_TYPE"] {
+            case "xSmall": return .xSmall
+            case "small": return .small
+            case "medium": return .medium
+            case "large": return .large
+            case "xLarge": return .xLarge
+            case "xxLarge": return .xxLarge
+            case "xxxLarge": return .xxxLarge
+            default: return nil
+            }
         }
-    }
     #endif
 
     private var layout: some View {
@@ -673,7 +678,6 @@ package struct RootView: View {
         }
     }
 }
-
 
 /// Draggable divider between the torrent list and the inspector. The drag is
 /// relative to the width at gesture start; clamping keeps both panes usable.

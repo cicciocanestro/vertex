@@ -168,7 +168,10 @@ enum NetworkLeakTests {
     private static func assertNoDirectTrackerTraffic(proxyEnabled: Bool) throws {
         let direct = try LocalTCPListener()
         let proxy = try LocalTCPListener()
-        defer { direct.stop(); proxy.stop() }
+        defer {
+            direct.stop()
+            proxy.stop()
+        }
 
         direct.start { _ in
             // Close immediately: the accept itself is the measurement.
@@ -255,10 +258,10 @@ enum NetworkLeakTests {
                                     resumePath,
                                     Int32(port),
                                     0, 0,
-                                    0, // DHT
-                                    0, // PEX
-                                    0, // LSD
-                                    0, // UPnP
+                                    0,  // DHT
+                                    0,  // PEX
+                                    0,  // LSD
+                                    0,  // UPnP
                                     "",
                                     proxyPort == nil ? 0 : 1,
                                     hostPointer,

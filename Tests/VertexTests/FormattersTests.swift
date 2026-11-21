@@ -58,7 +58,8 @@ enum FormattersTests {
             let zero = Fmt.ratio(0.0)
             try TestRunner.assertTrue(zero == "0.00" || zero == "0,00", "Atteso 0.00, ottenuto \(zero)")
             let oneAndHalf = Fmt.ratio(1.5)
-            try TestRunner.assertTrue(oneAndHalf == "1.50" || oneAndHalf == "1,50", "Atteso 1.50, ottenuto \(oneAndHalf)")
+            try TestRunner.assertTrue(
+                oneAndHalf == "1.50" || oneAndHalf == "1,50", "Atteso 1.50, ottenuto \(oneAndHalf)")
         }
     }
 }

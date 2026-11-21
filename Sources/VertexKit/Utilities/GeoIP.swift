@@ -8,11 +8,13 @@ import Foundation
 /// the machine. IPv6 endpoints are not covered and report no flag.
 package enum GeoIP {
     private static let table: GeoIPTable? = {
-        guard let url = Bundle.main.url(
-            forResource: "country-v4",
-            withExtension: "bin.z",
-            subdirectory: "GeoIP"
-        ) else { return nil }
+        guard
+            let url = Bundle.main.url(
+                forResource: "country-v4",
+                withExtension: "bin.z",
+                subdirectory: "GeoIP"
+            )
+        else { return nil }
         return GeoIPTable.load(from: url)
     }()
 
@@ -37,7 +39,8 @@ package enum GeoIP {
         var result = String.UnicodeScalarView()
         for scalar in scalars {
             guard scalar.value >= 65, scalar.value <= 90,
-                  let flagScalar = UnicodeScalar(0x1F1E6 + scalar.value - 65) else {
+                let flagScalar = UnicodeScalar(0x1F1E6 + scalar.value - 65)
+            else {
                 return nil
             }
             result.append(flagScalar)
@@ -53,7 +56,8 @@ package enum GeoIP {
     /// address containing `::`) is rejected: the table is IPv4 only.
     package static func ipv4Address(fromEndpoint endpoint: String) -> UInt32? {
         guard !endpoint.hasPrefix("["), !endpoint.contains("::") else { return nil }
-        let host = endpoint
+        let host =
+            endpoint
             .split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             .first
             .map(String.init) ?? ""
@@ -75,15 +79,15 @@ package enum GeoIP {
         case 0, 10, 127:
             return true
         case 100:
-            return second >= 64 && second <= 127 // carrier-grade NAT
+            return second >= 64 && second <= 127  // carrier-grade NAT
         case 169:
-            return second == 254 // link-local
+            return second == 254  // link-local
         case 172:
             return second >= 16 && second <= 31
         case 192:
             return second == 168
         default:
-            return first >= 224 // multicast and reserved
+            return first >= 224  // multicast and reserved
         }
     }
 }
@@ -106,9 +110,10 @@ package struct GeoIPTable {
     package init?(compressed data: Data) {
         guard data.count > 4 else { return nil }
         let expected = Int(
-            UInt32(littleEndian: data.prefix(4).withUnsafeBytes {
-                $0.loadUnaligned(as: UInt32.self)
-            })
+            UInt32(
+                littleEndian: data.prefix(4).withUnsafeBytes {
+                    $0.loadUnaligned(as: UInt32.self)
+                })
         )
         guard expected > 0 else { return nil }
 
@@ -116,7 +121,8 @@ package struct GeoIPTable {
         let written = payload.withUnsafeMutableBytes { destination -> Int in
             data.dropFirst(4).withUnsafeBytes { source -> Int in
                 guard let destinationBase = destination.bindMemory(to: UInt8.self).baseAddress,
-                      let sourceBase = source.bindMemory(to: UInt8.self).baseAddress else {
+                    let sourceBase = source.bindMemory(to: UInt8.self).baseAddress
+                else {
                     return 0
                 }
                 return compression_decode_buffer(
@@ -156,7 +162,8 @@ package struct GeoIPTable {
         codes.reserveCapacity(count)
         for _ in 0..<count {
             guard let first = readByte(), let second = readByte(),
-                  let code = String(bytes: [first, second], encoding: .ascii) else {
+                let code = String(bytes: [first, second], encoding: .ascii)
+            else {
                 return nil
             }
             codes.append(code)
@@ -168,9 +175,10 @@ package struct GeoIPTable {
         var previous: UInt64 = 0
         while cursor < payload.count {
             guard let delta = readVarint(),
-                  let length = readVarint(),
-                  let index = readByte(),
-                  Int(index) < count else { return nil }
+                let length = readVarint(),
+                let index = readByte(),
+                Int(index) < count
+            else { return nil }
             previous += delta
             guard previous <= UInt64(UInt32.max) else { return nil }
             starts.append(UInt32(previous))

@@ -28,20 +28,22 @@ struct VertexApp: App {
 
     private var initialWindowWidth: CGFloat {
         #if DEBUG
-        if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
-           let value = Double(raw), value >= Double(WindowMetrics.minimumWidth) {
-            return CGFloat(value)
-        }
+            if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
+                let value = Double(raw), value >= Double(WindowMetrics.minimumWidth)
+            {
+                return CGFloat(value)
+            }
         #endif
         return 1220
     }
 
     private var initialWindowHeight: CGFloat {
         #if DEBUG
-        if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"],
-           let value = Double(raw), value >= Double(WindowMetrics.minimumHeight) {
-            return CGFloat(value)
-        }
+            if let raw = ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"],
+                let value = Double(raw), value >= Double(WindowMetrics.minimumHeight)
+            {
+                return CGFloat(value)
+            }
         #endif
         return 800
     }
@@ -59,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         #if DEBUG
-        scheduleSnapshotIfNeeded()
+            scheduleSnapshotIfNeeded()
         #endif
     }
 
@@ -93,8 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // dropping the add.
             let deadline = Date().addingTimeInterval(5)
             while !TorrentEngine.shared.isEngineReady,
-                  TorrentEngine.shared.engineStartupError == nil,
-                  Date() < deadline {
+                TorrentEngine.shared.engineStartupError == nil,
+                Date() < deadline
+            {
                 try? await Task.sleep(nanoseconds: 100_000_000)
             }
 
@@ -128,54 +131,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-
 #if DEBUG
-extension AppDelegate {
-    private func scheduleSnapshotIfNeeded() {
-        guard let path = ProcessInfo.processInfo.environment["VERTEX_SNAPSHOT"] else { return }
+    extension AppDelegate {
+        private func scheduleSnapshotIfNeeded() {
+            guard let path = ProcessInfo.processInfo.environment["VERTEX_SNAPSHOT"] else { return }
 
-        Task { @MainActor in
-            if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
-               let rawW = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
-               let widthVal = Double(rawW) {
-                let heightVal = ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"].flatMap(Double.init) ?? Double(window.frame.height)
-                window.setContentSize(NSSize(width: widthVal, height: heightVal))
-            }
+            Task { @MainActor in
+                if let window = NSApp.keyWindow
+                    ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
+                    let rawW = ProcessInfo.processInfo.environment["VERTEX_WINDOW_WIDTH"],
+                    let widthVal = Double(rawW)
+                {
+                    let heightVal =
+                        ProcessInfo.processInfo.environment["VERTEX_WINDOW_HEIGHT"].flatMap(Double.init)
+                        ?? Double(window.frame.height)
+                    window.setContentSize(NSSize(width: widthVal, height: heightVal))
+                }
 
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
+                try? await Task.sleep(nanoseconds: 2_200_000_000)
 
-            if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
-               let view = window.contentView {
-                window.display()
-                view.layoutSubtreeIfNeeded()
-                let scale = window.backingScaleFactor
-                let width = Int(view.bounds.width * scale)
-                let height = Int(view.bounds.height * scale)
+                if let window = NSApp.keyWindow
+                    ?? NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }),
+                    let view = window.contentView
+                {
+                    window.display()
+                    view.layoutSubtreeIfNeeded()
+                    let scale = window.backingScaleFactor
+                    let width = Int(view.bounds.width * scale)
+                    let height = Int(view.bounds.height * scale)
 
-                if let layer = view.layer,
-                   let context = CGContext(
-                       data: nil,
-                       width: width,
-                       height: height,
-                       bitsPerComponent: 8,
-                       bytesPerRow: 0,
-                       space: CGColorSpaceCreateDeviceRGB(),
-                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                   ) {
-                    context.scaleBy(x: scale, y: scale)
-                    context.translateBy(x: 0, y: view.bounds.height)
-                    context.scaleBy(x: 1, y: -1)
-                    layer.render(in: context)
+                    if let layer = view.layer,
+                        let context = CGContext(
+                            data: nil,
+                            width: width,
+                            height: height,
+                            bitsPerComponent: 8,
+                            bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                        )
+                    {
+                        context.scaleBy(x: scale, y: scale)
+                        context.translateBy(x: 0, y: view.bounds.height)
+                        context.scaleBy(x: 1, y: -1)
+                        layer.render(in: context)
 
-                    if let image = context.makeImage(),
-                       let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
-                        try? data.write(to: URL(fileURLWithPath: path))
+                        if let image = context.makeImage(),
+                            let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+                        {
+                            try? data.write(to: URL(fileURLWithPath: path))
+                        }
                     }
                 }
-            }
 
-            exit(0)
+                exit(0)
+            }
         }
     }
-}
 #endif

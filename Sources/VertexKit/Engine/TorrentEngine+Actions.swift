@@ -513,9 +513,10 @@ extension TorrentEngine {
                 return 0
             }
             guard outcome.code == 0,
-                  !self.isShuttingDown,
-                  self.sessionGeneration == generation,
-                  !box.value.isEmpty else { return }
+                !self.isShuttingDown,
+                self.sessionGeneration == generation,
+                !box.value.isEmpty
+            else { return }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(box.value, forType: .string)
             self.showToast(L("Link magnet copiato"), kind: .info)
@@ -565,7 +566,8 @@ extension TorrentEngine {
             }
 
             if URL(fileURLWithPath: path).standardizedFileURL.path
-                == URL(fileURLWithPath: currentSavePath).standardizedFileURL.path {
+                == URL(fileURLWithPath: currentSavePath).standardizedFileURL.path
+            {
                 completion?(nil)
                 return
             }

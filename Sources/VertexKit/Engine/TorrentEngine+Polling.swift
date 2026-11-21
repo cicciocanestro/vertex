@@ -61,10 +61,10 @@ extension TorrentEngine {
 
     func poll() {
         #if DEBUG
-        if DemoData.isEnabled {
-            applyDemoSnapshot()
-            return
-        }
+            if DemoData.isEnabled {
+                applyDemoSnapshot()
+                return
+            }
         #endif
 
         guard !isShuttingDown, !isPollInFlight, hasSession else { return }
@@ -104,7 +104,9 @@ extension TorrentEngine {
                         guard self.sessionGeneration == generation, !self.isShuttingDown else { return }
                         // Ensure the probed target still matches the currently active proxy configuration
                         let currentProxy = self.pollState.stats.proxy
-                        guard currentProxy.enabled, currentProxy.hostname == host, currentProxy.port == port else { return }
+                        guard currentProxy.enabled, currentProxy.hostname == host, currentProxy.port == port else {
+                            return
+                        }
                         let newError: String? = isReachable ? nil : L("Connessione rifiutata")
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError
@@ -191,7 +193,8 @@ extension TorrentEngine {
         // Every asynchronous error collected between two polls: the bridge used
         // to keep a single slot, so with several torrents failing in the same
         // window only the last message reached the user.
-        let alertMessages = snapshot.alertErrors.isEmpty
+        let alertMessages =
+            snapshot.alertErrors.isEmpty
             ? (snapshot.alertError.isEmpty ? [] : [snapshot.alertError])
             : snapshot.alertErrors
         for raw in alertMessages {
@@ -208,9 +211,10 @@ extension TorrentEngine {
         if hasLoadedSnapshot {
             for torrent in snapshot.torrents {
                 guard let previous = pollState.torrentsByID[torrent.id],
-                      !previous.savePath.isEmpty,
-                      !torrent.savePath.isEmpty,
-                      previous.savePath != torrent.savePath else { continue }
+                    !previous.savePath.isEmpty,
+                    !torrent.savePath.isEmpty,
+                    previous.savePath != torrent.savePath
+                else { continue }
                 // The raw strings differ: normalize before reporting, so a
                 // trailing slash is not mistaken for a completed move.
                 let oldPath = URL(fileURLWithPath: previous.savePath).standardizedFileURL.path
@@ -231,11 +235,12 @@ extension TorrentEngine {
         let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))
         // stateCode 1 = checking files, 7 = checking resume data. `phase` can't be used here
         // because it reports .paused before .checking.
-        let unfinished = Set(snapshot.torrents.filter {
-            !$0.finished
-                && $0.stateCode != LibtorrentStateCode.checkingFiles.rawValue
-                && $0.stateCode != LibtorrentStateCode.checkingResumeData.rawValue
-        }.map(\.id))
+        let unfinished = Set(
+            snapshot.torrents.filter {
+                !$0.finished
+                    && $0.stateCode != LibtorrentStateCode.checkingFiles.rawValue
+                    && $0.stateCode != LibtorrentStateCode.checkingResumeData.rawValue
+            }.map(\.id))
         if hasLoadedSnapshot {
             let newlyFinished = finished.intersection(unfinishedIDs)
             if !newlyFinished.isEmpty {
@@ -320,7 +325,8 @@ extension TorrentEngine {
         // back to zero after a transfer finishes instead of freezing on its
         // last wave.
         let stateChanged = next != pollState
-        let historyActive = snapshot.downloadRate > 0
+        let historyActive =
+            snapshot.downloadRate > 0
             || snapshot.uploadRate > 0
             || next.downloadHistory.contains(where: { $0 > 0 })
             || next.uploadHistory.contains(where: { $0 > 0 })
@@ -333,7 +339,8 @@ extension TorrentEngine {
         if !selectedIDs.isEmpty {
             let validSelected = selectedIDs.intersection(Set(next.torrentsByID.keys))
             if validSelected != selectedIDs {
-                let nextAnchor = validSelected.contains(selectionAnchorID ?? "") ? selectionAnchorID : validSelected.first
+                let nextAnchor =
+                    validSelected.contains(selectionAnchorID ?? "") ? selectionAnchorID : validSelected.first
                 setSelection(TorrentListSelection.State(selectedIDs: validSelected, anchorID: nextAnchor))
             }
         }
@@ -354,40 +361,40 @@ extension TorrentEngine {
     }
 
     #if DEBUG
-    func applyDemoSnapshot() {
-        let list = DemoData.torrents()
-        let down = list.reduce(Int64(0)) { $0 + $1.downloadRate }
-        let up = list.reduce(Int64(0)) { $0 + $1.uploadRate }
-        var stats = SessionStats(
-            downloadRate: down,
-            uploadRate: up,
-            active: list.filter { !$0.paused }.count,
-            paused: list.filter { $0.paused }.count,
-            dhtNodes: 284,
-            port: 6881
-        )
-        stats.actualPort = 6881
-        stats.isListening = true
-        stats.portmap = PortMapSnapshot(
-            tcp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
-            udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
-            error: ""
-        )
-        var next = PollState()
-        next.torrents = list
-        next.stats = stats
-        next.torrentsByID = Dictionary(
-            list.map { ($0.id, $0) },
-            uniquingKeysWith: { _, latest in latest }
-        )
-        next.downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
-        next.uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)
-        pollState = next
-        if !hasLoadedSnapshot { hasLoadedSnapshot = true }
-        if let id = selectedID {
-            detail = DemoData.detail(for: list.first { $0.id == id })
+        func applyDemoSnapshot() {
+            let list = DemoData.torrents()
+            let down = list.reduce(Int64(0)) { $0 + $1.downloadRate }
+            let up = list.reduce(Int64(0)) { $0 + $1.uploadRate }
+            var stats = SessionStats(
+                downloadRate: down,
+                uploadRate: up,
+                active: list.filter { !$0.paused }.count,
+                paused: list.filter { $0.paused }.count,
+                dhtNodes: 284,
+                port: 6881
+            )
+            stats.actualPort = 6881
+            stats.isListening = true
+            stats.portmap = PortMapSnapshot(
+                tcp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
+                udp: PortMapInfo(mapped: true, externalPort: 6881, transport: "UPnP"),
+                error: ""
+            )
+            var next = PollState()
+            next.torrents = list
+            next.stats = stats
+            next.torrentsByID = Dictionary(
+                list.map { ($0.id, $0) },
+                uniquingKeysWith: { _, latest in latest }
+            )
+            next.downloadHistory = DemoData.history(base: 8_400_000, spread: 0.42)
+            next.uploadHistory = DemoData.history(base: 2_900_000, spread: 0.5)
+            pollState = next
+            if !hasLoadedSnapshot { hasLoadedSnapshot = true }
+            if let id = selectedID {
+                detail = DemoData.detail(for: list.first { $0.id == id })
+            }
         }
-    }
     #endif
 
     func loadDetail(_ id: String) {
@@ -423,8 +430,9 @@ extension TorrentEngine {
 
     func applyDetailJSON(_ json: String?, id: String, generation: Int? = nil) {
         guard let json,
-              let data = json.data(using: .utf8),
-              let decoded = try? decoder.decode(TorrentDetail.self, from: data) else {
+            let data = json.data(using: .utf8),
+            let decoded = try? decoder.decode(TorrentDetail.self, from: data)
+        else {
             applyDetail(nil, id: id, generation: generation)
             return
         }
@@ -432,35 +440,35 @@ extension TorrentEngine {
     }
 
     #if DEBUG
-    package func pollNowForTesting() {
-        guard !isShuttingDown, let pointer = sessionController.testPointerBox.value else { return }
-        let generation = sessionGeneration
-        let snapshot = SessionController.readSnapshot(pointer)
-        finishPoll(snapshot, generation: generation)
-        if let id = selectedID {
-            let decoded = SessionController.readDetail(pointer, id: id)
-            applyDetail(decoded, id: id, generation: generation)
+        package func pollNowForTesting() {
+            guard !isShuttingDown, let pointer = sessionController.testPointerBox.value else { return }
+            let generation = sessionGeneration
+            let snapshot = SessionController.readSnapshot(pointer)
+            finishPoll(snapshot, generation: generation)
+            if let id = selectedID {
+                let decoded = SessionController.readDetail(pointer, id: id)
+                applyDetail(decoded, id: id, generation: generation)
+            }
         }
-    }
 
-    package func applySnapshotForTesting(_ snapshot: VertexSnapshot) {
-        apply(snapshot)
-    }
+        package func applySnapshotForTesting(_ snapshot: VertexSnapshot) {
+            apply(snapshot)
+        }
 
-    package func applyDetailJSONForTesting(_ json: String?, id: String) {
-        applyDetailJSON(json, id: id)
-    }
+        package func applyDetailJSONForTesting(_ json: String?, id: String) {
+            applyDetailJSON(json, id: id)
+        }
 
-    package func setConfigurationForTesting(_ configuration: SessionConfiguration) {
-        configurationOverride = configuration
-    }
+        package func setConfigurationForTesting(_ configuration: SessionConfiguration) {
+            configurationOverride = configuration
+        }
 
-    /// Test-only hook used to render the diagnostics view with the UPnP/NAT-PMP
-    /// states (mapped, error, unmapped) without a real router or a live session.
-    package func setStatsForTesting(_ stats: SessionStats) {
-        var next = pollState
-        next.stats = stats
-        pollState = next
-    }
+        /// Test-only hook used to render the diagnostics view with the UPnP/NAT-PMP
+        /// states (mapped, error, unmapped) without a real router or a live session.
+        package func setStatsForTesting(_ stats: SessionStats) {
+            var next = pollState
+            next.stats = stats
+            pollState = next
+        }
     #endif
 }

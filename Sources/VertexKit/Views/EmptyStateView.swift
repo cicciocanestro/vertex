@@ -140,11 +140,13 @@ struct NoResultsView: View {
                 .font(Typography.sectionTitleText)
                 .foregroundStyle(palette.text)
 
-            Text(query.isEmpty
-                 ? L("Nessun torrent in questo filtro.")
-                 : LF("Nessun torrent corrisponde a “%@”.", query))
-                .font(Typography.bodyLargeText)
-                .foregroundStyle(palette.secondary)
+            Text(
+                query.isEmpty
+                    ? L("Nessun torrent in questo filtro.")
+                    : LF("Nessun torrent corrisponde a “%@”.", query)
+            )
+            .font(Typography.bodyLargeText)
+            .foregroundStyle(palette.secondary)
 
             Button(L("Azzera filtri"), action: onReset)
                 .buttonStyle(SecondaryButtonStyle())

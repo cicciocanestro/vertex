@@ -16,7 +16,7 @@ enum LocalNetwork {
     /// Interfaces that are virtual, tunnels or Apple-internal: never the LAN address a router sees.
     private static let ignoredPrefixes = [
         "lo", "utun", "ipsec", "ppp", "bridge", "vmenet", "vmnet", "vnic",
-        "awdl", "llw", "anpi", "ap", "gif", "stf", "docker", "veth"
+        "awdl", "llw", "anpi", "ap", "gif", "stf", "docker", "veth",
     ]
 
     /// RFC 1918 private ranges only (172.16.0.0/12, not all of 172.*).
@@ -73,8 +73,9 @@ enum LocalNetwork {
             cursor = interface.ifa_next
 
             guard let address = interface.ifa_addr,
-                  address.pointee.sa_family == UInt8(AF_INET),
-                  interface.ifa_flags & requiredFlags == requiredFlags else {
+                address.pointee.sa_family == UInt8(AF_INET),
+                interface.ifa_flags & requiredFlags == requiredFlags
+            else {
                 continue
             }
 

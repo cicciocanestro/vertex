@@ -1,5 +1,5 @@
-import Foundation
 import CTorrent
+import Foundation
 import VertexKit
 
 enum TorrentIntegrationTests {
@@ -277,8 +277,10 @@ enum TorrentIntegrationTests {
             leechSnap.torrents.first { $0.id == leech.torrentID },
             "Il torrent deve essere presente nello snapshot"
         )
-        try TestRunner.assertEqual(downloadedTorrent.size, 32_768, "La dimensione considerata deve riflettere i file richiesti")
-        try TestRunner.assertEqual(downloadedTorrent.downloaded, 32_768, "I byte scaricati devono corrispondere a total_wanted_done")
+        try TestRunner.assertEqual(
+            downloadedTorrent.size, 32_768, "La dimensione considerata deve riflettere i file richiesti")
+        try TestRunner.assertEqual(
+            downloadedTorrent.downloaded, 32_768, "I byte scaricati devono corrispondere a total_wanted_done")
 
         let skipped = leech.session.downloadDirectory
             .appendingPathComponent(fixture.rootName, isDirectory: true)
@@ -528,7 +530,8 @@ enum TorrentIntegrationTests {
         let torrent = try session.waitForTorrent(IntegrationFixture.v1.rootName)
 
         // Blank lines and surrounding spaces are ignored; the order is kept.
-        let replacement = "  http://tracker.one.example/announce  \n\n"
+        let replacement =
+            "  http://tracker.one.example/announce  \n\n"
             + "udp://tracker.two.example:6969/announce\n"
         let result = torrent.id.withCString { id in
             replacement.withCString { list in
@@ -627,7 +630,8 @@ enum TorrentIntegrationTests {
                 vt_move_storage(leech.session.pointer, idPtr, pathPtr)
             }
         }
-        try TestRunner.assertTrue(conflictCode != 0, "vt_move_storage deve rifiutare la sovrascrittura di file esistenti")
+        try TestRunner.assertTrue(
+            conflictCode != 0, "vt_move_storage deve rifiutare la sovrascrittura di file esistenti")
         try TestRunner.assertEqual(try Data(contentsOf: existingFile), sentinel)
 
         let targetDir = try workspace.directory("moved-storage")

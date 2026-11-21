@@ -21,13 +21,15 @@ package enum SystemNotifications {
         }
         let bundleURL = Bundle.main.bundleURL
         guard bundleURL.pathExtension == "app",
-              Bundle.main.bundleIdentifier != nil else {
+            Bundle.main.bundleIdentifier != nil
+        else {
             return false
         }
 
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(bundleURL as CFURL, [], &staticCode) == errSecSuccess,
-              let staticCode else {
+            let staticCode
+        else {
             return false
         }
         guard SecStaticCodeCheckValidity(staticCode, [], nil) == errSecSuccess else {
@@ -41,8 +43,9 @@ package enum SystemNotifications {
             &rawInfo
         )
         guard status == errSecSuccess,
-              let info = rawInfo as? [String: Any],
-              let flags = info[kSecCodeInfoFlags as String] as? UInt32 else {
+            let info = rawInfo as? [String: Any],
+            let flags = info[kSecCodeInfoFlags as String] as? UInt32
+        else {
             return false
         }
         let isAdhoc = (flags & SecCodeSignatureFlags.adhoc.rawValue) != 0

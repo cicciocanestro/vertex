@@ -354,6 +354,7 @@ richiede dipendenze per entrambe le architetture.
 
 ```bash
 ./Scripts/check-toolchain.sh --warn  # toolchain locale non canonico ammesso
+./Scripts/check-format.sh            # baseline swift-format
 ./build.sh debug
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite sotto ThreadSanitizer

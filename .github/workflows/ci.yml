@@ -175,6 +175,9 @@ jobs:
           plutil -lint Resources/Info.plist
           for strings in Resources/*.lproj/*.strings; do plutil -lint "$strings"; done
 
+      - name: Check Swift formatting
+        run: ./Scripts/check-format.sh
+
       - name: Cache pinned engine dependencies
         # A release artifact must be built from scratch: the cache carries the
         # dependency stamp, and a cached tree is not a reproduced one.

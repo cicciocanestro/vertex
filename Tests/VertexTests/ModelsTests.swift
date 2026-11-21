@@ -7,56 +7,56 @@ enum ModelsTests {
 
         TestRunner.run("Snapshot JSON Decoding: parsing completo") {
             let json = """
-            {
-                "download_rate": 1048576,
-                "upload_rate": 524288,
-                "active": 2,
-                "paused_count": 1,
-                "dht_nodes": 128,
-                "alert_error": "",
-                "listen_actual_port": 6881,
-                "listening": true,
-                "bind_address": "10.8.0.2",
-                "listen_error": "",
-                "portmap": {
-                    "tcp": {"mapped": true, "external_port": 6881, "transport": "UPnP", "error": ""},
-                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                    "error": ""
-                },
-                "proxy": {
-                    "enabled": true,
-                    "type": "SOCKS5",
-                    "hostname": "127.0.0.1",
-                    "port": 1080
-                },
-                "port": 6881,
-                "torrents": [
-                    {
-                        "id": "abc123def456",
-                        "name": "Ubuntu 24.04 LTS Desktop",
-                        "state_code": 3,
-                        "progress": 0.65,
-                        "size": 4294967296,
-                        "downloaded": 2791728742,
-                        "uploaded": 104857600,
-                        "download_rate": 1048576,
-                        "upload_rate": 524288,
-                        "peers": 42,
-                        "seeds": 150,
-                        "eta": 1433,
-                        "finished": false,
-                        "seeding": false,
-                        "paused": false,
-                        "sequential": true,
-                        "has_metadata": true,
-                        "save_path": "/Users/test/Downloads/Vertex",
-                        "ratio": 0.037,
-                        "added": 1729600000,
+                {
+                    "download_rate": 1048576,
+                    "upload_rate": 524288,
+                    "active": 2,
+                    "paused_count": 1,
+                    "dht_nodes": 128,
+                    "alert_error": "",
+                    "listen_actual_port": 6881,
+                    "listening": true,
+                    "bind_address": "10.8.0.2",
+                    "listen_error": "",
+                    "portmap": {
+                        "tcp": {"mapped": true, "external_port": 6881, "transport": "UPnP", "error": ""},
+                        "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                         "error": ""
-                    }
-                ]
-            }
-            """
+                    },
+                    "proxy": {
+                        "enabled": true,
+                        "type": "SOCKS5",
+                        "hostname": "127.0.0.1",
+                        "port": 1080
+                    },
+                    "port": 6881,
+                    "torrents": [
+                        {
+                            "id": "abc123def456",
+                            "name": "Ubuntu 24.04 LTS Desktop",
+                            "state_code": 3,
+                            "progress": 0.65,
+                            "size": 4294967296,
+                            "downloaded": 2791728742,
+                            "uploaded": 104857600,
+                            "download_rate": 1048576,
+                            "upload_rate": 524288,
+                            "peers": 42,
+                            "seeds": 150,
+                            "eta": 1433,
+                            "finished": false,
+                            "seeding": false,
+                            "paused": false,
+                            "sequential": true,
+                            "has_metadata": true,
+                            "save_path": "/Users/test/Downloads/Vertex",
+                            "ratio": 0.037,
+                            "added": 1729600000,
+                            "error": ""
+                        }
+                    ]
+                }
+                """
 
             guard let data = json.data(using: .utf8) else {
                 try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
@@ -66,7 +66,7 @@ enum ModelsTests {
             let decoder = JSONDecoder()
             let snapshot = try decoder.decode(VertexSnapshot.self, from: data)
 
-            try TestRunner.assertEqual(snapshot.downloadRate, 1048576)
+            try TestRunner.assertEqual(snapshot.downloadRate, 1_048_576)
             try TestRunner.assertEqual(snapshot.uploadRate, 524288)
             try TestRunner.assertEqual(snapshot.active, 2)
             try TestRunner.assertEqual(snapshot.dhtNodes, 128)
@@ -91,7 +91,7 @@ enum ModelsTests {
             try TestRunner.assertEqual(t.name, "Ubuntu 24.04 LTS Desktop")
             try TestRunner.assertEqual(t.stateCode, 3)
             try TestRunner.assertEqual(t.progress, 0.65)
-            try TestRunner.assertEqual(t.size, 4294967296)
+            try TestRunner.assertEqual(t.size, 4_294_967_296)
             try TestRunner.assertEqual(t.peers, 42)
             try TestRunner.assertEqual(t.seeds, 150)
             try TestRunner.assertEqual(t.sequential, true)
@@ -104,79 +104,79 @@ enum ModelsTests {
             // metadata, verification, no payload rate). The model must keep that
             // sentinel: clamping it to 0 made InspectorView show "Completato".
             let json = """
-            {
-                "download_rate": 0,
-                "upload_rate": 0,
-                "active": 0,
-                "paused_count": 2,
-                "dht_nodes": 0,
-                "alert_error": "",
-                "listen_actual_port": 6881,
-                "listening": true,
-                "bind_address": "",
-                "listen_error": "",
-                "portmap": {
-                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                    "error": ""
-                },
-                "proxy": {
-                    "enabled": false,
-                    "type": "None",
-                    "hostname": "",
-                    "port": 0
-                },
-                "port": 6881,
-                "torrents": [
-                    {
-                        "id": "paused123456",
-                        "name": "Torrent in pausa",
-                        "state_code": 3,
-                        "progress": 0.4,
-                        "size": 1000,
-                        "downloaded": 400,
-                        "uploaded": 0,
-                        "download_rate": 0,
-                        "upload_rate": 0,
-                        "peers": 0,
-                        "seeds": 0,
-                        "eta": -1,
-                        "finished": false,
-                        "seeding": false,
-                        "paused": true,
-                        "sequential": false,
-                        "has_metadata": true,
-                        "save_path": "/tmp",
-                        "ratio": 0,
-                        "added": 0,
+                {
+                    "download_rate": 0,
+                    "upload_rate": 0,
+                    "active": 0,
+                    "paused_count": 2,
+                    "dht_nodes": 0,
+                    "alert_error": "",
+                    "listen_actual_port": 6881,
+                    "listening": true,
+                    "bind_address": "",
+                    "listen_error": "",
+                    "portmap": {
+                        "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                        "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
                         "error": ""
                     },
-                    {
-                        "id": "metadata1234",
-                        "name": "Torrent senza metadati",
-                        "state_code": 2,
-                        "progress": 0,
-                        "size": 0,
-                        "downloaded": 0,
-                        "uploaded": 0,
-                        "download_rate": 0,
-                        "upload_rate": 0,
-                        "peers": 3,
-                        "seeds": 0,
-                        "eta": -42,
-                        "finished": false,
-                        "seeding": false,
-                        "paused": false,
-                        "sequential": false,
-                        "has_metadata": false,
-                        "save_path": "/tmp",
-                        "ratio": 0,
-                        "added": 0,
-                        "error": ""
-                    }
-                ]
-            }
-            """
+                    "proxy": {
+                        "enabled": false,
+                        "type": "None",
+                        "hostname": "",
+                        "port": 0
+                    },
+                    "port": 6881,
+                    "torrents": [
+                        {
+                            "id": "paused123456",
+                            "name": "Torrent in pausa",
+                            "state_code": 3,
+                            "progress": 0.4,
+                            "size": 1000,
+                            "downloaded": 400,
+                            "uploaded": 0,
+                            "download_rate": 0,
+                            "upload_rate": 0,
+                            "peers": 0,
+                            "seeds": 0,
+                            "eta": -1,
+                            "finished": false,
+                            "seeding": false,
+                            "paused": true,
+                            "sequential": false,
+                            "has_metadata": true,
+                            "save_path": "/tmp",
+                            "ratio": 0,
+                            "added": 0,
+                            "error": ""
+                        },
+                        {
+                            "id": "metadata1234",
+                            "name": "Torrent senza metadati",
+                            "state_code": 2,
+                            "progress": 0,
+                            "size": 0,
+                            "downloaded": 0,
+                            "uploaded": 0,
+                            "download_rate": 0,
+                            "upload_rate": 0,
+                            "peers": 3,
+                            "seeds": 0,
+                            "eta": -42,
+                            "finished": false,
+                            "seeding": false,
+                            "paused": false,
+                            "sequential": false,
+                            "has_metadata": false,
+                            "save_path": "/tmp",
+                            "ratio": 0,
+                            "added": 0,
+                            "error": ""
+                        }
+                    ]
+                }
+                """
             guard let data = json.data(using: .utf8) else {
                 try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
                 return
@@ -193,22 +193,22 @@ enum ModelsTests {
 
         TestRunner.run("PortMapSnapshot: errori TCP e UDP separati") {
             let json = """
-            {
-                "tcp": {
-                    "mapped": false,
-                    "external_port": 0,
-                    "transport": "",
-                    "error": "UPnP: timeout"
-                },
-                "udp": {
-                    "mapped": true,
-                    "external_port": 6881,
-                    "transport": "NAT-PMP",
+                {
+                    "tcp": {
+                        "mapped": false,
+                        "external_port": 0,
+                        "transport": "",
+                        "error": "UPnP: timeout"
+                    },
+                    "udp": {
+                        "mapped": true,
+                        "external_port": 6881,
+                        "transport": "NAT-PMP",
+                        "error": ""
+                    },
                     "error": ""
-                },
-                "error": ""
-            }
-            """
+                }
+                """
             guard let data = json.data(using: .utf8) else {
                 try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
                 return
@@ -227,29 +227,29 @@ enum ModelsTests {
 
         TestRunner.run("TorrentDetail JSON Decoding") {
             let json = """
-            {
-                "files": [
-                    {
-                        "index": 0,
-                        "path": "ubuntu-24.04-desktop-arm64.iso",
-                        "size": 4294967296,
-                        "progress": 0.65,
-                        "priority": 4
-                    }
-                ],
-                "trackers": [
-                    {
-                        "url": "https://torrent.ubuntu.com/announce",
-                        "verified": true,
-                        "fails": 0,
-                        "message": "OK",
-                        "peers": 42,
-                        "seeds": 150
-                    }
-                ],
-                "metadata": true
-            }
-            """
+                {
+                    "files": [
+                        {
+                            "index": 0,
+                            "path": "ubuntu-24.04-desktop-arm64.iso",
+                            "size": 4294967296,
+                            "progress": 0.65,
+                            "priority": 4
+                        }
+                    ],
+                    "trackers": [
+                        {
+                            "url": "https://torrent.ubuntu.com/announce",
+                            "verified": true,
+                            "fails": 0,
+                            "message": "OK",
+                            "peers": 42,
+                            "seeds": 150
+                        }
+                    ],
+                    "metadata": true
+                }
+                """
             guard let data = json.data(using: .utf8) else {
                 try TestRunner.assertTrue(false, "Impossibile convertire JSON in Data")
                 return
@@ -268,23 +268,23 @@ enum ModelsTests {
             try TestRunner.assertEqual(detail.peers.count, 0)
 
             let withPeersJSON = """
-            {
-                "files": [],
-                "trackers": [],
-                "peers": [
-                    {
-                        "endpoint": "198.51.100.12:51413",
-                        "client": "Vertex/1.14.2",
-                        "progress": 0.85,
-                        "download_rate": 262144,
-                        "upload_rate": 65536,
-                        "flags": "DUPE",
-                        "source": "DHT"
-                    }
-                ],
-                "metadata": true
-            }
-            """
+                {
+                    "files": [],
+                    "trackers": [],
+                    "peers": [
+                        {
+                            "endpoint": "198.51.100.12:51413",
+                            "client": "Vertex/1.14.2",
+                            "progress": 0.85,
+                            "download_rate": 262144,
+                            "upload_rate": 65536,
+                            "flags": "DUPE",
+                            "source": "DHT"
+                        }
+                    ],
+                    "metadata": true
+                }
+                """
             let withPeers = try JSONDecoder().decode(TorrentDetail.self, from: Data(withPeersJSON.utf8))
             try TestRunner.assertEqual(withPeers.peers.count, 1)
             try TestRunner.assertEqual(withPeers.peers[0].endpoint, "198.51.100.12:51413")
@@ -303,13 +303,15 @@ enum ModelsTests {
             // filtered (files set to Skip).
             let activeDownloading = Torrent.test(id: "1", name: "T1", stateCode: 3)
             let pausedTorrent = Torrent.test(id: "2", name: "T2", stateCode: 3, paused: true)
-            let seedingTorrent = Torrent.test(id: "3", name: "T3", stateCode: 5, uploadRate: 1024, finished: true, seeding: true)
+            let seedingTorrent = Torrent.test(
+                id: "3", name: "T3", stateCode: 5, uploadRate: 1024, finished: true, seeding: true)
             let pausedCompleted = Torrent.test(
                 id: "4", name: "T4", stateCode: 5, finished: true, seeding: true, paused: true
             )
             let skippedFilesCompleted = Torrent.test(id: "5", name: "T5", stateCode: 4, finished: true)
             let checking = Torrent.test(id: "6", name: "T6", stateCode: 1)
-            let idleCompleted = Torrent.test(id: "7", name: "T7", stateCode: 5, uploadRate: 0, finished: true, seeding: true)
+            let idleCompleted = Torrent.test(
+                id: "7", name: "T7", stateCode: 5, uploadRate: 0, finished: true, seeding: true)
 
             let all = [
                 activeDownloading,
@@ -318,7 +320,7 @@ enum ModelsTests {
                 pausedCompleted,
                 skippedFilesCompleted,
                 checking,
-                idleCompleted
+                idleCompleted,
             ]
 
             // A finished download with filtered pieces is "completato".
@@ -406,7 +408,8 @@ enum ModelsTests {
             try TestRunner.assertEqual(byRecent.first?.id, "B")
 
             // Ascending / inverted sort order for every criterion.
-            let byNameAscending = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .name, ascending: true)
+            let byNameAscending = TorrentListPipeline.apply(
+                to: [tA, tB], filter: .all, search: "", sort: .name, ascending: true)
             try TestRunner.assertEqual(byNameAscending.map(\.id), ["A", "B"])
 
             // Names are compared with `localizedStandardCompare`: an uppercase
@@ -418,16 +421,20 @@ enum ModelsTests {
             )
             try TestRunner.assertEqual(caseInsensitive.map(\.id), ["L", "U"])
 
-            let byProgressAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .progress, ascending: true)
+            let byProgressAsc = TorrentListPipeline.apply(
+                to: [tA, tB], filter: .all, search: "", sort: .progress, ascending: true)
             try TestRunner.assertEqual(byProgressAsc.first?.id, "A")
 
-            let bySizeAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .size, ascending: true)
+            let bySizeAsc = TorrentListPipeline.apply(
+                to: [tA, tB], filter: .all, search: "", sort: .size, ascending: true)
             try TestRunner.assertEqual(bySizeAsc.first?.id, "A")
 
-            let bySpeedAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .speed, ascending: true)
+            let bySpeedAsc = TorrentListPipeline.apply(
+                to: [tA, tB], filter: .all, search: "", sort: .speed, ascending: true)
             try TestRunner.assertEqual(bySpeedAsc.first?.id, "A")
 
-            let byRecentAsc = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .recent, ascending: true)
+            let byRecentAsc = TorrentListPipeline.apply(
+                to: [tA, tB], filter: .all, search: "", sort: .recent, ascending: true)
             try TestRunner.assertEqual(byRecentAsc.first?.id, "A")
 
             let searched = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "alp", sort: .name)
@@ -456,16 +463,17 @@ enum ModelsTests {
             var many: [Torrent] = []
             many.reserveCapacity(5_000)
             for index in 0..<5_000 {
-                many.append(Torrent.test(
-                    id: String(index),
-                    name: "Torrent \(index)",
-                    progress: Double(index % 100) / 100,
-                    size: Int64(index),
-                    downloadRate: Int64(index % 7),
-                    finished: index % 3 == 0,
-                    paused: index % 5 == 0,
-                    added: Int64(index)
-                ))
+                many.append(
+                    Torrent.test(
+                        id: String(index),
+                        name: "Torrent \(index)",
+                        progress: Double(index % 100) / 100,
+                        size: Int64(index),
+                        downloadRate: Int64(index % 7),
+                        finished: index % 3 == 0,
+                        paused: index % 5 == 0,
+                        added: Int64(index)
+                    ))
             }
             let load = TorrentListPipeline.applyWithCounts(
                 to: many,
@@ -509,12 +517,12 @@ enum ModelsTests {
             try TestRunner.assertEqual(TorrentPhase.queued.label, L("In coda"))
 
             let withFlag = """
-            {"id":"a","name":"A","state_code":3,"progress":0.1,"size":10,"downloaded":1,
-             "uploaded":0,"download_rate":0,"upload_rate":0,"peers":0,"seeds":0,"eta":-1,
-             "finished":false,"seeding":false,"paused":true,"auto_managed":true,
-             "sequential":false,"has_metadata":true,"save_path":"/tmp","ratio":0,"added":0,
-             "error":""}
-            """
+                {"id":"a","name":"A","state_code":3,"progress":0.1,"size":10,"downloaded":1,
+                 "uploaded":0,"download_rate":0,"upload_rate":0,"peers":0,"seeds":0,"eta":-1,
+                 "finished":false,"seeding":false,"paused":true,"auto_managed":true,
+                 "sequential":false,"has_metadata":true,"save_path":"/tmp","ratio":0,"added":0,
+                 "error":""}
+                """
             let decoded = try JSONDecoder().decode(Torrent.self, from: Data(withFlag.utf8))
             try TestRunner.assertTrue(decoded.autoManaged)
             try TestRunner.assertEqual(decoded.phase, .queued)
@@ -542,17 +550,21 @@ enum ModelsTests {
             let hashErr = Torrent.test(id: "2", name: "Hash", error: "hash check failed")
             try TestRunner.assertEqual(hashErr.localizedError, L("Verifica dati non riuscita (pezzi corrotti)."))
 
-            let socksAuth = ProxyInfo(enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, auth: true, error: "SOCKS authentication error")
+            let socksAuth = ProxyInfo(
+                enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, auth: true,
+                error: "SOCKS authentication error")
             try TestRunner.assertEqual(socksAuth.localizedError, L("Autenticazione SOCKS5 rifiutata"))
 
-            let socksGeneral = ProxyInfo(enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, error: "SOCKS general failure")
+            let socksGeneral = ProxyInfo(
+                enabled: true, type: "SOCKS5", hostname: "127.0.0.1", port: 1080, error: "SOCKS general failure")
             try TestRunner.assertEqual(socksGeneral.localizedError, L("Errore generale del proxy SOCKS5"))
 
             let upnpTimeout = PortMapInfo(error: "UPnP: timeout")
             try TestRunner.assertEqual(upnpTimeout.error, "UPnP: timeout")
             try TestRunner.assertEqual(upnpTimeout.localizedError, "UPnP: " + L("tempo scaduto"))
 
-            let natpmpAuth = PortMapInfo(error: "NAT-PMP: not authorized to create port map (enable NAT-PMP on your router)")
+            let natpmpAuth = PortMapInfo(
+                error: "NAT-PMP: not authorized to create port map (enable NAT-PMP on your router)")
             try TestRunner.assertEqual(
                 natpmpAuth.localizedError,
                 "NAT-PMP: " + L("non autorizzato (abilita NAT-PMP sul router)")
@@ -590,7 +602,8 @@ enum ModelsTests {
 
             // Reverse Shift-click ("t2" -> "t1")
             let reverseRange = TorrentListSelection.handleClick(
-                on: "t1", in: visible, current: shiftRange.selectedIDs, anchor: shiftRange.anchorID, command: false, shift: true
+                on: "t1", in: visible, current: shiftRange.selectedIDs, anchor: shiftRange.anchorID, command: false,
+                shift: true
             )
             try TestRunner.assertEqual(reverseRange.selectedIDs, ["t1", "t2"])
 
@@ -602,19 +615,19 @@ enum ModelsTests {
 
         TestRunner.run("Snapshot: coda degli errori asincroni") {
             let json = """
-            {
-                "download_rate": 0, "upload_rate": 0, "active": 0, "paused_count": 0,
-                "dht_nodes": 0, "alert_error": "secondo", "alert_errors": ["primo", "secondo"],
-                "listen_actual_port": 0, "listening": false, "bind_address": "",
-                "listen_error": "",
-                "portmap": {
-                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                    "error": ""
-                },
-                "port": 0, "torrents": []
-            }
-            """
+                {
+                    "download_rate": 0, "upload_rate": 0, "active": 0, "paused_count": 0,
+                    "dht_nodes": 0, "alert_error": "secondo", "alert_errors": ["primo", "secondo"],
+                    "listen_actual_port": 0, "listening": false, "bind_address": "",
+                    "listen_error": "",
+                    "portmap": {
+                        "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                        "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                        "error": ""
+                    },
+                    "port": 0, "torrents": []
+                }
+                """
             let snapshot = try JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
             try TestRunner.assertEqual(snapshot.alertErrors, ["primo", "secondo"])
             try TestRunner.assertEqual(snapshot.alertError, "secondo")

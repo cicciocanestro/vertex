@@ -32,7 +32,7 @@ enum Keychain {
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
 
         let updateStatus = SecItemUpdate(
@@ -67,7 +67,7 @@ enum Keychain {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
         ]
 
         var result: CFTypeRef?
@@ -79,7 +79,8 @@ enum Keychain {
             return .failure(.unexpectedStatus(status))
         }
         guard let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
+            let value = String(data: data, encoding: .utf8)
+        else {
             return .success(nil)
         }
         return .success(value)
@@ -97,7 +98,7 @@ enum Keychain {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
     }

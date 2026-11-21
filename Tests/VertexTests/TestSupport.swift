@@ -1,6 +1,6 @@
+import CTorrent
 import Foundation
 import VertexKit
-import CTorrent
 
 // MARK: - Lightweight Test Framework for CLT & CI
 
@@ -58,12 +58,13 @@ final class TestRunner {
             print("\u{001B}[31m\(detail)\u{001B}[0m")
         }
 
-        records.append(TestRecord(
-            suite: currentSuite,
-            name: name,
-            duration: Date().timeIntervalSince(started),
-            failure: failureMessage
-        ))
+        records.append(
+            TestRecord(
+                suite: currentSuite,
+                name: name,
+                duration: Date().timeIntervalSince(started),
+                failure: failureMessage
+            ))
     }
 
     static func writeJUnit(to url: URL) throws {
@@ -112,7 +113,9 @@ final class TestRunner {
         try xml.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    static func assertEqual<T: Equatable>(_ a: T, _ b: T, _ message: String = "", file: StaticString = #file, line: UInt = #line) throws {
+    static func assertEqual<T: Equatable>(
+        _ a: T, _ b: T, _ message: String = "", file: StaticString = #file, line: UInt = #line
+    ) throws {
         if a != b {
             throw TestFailure(
                 message: "Expected '\(b)', got '\(a)'" + (message.isEmpty ? "" : " (\(message))"),
@@ -122,27 +125,37 @@ final class TestRunner {
         }
     }
 
-    static func assertTrue(_ condition: Bool, _ message: String = "Expected true, got false", file: StaticString = #file, line: UInt = #line) throws {
+    static func assertTrue(
+        _ condition: Bool, _ message: String = "Expected true, got false", file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
         if !condition {
             throw TestFailure(message: message, file: file, line: line)
         }
     }
 
-    static func assertFalse(_ condition: Bool, _ message: String = "Expected false, got true", file: StaticString = #file, line: UInt = #line) throws {
+    static func assertFalse(
+        _ condition: Bool, _ message: String = "Expected false, got true", file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
         if condition {
             throw TestFailure(message: message, file: file, line: line)
         }
     }
 
     @discardableResult
-    static func assertNotNil<T>(_ value: T?, _ message: String = "Expected non-nil value", file: StaticString = #file, line: UInt = #line) throws -> T {
+    static func assertNotNil<T>(
+        _ value: T?, _ message: String = "Expected non-nil value", file: StaticString = #file, line: UInt = #line
+    ) throws -> T {
         guard let value else {
             throw TestFailure(message: message, file: file, line: line)
         }
         return value
     }
 
-    static func assertNil<T>(_ value: T?, _ message: String = "Expected nil value", file: StaticString = #file, line: UInt = #line) throws {
+    static func assertNil<T>(
+        _ value: T?, _ message: String = "Expected nil value", file: StaticString = #file, line: UInt = #line
+    ) throws {
         if value != nil {
             throw TestFailure(message: message, file: file, line: line)
         }
@@ -208,10 +221,10 @@ extension Torrent {
     }
 }
 
-private extension String {
+extension String {
     /// Escapes what would break the hand-built JSON fixture: a torrent name
     /// containing a quote used to crash the whole test runner through `try!`.
-    var jsonEscaped: String {
+    fileprivate var jsonEscaped: String {
         var result = ""
         result.reserveCapacity(count)
         for character in self {
@@ -263,26 +276,26 @@ extension VertexSnapshot {
         }.joined(separator: ",")
 
         let json = """
-        {
-            "download_rate": \(stats.downloadRate),
-            "upload_rate": \(stats.uploadRate),
-            "active": \(stats.active),
-            "paused_count": \(stats.paused),
-            "dht_nodes": \(stats.dhtNodes),
-            "alert_error": "",
-            "listen_actual_port": \(stats.actualPort),
-            "listening": \(stats.isListening),
-            "bind_address": "\(stats.bindAddress.jsonEscaped)",
-            "listen_error": "\(stats.listenError.jsonEscaped)",
-            "portmap": {
-                "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
-                "error": ""
-            },
-            "port": \(stats.port),
-            "torrents": [\(torrentsJSON)]
-        }
-        """
+            {
+                "download_rate": \(stats.downloadRate),
+                "upload_rate": \(stats.uploadRate),
+                "active": \(stats.active),
+                "paused_count": \(stats.paused),
+                "dht_nodes": \(stats.dhtNodes),
+                "alert_error": "",
+                "listen_actual_port": \(stats.actualPort),
+                "listening": \(stats.isListening),
+                "bind_address": "\(stats.bindAddress.jsonEscaped)",
+                "listen_error": "\(stats.listenError.jsonEscaped)",
+                "portmap": {
+                    "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                    "error": ""
+                },
+                "port": \(stats.port),
+                "torrents": [\(torrentsJSON)]
+            }
+            """
         return try! JSONDecoder().decode(VertexSnapshot.self, from: Data(json.utf8))
     }
 }

@@ -21,9 +21,11 @@ enum GeoIPTests {
         }
 
         TestRunner.run("GeoIP: indirizzi privati e speciali") {
-            let local = ["10.1.2.3:1", "172.16.0.1:1", "172.31.255.255:1",
-                         "192.168.1.1:1", "127.0.0.1:1", "100.64.0.1:1",
-                         "169.254.1.1:1", "224.0.0.1:1"]
+            let local = [
+                "10.1.2.3:1", "172.16.0.1:1", "172.31.255.255:1",
+                "192.168.1.1:1", "127.0.0.1:1", "100.64.0.1:1",
+                "169.254.1.1:1", "224.0.0.1:1",
+            ]
             for endpoint in local {
                 try TestRunner.assertTrue(
                     GeoIP.isLocalEndpoint(endpoint),
@@ -54,7 +56,7 @@ enum GeoIPTests {
             let cases: [(String, String)] = [
                 ("8.8.8.8", "US"),
                 ("151.15.0.1", "IT"),
-                ("1.0.0.1", "AU")
+                ("1.0.0.1", "AU"),
             ]
             for (address, expected) in cases {
                 guard let value = GeoIP.ipv4Address(fromEndpoint: address) else {

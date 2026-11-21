@@ -69,10 +69,13 @@ struct StatusBarView: View {
                     .lineLimit(1)
                 }
 
-                Text(engine.stats.active == 1 ? LF("%ld attivo", engine.stats.active) : LF("%ld attivi", engine.stats.active))
-                    .font(Typography.smallMediumText)
-                    .foregroundStyle(palette.secondary)
-                    .lineLimit(1)
+                Text(
+                    engine.stats.active == 1
+                        ? LF("%ld attivo", engine.stats.active) : LF("%ld attivi", engine.stats.active)
+                )
+                .font(Typography.smallMediumText)
+                .foregroundStyle(palette.secondary)
+                .lineLimit(1)
 
                 Text(verbatim: "·")
                     .foregroundStyle(palette.tertiary)
@@ -94,9 +97,13 @@ struct StatusBarView: View {
                         .font(Typography.badgeText)
                 }
                 .foregroundStyle(hasProxyError ? palette.coralText : palette.mintText)
-                .help(hasProxyError
-                    ? LF("Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname, engine.stats.proxy.port, engine.stats.proxy.localizedError)
-                    : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port))
+                .help(
+                    hasProxyError
+                        ? LF(
+                            "Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname,
+                            engine.stats.proxy.port, engine.stats.proxy.localizedError)
+                        : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port)
+                )
                 .fixedSize(horizontal: true, vertical: false)
 
                 Text(verbatim: "·")
@@ -105,10 +112,12 @@ struct StatusBarView: View {
 
             Button(action: onOpenDiagnostics) {
                 HStack(spacing: 4) {
-                    Image(systemName: engine.stats.isBoundToAddress
-                        ? "lock.shield.fill"
-                        : "network")
-                        .font(Typography.captionMicroSemiboldText)
+                    Image(
+                        systemName: engine.stats.isBoundToAddress
+                            ? "lock.shield.fill"
+                            : "network"
+                    )
+                    .font(Typography.captionMicroSemiboldText)
                     Text(LF("Porta %ld", engine.stats.effectivePort))
                         .font(Typography.captionRegularRoundedText)
                         .monospacedDigit()
@@ -121,9 +130,10 @@ struct StatusBarView: View {
             }
             .buttonStyle(.plain)
             .fixedSize(horizontal: true, vertical: false)
-            .help(engine.stats.isBoundToAddress
-                ? LF("Diagnostica rete · associato a %@", engine.stats.bindAddress)
-                : L("Diagnostica rete"))
+            .help(
+                engine.stats.isBoundToAddress
+                    ? LF("Diagnostica rete · associato a %@", engine.stats.bindAddress)
+                    : L("Diagnostica rete"))
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 8)

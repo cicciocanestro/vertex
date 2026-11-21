@@ -99,12 +99,12 @@ package final class TorrentEngine: ObservableObject {
         Preferences.registerDefaults()
 
         #if DEBUG
-        if DemoData.isEnabled {
-            isReady = true
-            applyDemoSnapshot()
-            startPolling()
-            return
-        }
+            if DemoData.isEnabled {
+                isReady = true
+                applyDemoSnapshot()
+                startPolling()
+                return
+            }
         #endif
 
         startSession()
@@ -137,7 +137,9 @@ package final class TorrentEngine: ObservableObject {
             hasSession = false
             startupError = Self.sessionFailureDetail(
                 outcome.error,
-                fallback: L("Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app.")
+                fallback: L(
+                    "Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app."
+                )
             )
             isReady = false
             return
@@ -160,25 +162,25 @@ package final class TorrentEngine: ObservableObject {
     }
 
     #if DEBUG
-    /// Test-only initializer: it uses an explicit configuration instead of the
-    /// user's preferences and never starts a polling task unless asked to.
-    package init(configuration: SessionConfiguration, startPollingImmediately: Bool = false) {
-        Preferences.registerDefaults()
-        configurationOverride = configuration
-        sessionPexEnabled = configuration.pex
-        // Tests need a session synchronously: the controller creates it in its
-        // initializer, so the pointer never crosses an isolation boundary.
-        let controller = SessionController(configuration: configuration)
-        sessionController = controller
-        hasSession = controller.started
-        isReady = hasSession
-        if isReady {
-            lastAppliedConfiguration = configuration
+        /// Test-only initializer: it uses an explicit configuration instead of the
+        /// user's preferences and never starts a polling task unless asked to.
+        package init(configuration: SessionConfiguration, startPollingImmediately: Bool = false) {
+            Preferences.registerDefaults()
+            configurationOverride = configuration
+            sessionPexEnabled = configuration.pex
+            // Tests need a session synchronously: the controller creates it in its
+            // initializer, so the pointer never crosses an isolation boundary.
+            let controller = SessionController(configuration: configuration)
+            sessionController = controller
+            hasSession = controller.started
+            isReady = hasSession
+            if isReady {
+                lastAppliedConfiguration = configuration
+            }
+            if isReady && startPollingImmediately {
+                startPolling()
+            }
         }
-        if isReady && startPollingImmediately {
-            startPolling()
-        }
-    }
     #endif
 
     // MARK: - Session Lifecycle
@@ -198,7 +200,8 @@ package final class TorrentEngine: ObservableObject {
 
     private static func sessionFailureDetail(_ error: String?, fallback: String) -> String {
         guard let error,
-              !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             return fallback
         }
         return fallback + "\n" + error
@@ -381,14 +384,16 @@ package final class TorrentEngine: ObservableObject {
     /// Keychain does not prompt on every poll.
     func retryProxyPasswordWarmIfNeeded() {
         guard !Preferences.isProxyPasswordCacheLoaded,
-              !isWarmingProxyPassword,
-              !isShuttingDown,
-              hasSession,
-              UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) else {
+            !isWarmingProxyPassword,
+            !isShuttingDown,
+            hasSession,
+            UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled)
+        else {
             return
         }
         if let last = lastProxyPasswordWarmAttempt,
-           Date().timeIntervalSince(last) < 30 {
+            Date().timeIntervalSince(last) < 30
+        {
             return
         }
         lastProxyPasswordWarmAttempt = Date()

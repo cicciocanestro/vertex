@@ -288,10 +288,12 @@ struct InspectorView: View {
             statCell("Scaricati", Fmt.bytes(torrent.downloaded), palette)
             statCell("Caricati", Fmt.bytes(torrent.uploaded), palette)
             statCell("Rapporto", Fmt.ratio(torrent.ratio), palette)
-            statCell("Download", Fmt.rate(torrent.downloadRate), palette,
-                     accent: torrent.downloadRate > 0 ? palette.mintText : nil)
-            statCell("Upload", Fmt.rate(torrent.uploadRate), palette,
-                     accent: torrent.uploadRate > 0 ? palette.violetText : nil)
+            statCell(
+                "Download", Fmt.rate(torrent.downloadRate), palette,
+                accent: torrent.downloadRate > 0 ? palette.mintText : nil)
+            statCell(
+                "Upload", Fmt.rate(torrent.uploadRate), palette,
+                accent: torrent.uploadRate > 0 ? palette.violetText : nil)
             statCell("Peer / Seed", "\(torrent.peers) / \(torrent.seeds)", palette)
             statCell("Tempo rimasto", etaText, palette)
         }
@@ -394,11 +396,13 @@ struct InspectorView: View {
         let noneWanted = wantedCount == 0
 
         return HStack(spacing: 6) {
-            Text(wantedCount == 1
-                ? LF("%ld di %ld selezionato", wantedCount, files.count)
-                : LF("%ld di %ld selezionati", wantedCount, files.count))
-                .font(Typography.captionText)
-                .foregroundStyle(palette.tertiary)
+            Text(
+                wantedCount == 1
+                    ? LF("%ld di %ld selezionato", wantedCount, files.count)
+                    : LF("%ld di %ld selezionati", wantedCount, files.count)
+            )
+            .font(Typography.captionText)
+            .foregroundStyle(palette.tertiary)
 
             Spacer()
 
@@ -576,7 +580,8 @@ struct InspectorView: View {
     }
 
     private func trackerRow(_ tracker: TorrentTracker, _ palette: Palette) -> some View {
-        let color: Color = tracker.verified
+        let color: Color =
+            tracker.verified
             ? Theme.green
             : (tracker.fails > 0 ? Theme.coral : Theme.amber)
 

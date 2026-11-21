@@ -42,7 +42,8 @@ extension TorrentEngine {
                 return
             }
             guard Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.downloadLimitKB)),
-                  Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.uploadLimitKB)) else {
+                Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.uploadLimitKB))
+            else {
                 showToast(
                     L("Limite non valido"),
                     kind: .error,
@@ -98,14 +99,16 @@ extension TorrentEngine {
         if let previous {
             downloadPathChanged = previous.downloadPath != configuration.downloadPath
             queueChanged = previous.maxActive != configuration.maxActive
-            networkChanged = previous.port != configuration.port
+            networkChanged =
+                previous.port != configuration.port
                 || previous.downloadLimit != configuration.downloadLimit
                 || previous.uploadLimit != configuration.uploadLimit
                 || previous.dht != configuration.dht
                 || previous.upnp != configuration.upnp
                 || previous.lsd != configuration.lsd
                 || previous.bindAddress != configuration.bindAddress
-            proxyChanged = previous.proxyEnabled != configuration.proxyEnabled
+            proxyChanged =
+                previous.proxyEnabled != configuration.proxyEnabled
                 || previous.proxyHost != configuration.proxyHost
                 || previous.proxyPort != configuration.proxyPort
                 || previous.proxyUser != configuration.proxyUser
@@ -243,7 +246,7 @@ extension TorrentEngine {
             notification: .announcementRequested,
             userInfo: [
                 .announcement: text,
-                .priority: NSAccessibilityPriorityLevel.medium.rawValue
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue,
             ]
         )
     }
@@ -283,7 +286,8 @@ extension TorrentEngine {
 
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
+            isDirectory.boolValue
+        else {
             return (nil, L("La destinazione non è una cartella."))
         }
         guard fileManager.isWritableFile(atPath: path) else {
@@ -331,7 +335,8 @@ extension TorrentEngine {
             || lower.contains("do not describe the same data")
             || lower.contains("exceeds depth limit")
             || lower.contains("exceeds maximum size")
-            || lower.contains("not a regular file") {
+            || lower.contains("not a regular file")
+        {
             return L("Link o file non valido.")
         }
         switch value {

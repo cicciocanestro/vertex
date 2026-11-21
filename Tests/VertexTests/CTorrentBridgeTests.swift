@@ -1,5 +1,5 @@
-import Foundation
 import CTorrent
+import Foundation
 import VertexKit
 
 /// Small thread-safe probe: the concurrent test must report a corrupted
@@ -59,10 +59,14 @@ enum CTorrentBridgeTests {
                     let jsonString = String(cString: cSnapshot)
                     vt_free_string(cSnapshot)
 
-                    try TestRunner.assertTrue(jsonString.contains("download_rate"), "Lo snapshot deve contenere download_rate")
-                    try TestRunner.assertTrue(jsonString.contains("torrents"), "Lo snapshot deve contenere l'array torrents")
-                    try TestRunner.assertTrue(jsonString.contains("listening"), "Lo snapshot deve contenere il flag listening")
-                    try TestRunner.assertTrue(jsonString.contains("alert_error"), "Lo snapshot deve esporre alert_error")
+                    try TestRunner.assertTrue(
+                        jsonString.contains("download_rate"), "Lo snapshot deve contenere download_rate")
+                    try TestRunner.assertTrue(
+                        jsonString.contains("torrents"), "Lo snapshot deve contenere l'array torrents")
+                    try TestRunner.assertTrue(
+                        jsonString.contains("listening"), "Lo snapshot deve contenere il flag listening")
+                    try TestRunner.assertTrue(
+                        jsonString.contains("alert_error"), "Lo snapshot deve esporre alert_error")
 
                     let snapshotData = Data(jsonString.utf8)
                     let decoded = try JSONDecoder().decode(VertexSnapshot.self, from: snapshotData)
@@ -77,7 +81,8 @@ enum CTorrentBridgeTests {
                         vt_add_magnet(session, uriPtr, dlPtr, 0, 0)
                     }
                 }
-                try TestRunner.assertTrue(addResult != 0, "Aggiungere un magnet non valido deve fallire con codice diverso da 0")
+                try TestRunner.assertTrue(
+                    addResult != 0, "Aggiungere un magnet non valido deve fallire con codice diverso da 0")
 
                 // Verify last error is available
                 let cError = vt_last_error(session)
@@ -292,7 +297,8 @@ enum CTorrentBridgeTests {
                     try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
                     return
                 }
-                let activeSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cActive).utf8))
+                let activeSnap = try JSONDecoder().decode(
+                    VertexSnapshot.self, from: Data(String(cString: cActive).utf8))
                 vt_free_string(cActive)
                 try TestRunner.assertTrue(activeSnap.stats.isProxyActive)
                 try TestRunner.assertEqual(activeSnap.proxy.type, "SOCKS5")
@@ -311,9 +317,9 @@ enum CTorrentBridgeTests {
                     6888,
                     0,
                     0,
-                    1, // enable_dht
-                    1, // enable_upnp requested
-                    1, // enable_lsd
+                    1,  // enable_dht
+                    1,  // enable_upnp requested
+                    1,  // enable_lsd
                     nil
                 )
                 try TestRunner.assertEqual(settingsUpdate, 0)
@@ -322,7 +328,8 @@ enum CTorrentBridgeTests {
                     try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
                     return
                 }
-                let stillProxySnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cStillProxy).utf8))
+                let stillProxySnap = try JSONDecoder().decode(
+                    VertexSnapshot.self, from: Data(String(cString: cStillProxy).utf8))
                 vt_free_string(cStillProxy)
                 try TestRunner.assertTrue(stillProxySnap.stats.isProxyActive)
                 try TestRunner.assertTrue(
@@ -343,7 +350,8 @@ enum CTorrentBridgeTests {
                     try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
                     return
                 }
-                let noAuthSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cNoAuth).utf8))
+                let noAuthSnap = try JSONDecoder().decode(
+                    VertexSnapshot.self, from: Data(String(cString: cNoAuth).utf8))
                 vt_free_string(cNoAuth)
                 try TestRunner.assertFalse(
                     noAuthSnap.proxy.auth,
@@ -359,7 +367,8 @@ enum CTorrentBridgeTests {
                     try TestRunner.assertTrue(false, "vt_snapshot_json deve restituire un puntatore non nullo")
                     return
                 }
-                let disabledSnap = try JSONDecoder().decode(VertexSnapshot.self, from: Data(String(cString: cDisabled).utf8))
+                let disabledSnap = try JSONDecoder().decode(
+                    VertexSnapshot.self, from: Data(String(cString: cDisabled).utf8))
                 vt_free_string(cDisabled)
                 try TestRunner.assertFalse(disabledSnap.stats.isProxyActive)
                 try TestRunner.assertEqual(disabledSnap.proxy.type, "None")
@@ -407,13 +416,13 @@ enum CTorrentBridgeTests {
             }
 
             let invalidSequences: [[UInt8]] = [
-                [0xC1, 0xBF],             // overlong 2-byte
-                [0xE0, 0x80, 0x80],       // overlong 3-byte
-                [0xED, 0xA0, 0x80],       // UTF-16 surrogate
-                [0xF0, 0x80, 0x80, 0x80], // overlong 4-byte
-                [0xF4, 0x90, 0x80, 0x80], // > U+10FFFF
-                [0x80],                   // continuation alone
-                [0xE2, 0x82]              // truncated 3-byte
+                [0xC1, 0xBF],  // overlong 2-byte
+                [0xE0, 0x80, 0x80],  // overlong 3-byte
+                [0xED, 0xA0, 0x80],  // UTF-16 surrogate
+                [0xF0, 0x80, 0x80, 0x80],  // overlong 4-byte
+                [0xF4, 0x90, 0x80, 0x80],  // > U+10FFFF
+                [0x80],  // continuation alone
+                [0xE2, 0x82],  // truncated 3-byte
             ]
             for bytes in invalidSequences {
                 var terminated = bytes
@@ -435,14 +444,14 @@ enum CTorrentBridgeTests {
             }
 
             let invalidBytes: [UInt8] = [
-                0x41, // 'A'
-                0xC0, 0xAF, // Overlong UTF-8
-                0x42, // 'B'
-                0xED, 0xA0, 0x80, // UTF-16 surrogate (U+D800)
-                0x43, // 'C'
-                0xFF, // Byte non valido
-                0x44, // 'D'
-                0x00 // Null terminator
+                0x41,  // 'A'
+                0xC0, 0xAF,  // Overlong UTF-8
+                0x42,  // 'B'
+                0xED, 0xA0, 0x80,  // UTF-16 surrogate (U+D800)
+                0x43,  // 'C'
+                0xFF,  // Byte non valido
+                0x44,  // 'D'
+                0x00,  // Null terminator
             ]
             try invalidBytes.withUnsafeBufferPointer { ntBuf in
                 let cStr = UnsafeRawPointer(ntBuf.baseAddress!).assumingMemoryBound(to: CChar.self)
@@ -453,7 +462,8 @@ enum CTorrentBridgeTests {
                 }
                 let swiftEscaped = String(cString: escaped)
                 vt_free_string(escaped)
-                try TestRunner.assertTrue(swiftEscaped.contains("\\ufffd"), "I byte corrotti devono essere sostituiti con \\ufffd")
+                try TestRunner.assertTrue(
+                    swiftEscaped.contains("\\ufffd"), "I byte corrotti devono essere sostituiti con \\ufffd")
                 try TestRunner.assertEqual(swiftEscaped, "A\\ufffd\\ufffdB\\ufffd\\ufffd\\ufffdC\\ufffdD")
             }
         }
@@ -585,7 +595,8 @@ enum CTorrentBridgeTests {
                 let json = String(cString: pointer)
                 vt_free_string(pointer)
                 guard let data = json.data(using: .utf8),
-                      let snapshot = try? JSONDecoder().decode(VertexSnapshot.self, from: data) else {
+                    let snapshot = try? JSONDecoder().decode(VertexSnapshot.self, from: data)
+                else {
                     break
                 }
                 lastSnapshot = snapshot
@@ -635,7 +646,8 @@ enum CTorrentBridgeTests {
                             let text = String(cString: json)
                             vt_free_string(json)
                             guard let data = text.data(using: .utf8),
-                                  (try? JSONDecoder().decode(VertexSnapshot.self, from: data)) != nil else {
+                                (try? JSONDecoder().decode(VertexSnapshot.self, from: data)) != nil
+                            else {
                                 probe.markCorrupted()
                                 continue
                             }
@@ -666,7 +678,7 @@ enum CTorrentBridgeTests {
                     "magnet:?xt=urn:btih:",
                     "magnet:?xt=urn:btih:zzzz",
                     "magnet:?xt=urn:btih:" + String(repeating: "g", count: 40),
-                    String(repeating: "m", count: 100_000)
+                    String(repeating: "m", count: 100_000),
                 ]
                 for raw in rejected {
                     let rc = raw.withCString { uri in
@@ -683,7 +695,8 @@ enum CTorrentBridgeTests {
 
                 // A valid infohash with a huge non-ASCII name may be accepted;
                 // what matters is that it cannot crash or corrupt the snapshot.
-                let hugeName = "magnet:?xt=urn:btih:"
+                let hugeName =
+                    "magnet:?xt=urn:btih:"
                     + String(repeating: "0", count: 40)
                     + "&dn=" + String(repeating: "é", count: 4096)
                 _ = hugeName.withCString { uri in
@@ -767,7 +780,8 @@ enum CTorrentBridgeTests {
 
         let snapshot = try Self.decodeSnapshot(session)
         try TestRunner.assertEqual(snapshot.torrents.count, count, "Lo snapshot deve elencare tutti i torrent")
-        try TestRunner.assertTrue(snapshot.torrents.allSatisfy { $0.paused }, "I torrent aggiunti in pausa devono risultare in pausa")
+        try TestRunner.assertTrue(
+            snapshot.torrents.allSatisfy { $0.paused }, "I torrent aggiunti in pausa devono risultare in pausa")
 
         // Change one torrent through the bridge: the alert must refresh the
         // cache, so the next snapshot cannot keep reporting it as paused.
@@ -824,12 +838,14 @@ enum CTorrentBridgeTests {
             resume.path.withCString { resPath in
                 if let bindAddress {
                     return bindAddress.withCString { bindPath in
-                        vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
-                                               upnp ? 1 : 0, bindPath, nil)
+                        vt_session_create_full(
+                            dlPath, resPath, port, 0, 0, 0, 0, 0,
+                            upnp ? 1 : 0, bindPath, nil)
                     }
                 }
-                return vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0,
-                                              upnp ? 1 : 0, nil, nil)
+                return vt_session_create_full(
+                    dlPath, resPath, port, 0, 0, 0, 0, 0,
+                    upnp ? 1 : 0, nil, nil)
             }
         }
         guard let session else {

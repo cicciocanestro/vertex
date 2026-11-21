@@ -80,11 +80,11 @@ enum PreferencesTests {
             try TestRunner.assertEqual(Preferences.normalizedBindAddress("10.8.0.256"), "")
 
             try TestRunner.assertTrue(Preferences.isValidIPv4("192.168.1.10"))
-            try TestRunner.assertFalse(Preferences.isValidIPv4("0.0.0.0")) // rejected: not a usable bind address
-            try TestRunner.assertFalse(Preferences.isValidIPv4("127.0.0.1")) // rejected: loopback
-            try TestRunner.assertFalse(Preferences.isValidIPv4("169.254.1.1")) // rejected: link-local
-            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1")) // rejected: short form
-            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.001.001")) // rejected: leading zeros
+            try TestRunner.assertFalse(Preferences.isValidIPv4("0.0.0.0"))  // rejected: not a usable bind address
+            try TestRunner.assertFalse(Preferences.isValidIPv4("127.0.0.1"))  // rejected: loopback
+            try TestRunner.assertFalse(Preferences.isValidIPv4("169.254.1.1"))  // rejected: link-local
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1"))  // rejected: short form
+            try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.001.001"))  // rejected: leading zeros
             try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1.10.1"))
         }
 
@@ -111,7 +111,7 @@ enum PreferencesTests {
                 PrefKey.proxyPort,
                 PrefKey.proxyUser,
                 PrefKey.proxyPassword,
-                PrefKey.proxyPasswordInFile
+                PrefKey.proxyPasswordInFile,
             ]
             try TestRunner.assertEqual(Set(defaults.keys), expectedKeys)
             try TestRunner.assertEqual(defaults[PrefKey.downloadPath] as? String, Preferences.suggestedDownloadPath)
@@ -167,9 +167,10 @@ enum PreferencesTests {
                 PrefKey.proxyUser, PrefKey.proxyPassword, PrefKey.proxyEnabled,
                 PrefKey.seedRatioLimit, PrefKey.dhtEnabled, PrefKey.pexEnabled,
                 PrefKey.lsdEnabled, PrefKey.upnpEnabled, PrefKey.startPaused,
-                PrefKey.sequentialDefault, PrefKey.notificationsEnabled
+                PrefKey.sequentialDefault, PrefKey.notificationsEnabled,
             ]
-            let backup: [String: Any?] = Dictionary(uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
+            let backup: [String: Any?] = Dictionary(
+                uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
             defer {
                 for (key, value) in backup {
                     if let value = value {

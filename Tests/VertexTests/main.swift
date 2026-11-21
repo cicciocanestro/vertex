@@ -16,18 +16,18 @@ ProxyPasswordStorageTests.runAll()
 TestRunner.beginSuite("CTorrentBridgeTests")
 CTorrentBridgeTests.runAll()
 #if DEBUG
-TestRunner.beginSuite("UtilityTests")
-UtilityTests.runAll()
-TestRunner.beginSuite("PresentationTests")
-PresentationTests.runAll()
-TestRunner.beginSuite("FuzzModelTests")
-FuzzModelTests.runAll()
-TestRunner.beginSuite("EngineTests")
-EngineTests.runAll()
-TestRunner.beginSuite("PortReachabilityTests")
-PortReachabilityTests.runAll()
-TestRunner.beginSuite("AppCommandsTests")
-AppCommandsTests.runAll()
+    TestRunner.beginSuite("UtilityTests")
+    UtilityTests.runAll()
+    TestRunner.beginSuite("PresentationTests")
+    PresentationTests.runAll()
+    TestRunner.beginSuite("FuzzModelTests")
+    FuzzModelTests.runAll()
+    TestRunner.beginSuite("EngineTests")
+    EngineTests.runAll()
+    TestRunner.beginSuite("PortReachabilityTests")
+    PortReachabilityTests.runAll()
+    TestRunner.beginSuite("AppCommandsTests")
+    AppCommandsTests.runAll()
 #endif
 TestRunner.beginSuite("TorrentIntegrationTests")
 TorrentIntegrationTests.runAll()
@@ -41,7 +41,8 @@ print("Superati:  \u{001B}[32m\(TestRunner.passed)\u{001B}[0m")
 print("Falliti:   \u{001B}[\(TestRunner.failed == 0 ? "32m0" : "31m\(TestRunner.failed)")\u{001B}[0m")
 print("Tempo:     \(elapsed)s")
 
-let reportPath = ProcessInfo.processInfo.environment["VERTEX_TEST_REPORT"]
+let reportPath =
+    ProcessInfo.processInfo.environment["VERTEX_TEST_REPORT"]
     ?? ".build/vertex-test-results.xml"
 do {
     try TestRunner.writeJUnit(to: URL(fileURLWithPath: reportPath))

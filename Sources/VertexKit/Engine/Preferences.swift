@@ -131,10 +131,11 @@ package enum Preferences {
 
         // Reject special ranges
         guard let first = Int(parts[0]),
-              let second = Int(parts[1]) else { return false }
-        if first == 0 { return false }                 // 0.0.0.0
-        if first == 127 { return false }               // 127.x loopback
-        if first == 169 && second == 254 { return false } // 169.254.x link-local
+            let second = Int(parts[1])
+        else { return false }
+        if first == 0 { return false }  // 0.0.0.0
+        if first == 127 { return false }  // 127.x loopback
+        if first == 169 && second == 254 { return false }  // 169.254.x link-local
 
         return true
     }
@@ -168,7 +169,8 @@ package enum Preferences {
     }
 
     package static var resumeDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Vertex/resume", isDirectory: true)
     }
@@ -335,7 +337,7 @@ package enum PrefDefault {
             PrefKey.proxyPort: proxyPort,
             PrefKey.proxyUser: proxyUser,
             PrefKey.proxyPassword: proxyPassword,
-            PrefKey.proxyPasswordInFile: proxyPasswordInFile
+            PrefKey.proxyPasswordInFile: proxyPasswordInFile,
         ]
     }
 }
@@ -495,8 +497,10 @@ extension TorrentEngine {
             downloadPath: Preferences.downloadPath,
             resumePath: Preferences.resumeDirectory.path,
             port: Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort)),
-            maxActive: Int32(min(max(defaults.integer(forKey: PrefKey.maxActiveTorrents), 0),
-                                 Preferences.maximumActiveTorrents)),
+            maxActive: Int32(
+                min(
+                    max(defaults.integer(forKey: PrefKey.maxActiveTorrents), 0),
+                    Preferences.maximumActiveTorrents)),
             downloadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.downloadLimitKB)),
             uploadLimit: Preferences.limitBytes(fromKB: defaults.integer(forKey: PrefKey.uploadLimitKB)),
             seedRatioLimit: Preferences.clampedSeedRatio(defaults.double(forKey: PrefKey.seedRatioLimit)),

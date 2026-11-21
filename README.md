@@ -350,6 +350,7 @@ both architectures.
 
 ```bash
 ./Scripts/check-toolchain.sh --warn  # local, non-canonical toolchains are allowed
+./Scripts/check-format.sh            # swift-format baseline
 ./build.sh debug
 ./build.sh test
 ./Scripts/run-sanitizers.sh thread   # suite under ThreadSanitizer

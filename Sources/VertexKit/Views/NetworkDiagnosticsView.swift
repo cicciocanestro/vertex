@@ -108,8 +108,10 @@ struct NetworkDiagnosticsView: View {
             statusCard(
                 title: "Nodi DHT",
                 value: dhtEnabled ? "\(engine.stats.dhtNodes)" : "—",
-                detail: L(!dhtEnabled ? "DHT disattivato"
-                    : (engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione")),
+                detail: L(
+                    !dhtEnabled
+                        ? "DHT disattivato"
+                        : (engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione")),
                 color: dhtEnabled
                     ? (engine.stats.dhtNodes > 0 ? Theme.blue : Theme.amber)
                     : palette.tertiary,
@@ -184,9 +186,13 @@ struct NetworkDiagnosticsView: View {
                             }
                         }
                         if hasError {
-                            Text(LF("Errore di connessione: %@. Il traffico è bloccato per prevenire leak.", engine.stats.proxy.localizedError))
-                                .font(Typography.microText)
-                                .foregroundStyle(palette.coralText)
+                            Text(
+                                LF(
+                                    "Errore di connessione: %@. Il traffico è bloccato per prevenire leak.",
+                                    engine.stats.proxy.localizedError)
+                            )
+                            .font(Typography.microText)
+                            .foregroundStyle(palette.coralText)
                         } else {
                             Text(L("Tutto il traffico verso tracker e peer è instradato via SOCKS5"))
                                 .font(Typography.microText)
@@ -222,10 +228,14 @@ struct NetworkDiagnosticsView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text(L("L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce."))
-                        .font(Typography.microText)
-                        .foregroundStyle(palette.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        L(
+                            "L'indirizzo associato non è utilizzabile: il tunnel è spento o l'interfaccia è cambiata. Vertex non ripiega sulle altre interfacce."
+                        )
+                    )
+                    .font(Typography.microText)
+                    .foregroundStyle(palette.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -290,7 +300,8 @@ struct NetworkDiagnosticsView: View {
         .vertexCard(palette, radius: 12)
 
         if !engine.stats.portmap.tcp.mapped && !engine.stats.portmap.udp.mapped
-            && !engine.stats.portmap.hasError {
+            && !engine.stats.portmap.hasError
+        {
             Text(L("Nessuna mappatura rilevata. Il router potrebbe avere UPnP/NAT-PMP disabilitato."))
                 .font(Typography.captionSmallText)
                 .foregroundStyle(palette.tertiary)
@@ -437,25 +448,39 @@ struct NetworkDiagnosticsView: View {
 
     private var testStateText: String {
         if engine.stats.isProxyActive {
-            return L("Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5.")
+            return L(
+                "Il test esterno di raggiungibilità non è applicabile quando il traffico passa attraverso il proxy SOCKS5."
+            )
         }
         switch tester.state {
         case .idle:
-            return L("Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test.")
+            return L(
+                "Verifica se la porta TCP è raggiungibile da Internet. L'IP pubblico viene inviato a check-host.net solo quando avvii il test."
+            )
         case .running:
             return L("Test in corso: attendo la risposta dei nodi esterni…")
         case .open(let open, let total):
             if total == 1 {
-                return LF("Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico.", open, total)
+                return LF(
+                    "Porta raggiungibile dal nodo esterno verificato (%ld su %ld). Il NAT/router inoltra correttamente il traffico.",
+                    open, total)
             }
             if open == 1 {
-                return LF("Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico.", open, total)
+                return LF(
+                    "Porta raggiungibile da %ld nodo esterno su %ld. Il NAT/router inoltra correttamente il traffico.",
+                    open, total)
             }
-            return LF("Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico.", open, total)
+            return LF(
+                "Porta raggiungibile da %ld nodi esterni su %ld. Il NAT/router inoltra correttamente il traffico.",
+                open, total)
         case .closed(let total):
             return total == 1
-                ? LF("Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router.", total)
-                : LF("Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.", total)
+                ? LF(
+                    "Nessun nodo esterno ha raggiunto la porta (%ld verificato). Controlla port forwarding, UPnP e firewall del router.",
+                    total)
+                : LF(
+                    "Nessuno dei %ld nodi esterni ha raggiunto la porta. Controlla port forwarding, UPnP e firewall del router.",
+                    total)
         case .failed(let message):
             return message
         }
@@ -489,12 +514,27 @@ struct NetworkDiagnosticsView: View {
             SectionLabel(text: "Se la porta risulta chiusa")
 
             if engine.stats.isBoundToAddress {
-                instruction(LF("Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.", engine.stats.bindAddress, engine.stats.effectivePort), palette)
-                instruction(L("Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta."), palette)
-                instruction(L("In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel."), palette)
+                instruction(
+                    LF(
+                        "Vertex è associato a %@: sul server pubblico inoltra TCP e UDP %ld verso questo indirizzo.",
+                        engine.stats.bindAddress, engine.stats.effectivePort), palette)
+                instruction(
+                    L(
+                        "Se l'indirizzo non compare più tra le interfacce, il tunnel è spento e Vertex non apre la porta."
+                    ), palette)
+                instruction(
+                    L(
+                        "In configurazioni split-tunneling, verifica che il test porta rifletta l'IP del gateway del tunnel."
+                    ), palette)
             } else {
-                instruction(LF("Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.", engine.stats.effectivePort, localIP.value), palette)
-                instruction(L("Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT."), palette)
+                instruction(
+                    LF(
+                        "Abilita UPnP/NAT-PMP nel router, oppure inoltra TCP e UDP %ld verso %@.",
+                        engine.stats.effectivePort, localIP.value), palette)
+                instruction(
+                    L(
+                        "Verifica che l'IP WAN del router coincida con l'IP pubblico: se è diverso potresti essere dietro CGNAT."
+                    ), palette)
             }
             instruction(L("Il test copre solo il TCP; il traffico UDP/uTP non è verificato."), palette)
         }

@@ -35,17 +35,25 @@ struct ProgressRing: View {
         case .downloading:
             return LinearGradient(colors: [Theme.mint, Theme.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .metadata:
-            return LinearGradient(colors: [Theme.amber, Theme.coral], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Theme.amber, Theme.coral], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .checking:
-            return LinearGradient(colors: [Theme.blue, Theme.violet], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Theme.blue, Theme.violet], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .seeding:
-            return LinearGradient(colors: [Theme.violet, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Theme.violet, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .completed, .completedPaused:
-            return LinearGradient(colors: [Theme.green, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Theme.green, Theme.mint], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .paused:
-            return LinearGradient(colors: [Color.primary.opacity(0.28), Color.primary.opacity(0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Color.primary.opacity(0.28), Color.primary.opacity(0.16)], startPoint: .topLeading,
+                endPoint: .bottomTrailing)
         case .queued:
-            return LinearGradient(colors: [Color.primary.opacity(0.22), Color.primary.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(
+                colors: [Color.primary.opacity(0.22), Color.primary.opacity(0.12)], startPoint: .topLeading,
+                endPoint: .bottomTrailing)
         }
     }
 
@@ -206,17 +214,20 @@ struct FilterChip: View {
                 Text(verbatim: "\(count)")
                     .font(Typography.microRoundedSemiboldText)
                     .monospacedDigit()
-                    .foregroundStyle(count == 0
-                        ? palette.tertiary
-                        : (selected ? palette.text : palette.secondary))
+                    .foregroundStyle(
+                        count == 0
+                            ? palette.tertiary
+                            : (selected ? palette.text : palette.secondary)
+                    )
                     .frame(minWidth: 18)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
                     .background(
                         Capsule()
-                            .fill(selected
-                                  ? Theme.mint.opacity(0.2)
-                                  : Color.primary.opacity(count > 0 ? 0.07 : 0.035))
+                            .fill(
+                                selected
+                                    ? Theme.mint.opacity(0.2)
+                                    : Color.primary.opacity(count > 0 ? 0.07 : 0.035))
                     )
             }
             .font(Typography.chipLabelText(selected: selected))
@@ -226,9 +237,10 @@ struct FilterChip: View {
             .frame(minHeight: 27)
             .background(
                 Capsule()
-                    .fill(selected
-                          ? Theme.mint.opacity(scheme == .dark ? 0.13 : 0.18)
-                          : (hover.value ? palette.input : (scheme == .dark ? .clear : palette.card.opacity(0.6))))
+                    .fill(
+                        selected
+                            ? Theme.mint.opacity(scheme == .dark ? 0.13 : 0.18)
+                            : (hover.value ? palette.input : (scheme == .dark ? .clear : palette.card.opacity(0.6))))
             )
             .overlay(
                 Capsule()

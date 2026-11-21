@@ -20,25 +20,25 @@ package struct SessionOperationOutcome: Sendable {
 /// the actor itself, and the heavy work (resume directory, Keychain validation,
 /// JSON decoding) happens off the main actor.
 #if DEBUG
-/// Sendable carrier for the test pointer: an `OpaquePointer` is not Sendable,
-/// and Swift 6.1 rejects reading one across isolation even with
-/// `nonisolated(unsafe)`. The box is safe because the bridge serializes every
-/// entry point with its own mutex.
-package final class TestSessionBox: @unchecked Sendable {
-    package let value: OpaquePointer?
+    /// Sendable carrier for the test pointer: an `OpaquePointer` is not Sendable,
+    /// and Swift 6.1 rejects reading one across isolation even with
+    /// `nonisolated(unsafe)`. The box is safe because the bridge serializes every
+    /// entry point with its own mutex.
+    package final class TestSessionBox: @unchecked Sendable {
+        package let value: OpaquePointer?
 
-    package init(_ value: OpaquePointer?) {
-        self.value = value
+        package init(_ value: OpaquePointer?) {
+            self.value = value
+        }
     }
-}
 #endif
 
 package actor SessionController {
     private var pointer: OpaquePointer?
 
     #if DEBUG
-    /// Read-only alias for the synchronous test helpers.
-    nonisolated let testPointerBox: TestSessionBox
+        /// Read-only alias for the synchronous test helpers.
+        nonisolated let testPointerBox: TestSessionBox
     #endif
 
     /// Whether the initial session was created. Readable synchronously by the
@@ -49,7 +49,7 @@ package actor SessionController {
         pointer = nil
         started = false
         #if DEBUG
-        testPointerBox = TestSessionBox(nil)
+            testPointerBox = TestSessionBox(nil)
         #endif
     }
 
@@ -57,12 +57,12 @@ package actor SessionController {
     /// must run on the caller's thread there, and no pointer crosses an
     /// isolation boundary.
     #if DEBUG
-    package init(configuration: SessionConfiguration) {
-        let creation = Self.makeSession(configuration)
-        pointer = creation.pointer
-        started = creation.pointer != nil
-        testPointerBox = TestSessionBox(creation.pointer)
-    }
+        package init(configuration: SessionConfiguration) {
+            let creation = Self.makeSession(configuration)
+            pointer = creation.pointer
+            started = creation.pointer != nil
+            testPointerBox = TestSessionBox(creation.pointer)
+        }
     #endif
 
     package var isActive: Bool { pointer != nil }

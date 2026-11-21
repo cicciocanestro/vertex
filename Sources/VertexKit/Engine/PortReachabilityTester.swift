@@ -97,7 +97,8 @@ final class PortReachabilityTester: ObservableObject {
                 lastCompleted = completed
 
                 if completed == expectedNodes.count {
-                    state = open > 0
+                    state =
+                        open > 0
                         ? .open(openNodes: open, totalNodes: completed)
                         : .closed(totalNodes: completed)
                     return
@@ -105,7 +106,8 @@ final class PortReachabilityTester: ObservableObject {
             }
 
             if lastCompleted > 0 {
-                state = lastOpen > 0
+                state =
+                    lastOpen > 0
                     ? .open(openNodes: lastOpen, totalNodes: lastCompleted)
                     : .closed(totalNodes: lastCompleted)
             } else {
@@ -144,7 +146,7 @@ final class PortReachabilityTester: ObservableObject {
         var components = URLComponents(string: "https://check-host.net/check-tcp")
         components?.queryItems = [
             URLQueryItem(name: "host", value: "\(ip):\(port)"),
-            URLQueryItem(name: "max_nodes", value: "3")
+            URLQueryItem(name: "max_nodes", value: "3"),
         ]
         guard let url = components?.url else {
             throw TestError(L("Impossibile preparare il test esterno."))
@@ -159,9 +161,10 @@ final class PortReachabilityTester: ObservableObject {
         try validate(response)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              (root["ok"] as? Int) == 1,
-              let requestID = root["request_id"] as? String,
-              let nodes = root["nodes"] as? [String: Any] else {
+            (root["ok"] as? Int) == 1,
+            let requestID = root["request_id"] as? String,
+            let nodes = root["nodes"] as? [String: Any]
+        else {
             throw TestError(L("Il servizio di test ha restituito una risposta non valida."))
         }
 
@@ -173,8 +176,9 @@ final class PortReachabilityTester: ObservableObject {
             charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
         )
         guard !requestID.isEmpty,
-              let encoded = requestID.addingPercentEncoding(withAllowedCharacters: allowed),
-              let url = URL(string: "https://check-host.net/check-result/\(encoded)") else {
+            let encoded = requestID.addingPercentEncoding(withAllowedCharacters: allowed),
+            let url = URL(string: "https://check-host.net/check-result/\(encoded)")
+        else {
             throw TestError(L("Risposta del test non valida."))
         }
         return url
@@ -199,7 +203,8 @@ final class PortReachabilityTester: ObservableObject {
 
     private func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else {
+            (200..<300).contains(http.statusCode)
+        else {
             throw TestError(L("Il servizio di test non è raggiungibile."))
         }
     }

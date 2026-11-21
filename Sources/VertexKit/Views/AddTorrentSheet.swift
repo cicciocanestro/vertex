@@ -438,7 +438,8 @@ struct AddTorrentSheet: View {
 
     private func fileSize(_ url: URL) -> Int64? {
         guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
-              let size = values.fileSize else { return nil }
+            let size = values.fileSize
+        else { return nil }
         return Int64(size)
     }
 }

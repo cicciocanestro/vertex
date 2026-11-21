@@ -26,10 +26,12 @@ package enum ProxyPasswordStore {
     package static var fileURL: URL {
         // Test hook: the runner must never touch the user's real support folder.
         if let override = ProcessInfo.processInfo.environment["VERTEX_PROXY_PASSWORD_FILE"],
-           !override.isEmpty {
+            !override.isEmpty
+        {
             return URL(fileURLWithPath: override)
         }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Vertex/proxy-password")
     }
