@@ -500,11 +500,15 @@
             engine.hasLoadedSnapshot = true
             engine.pollState = originalState
 
-            engine.toast = ToastMessage(kind: .success, text: "Download completato")
+            engine.toast = ToastMessage(kind: .success, text: L("Download completato"))
             results["RootView.toastSuccess"] = render(
                 RootView(engine: engine), width: 1180, height: 760
             )
-            engine.toast = ToastMessage(kind: .error, text: "Errore", detail: "dettaglio")
+            engine.toast = ToastMessage(
+                kind: .error,
+                text: L("Errore sconosciuto"),
+                detail: L("Errore sconosciuto")
+            )
             results["RootView.toastError"] = render(
                 RootView(engine: engine), width: 1180, height: 760
             )
