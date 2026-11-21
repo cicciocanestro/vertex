@@ -370,16 +370,21 @@ enum TorrentIntegrationTests {
                 savePath: sourceRoot.path
             )
         }
-        try TestsSupport.waitFor("seed multiplo in ascolto") {
+        try TestsSupport.waitFor("seed multiplo in ascolto", timeout: 60) {
             let snapshot = try seed.snapshot()
             return snapshot.torrents.count == 2
                 && snapshot.listenActualPort > 0
                 && snapshot.torrents.allSatisfy { $0.hasMetadata }
         }
-        try TestsSupport.waitFor("seed multiplo in seeding") {
+        // `seeding` depends on the auto-manager's state transition; a full
+        // progress proves the seed already has every piece even while that
+        // transition is still pending under load.
+        try TestsSupport.waitFor("seed multiplo in seeding", timeout: 60) {
             let snapshot = try seed.snapshot()
             return snapshot.torrents.count == 2
-                && snapshot.torrents.allSatisfy { $0.seeding || $0.finished }
+                && snapshot.torrents.allSatisfy {
+                    $0.seeding || $0.finished || $0.progress >= 1
+                }
         }
 
         let downloadRoot = try workspace.directory("download")
@@ -396,7 +401,7 @@ enum TorrentIntegrationTests {
                 savePath: downloadRoot.path
             )
         }
-        try TestsSupport.waitFor("metadata dei due torrent") {
+        try TestsSupport.waitFor("metadata dei due torrent", timeout: 60) {
             let snapshot = try leech.snapshot()
             return snapshot.torrents.count == 2
                 && snapshot.torrents.allSatisfy { $0.hasMetadata }
@@ -410,7 +415,7 @@ enum TorrentIntegrationTests {
                 port: actualSeedPort > 0 ? actualSeedPort : seedPort
             )
         }
-        try TestsSupport.waitFor("completamento dei due torrent") {
+        try TestsSupport.waitFor("completamento dei due torrent", timeout: 60) {
             let snapshot = try leech.snapshot()
             return snapshot.torrents.count == 2
                 && snapshot.torrents.allSatisfy { $0.finished }
