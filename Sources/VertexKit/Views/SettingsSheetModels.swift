@@ -24,27 +24,7 @@ enum AppearanceOption: String, CaseIterable, Identifiable {
     }
 }
 
-/// Filters the settings rail by the localized section title. Case and
-/// diacritics are ignored so "rete" matches "Rete" on any keyboard.
-enum SettingsSearch {
-    static func matchingSections(
-        _ sections: [SettingsSection],
-        query: String
-    ) -> [SettingsSection] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return sections }
-        return sections.filter { section in
-            L(section.titleKey).range(
-                of: trimmed,
-                options: [.caseInsensitive, .diacriticInsensitive]
-            ) != nil
-        }
-    }
-}
-
-/// Sections of the settings sheet. The order is the same as the scroll content
-/// and drives the section index shown at the top, so a section that is below
-/// the fold (for example the SOCKS5 proxy) is always discoverable.
+/// Sections of the settings sheet.
 enum SettingsSection: String, CaseIterable, Identifiable {
     case folders
     case performance

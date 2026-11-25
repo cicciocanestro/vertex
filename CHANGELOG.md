@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.12] — 2026-11-25
+
+### English
+- **Compact modal proportions**: restored the centered `700×700` cap on **Settings** and `620×650` cap on **Network Diagnostics** so neither overlay stretches across the full window on wide screens while still shrinking cleanly on the minimum `900×640` window.
+- **Settings sidebar polish**: simplified the 7-item section rail by removing the redundant search field and extended the sidebar panel background seamlessly down to the footer.
+- **Homebrew 7 Cask fix**: `update-homebrew-tap.sh` now targets `{{appdir}}/Vertex.app` in `postflight_steps` instead of `base: :appdir`, fixing `xattr: No such file: Vertex.app` during `brew install`.
+
+### Italiano
+- **Proporzioni compatte delle modali**: ripristinato il limite centrato `700×700` per **Impostazioni** e `620×650` per **Diagnostica rete**, così i pannelli non si allargano più a tutta finestra sugli schermi ampi pur ridimensionandosi correttamente sulla finestra minima `900×640`.
+- **Rifinitura sidebar Impostazioni**: semplificata la colonna delle 7 sezioni rimuovendo il campo di ricerca ridondante ed esteso lo sfondo continuo della sidebar fino al footer.
+- **Correzione Cask per Homebrew 7**: `update-homebrew-tap.sh` usa ora `{{appdir}}/Vertex.app` in `postflight_steps` invece di `base: :appdir`, risolvendo l'errore `xattr: No such file: Vertex.app` durante `brew install`.
+
 ## [1.17.11] — 2026-11-25
 
 ### English

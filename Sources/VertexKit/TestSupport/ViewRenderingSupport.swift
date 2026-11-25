@@ -373,25 +373,43 @@
                 )
             }
 
-            results["SettingsSheet.searchProxy"] = render(
+            let defaults = UserDefaults.standard
+            let savedProxyEnabled = defaults.object(forKey: PrefKey.proxyEnabled)
+            let savedBindAddress = defaults.object(forKey: PrefKey.bindAddress)
+            defer {
+                if let savedProxyEnabled {
+                    defaults.set(savedProxyEnabled, forKey: PrefKey.proxyEnabled)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.proxyEnabled)
+                }
+                if let savedBindAddress {
+                    defaults.set(savedBindAddress, forKey: PrefKey.bindAddress)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.bindAddress)
+                }
+            }
+            defaults.set(true, forKey: PrefKey.proxyEnabled)
+            results["SettingsSheet.proxyExpanded"] = render(
                 SettingsSheet(
                     engine: engine,
-                    initialQuery: "proxy",
+                    initialSection: .proxy,
                     onClose: {},
                     onOpenDiagnostics: {}
                 ),
                 width: 700,
-                height: 540
+                height: 700
             )
-            results["SettingsSheet.searchNone"] = render(
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            defaults.set("10.8.0.2", forKey: PrefKey.bindAddress)
+            results["SettingsSheet.networkBound"] = render(
                 SettingsSheet(
                     engine: engine,
-                    initialQuery: "zzz",
+                    initialSection: .network,
                     onClose: {},
                     onOpenDiagnostics: {}
                 ),
                 width: 700,
-                height: 540
+                height: 700
             )
 
             results["AddTorrentSheetFile"] = render(

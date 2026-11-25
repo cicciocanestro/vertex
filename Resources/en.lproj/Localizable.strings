@@ -377,8 +377,6 @@
 "Mostra una notifica di macOS al termine di un download" = "Show a macOS notification when a download finishes";
 "Richiede un bundle firmato con Developer ID" = "Requires a Developer ID signed bundle";
 
-"Nessuna sezione" = "No settings";
-
 "Non configurato" = "Not configured";
 
 "In attesa" = "Waiting";

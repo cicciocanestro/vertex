@@ -77,7 +77,14 @@ struct NetworkDiagnosticsView: View {
                 .keyboardShortcut(.cancelAction)
             }
         }
-        .frame(minWidth: 560, idealWidth: 620, minHeight: 480, idealHeight: 650)
+        .frame(
+            minWidth: 560,
+            idealWidth: 620,
+            maxWidth: 620,
+            minHeight: 480,
+            idealHeight: 650,
+            maxHeight: 650
+        )
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
         .onChange(of: testPort) { _, _ in tester.reset() }

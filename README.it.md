@@ -183,7 +183,6 @@ compila le dipendenze fissate in `Scripts/deps.env`; le build successive riusano
 
 - Cartella di download, limiti globali di velocità, porta di ascolto, DHT, PEX, LSD,
   UPnP/NAT-PMP.
-- Un campo di ricerca nel rail filtra le sezioni per titolo, ignorando maiuscole e accenti.
 - **Densità elenco**: righe Comode o Compatte, persistite tra un avvio e l'altro.
 - **Proxy SOCKS5**: attiva e configura un proxy anonimo (host, porta e credenziali opzionali
   RFC 1929). Le credenziali vengono inviate quando il campo **Utente** è compilato: in quel
@@ -379,7 +378,7 @@ solo arm64; una release universale richiede dipendenze per entrambe le architett
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
 soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
 di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
-(115 test) copre formattatori, decodifica snapshot JSON,
+(114 test) copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, tabelle GeoIP offline (IPv4 e IPv6), ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto

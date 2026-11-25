@@ -4,9 +4,16 @@ extension SettingsSheet {
     var body: some View {
         let palette = Palette(scheme: scheme)
         return settingsContainer(palette)
-            // Minimum sizes let the sheet grow with Dynamic Type instead of
-            // clipping the sidebar and the footer at large text sizes.
-            .frame(minWidth: 640, idealWidth: 700, minHeight: 440, idealHeight: 540)
+            // Bounded to the compact 700×700 card proportions of 1.10.0 while
+            // still shrinking vertically on the minimum 900×640 window.
+            .frame(
+                minWidth: 640,
+                idealWidth: 700,
+                maxWidth: 700,
+                minHeight: 480,
+                idealHeight: 700,
+                maxHeight: 700
+            )
             .modifier(
                 SettingsSheetEventHandlers(
                     onAppearAction: handleOnAppear,
@@ -69,13 +76,14 @@ extension SettingsSheet {
 
     func settingsBody(_ palette: Palette) -> some View {
         HStack(spacing: 0) {
-            // The rail scrolls: at accessibility text sizes seven rows no longer
-            // fit the sheet height and used to run under the footer.
+            // The rail scrolls at large accessibility text sizes while keeping
+            // the continuous panel background all the way down to the footer.
             ScrollView(.vertical) {
                 settingsSidebar(palette)
             }
             .scrollIndicators(.automatic)
-            .frame(minWidth: 168, idealWidth: 176, maxWidth: 210)
+            .frame(minWidth: 168, idealWidth: 172, maxWidth: 188, maxHeight: .infinity)
+            .background(palette.panel)
 
             Hairline(palette: palette, axis: .vertical)
 
@@ -380,86 +388,49 @@ extension SettingsSheet {
         }
     }
 
-    /// Vertical section rail. It replaces the horizontal index: every section
-    /// is always one click away and only the selected pane is rendered.
+    /// Vertical section rail. Every section is always one click away and only
+    /// the selected pane is rendered.
     func settingsSidebar(_ palette: Palette) -> some View {
-        let matches = SettingsSearch.matchingSections(
-            SettingsSection.allCases,
-            query: sectionQuery.value
-        )
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(Typography.smallText)
-                    .foregroundStyle(palette.tertiary)
-                TextField(L("Cerca"), text: $sectionQuery.value)
-                    .textFieldStyle(.plain)
-                    .font(Typography.smallText)
-            }
-            .padding(.horizontal, 8)
-            .frame(minHeight: 26)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(palette.input)
-            )
-            .padding(.bottom, 6)
-
-            if matches.isEmpty {
-                Text(L("Nessuna sezione"))
-                    .font(Typography.captionSmallText)
-                    .foregroundStyle(palette.tertiary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-            } else {
-                ForEach(matches) { item in
-                    let selected = selectedSection.value == item
-                    Button {
-                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
-                            selectedSection.value = item
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: item.icon)
-                                .font(Typography.smallSemiboldText)
-                                .frame(width: 16)
-                            Text(L(item.titleKey))
-                                .font(Typography.sidebarItemText(selected: selected))
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                        }
-                        .foregroundStyle(selected ? palette.text : palette.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .frame(minHeight: 30)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(
-                                    selected
-                                        ? Theme.mint.opacity(scheme == .dark ? 0.16 : 0.2)
-                                        : Color.clear)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(SettingsSection.allCases) { item in
+                let selected = selectedSection.value == item
+                Button {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+                        selectedSection.value = item
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text(L(item.titleKey)))
-                    .accessibilityAddTraits(selected ? .isSelected : [])
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: item.icon)
+                            .font(Typography.smallSemiboldText)
+                            .frame(width: 16)
+                        Text(L(item.titleKey))
+                            .font(Typography.sidebarItemText(selected: selected))
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(selected ? palette.text : palette.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .frame(minHeight: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(
+                                selected
+                                    ? Theme.mint.opacity(scheme == .dark ? 0.16 : 0.2)
+                                    : Color.clear)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(L(item.titleKey)))
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
             Spacer(minLength: 0)
         }
-        .onChange(of: sectionQuery.value) { _, query in
-            let updated = SettingsSearch.matchingSections(
-                SettingsSection.allCases,
-                query: query
-            )
-            if !updated.contains(selectedSection.value), let first = updated.first {
-                selectedSection.value = first
-            }
-        }
         .padding(.horizontal, 8)
         .padding(.top, 8)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(palette.panel)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     func destinationRow(_ palette: Palette) -> some View {

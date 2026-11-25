@@ -178,7 +178,6 @@ the pinned engine dependencies from `Scripts/deps.env`; later builds reuse
 ### Settings
 
 - Download folder, global speed limits, listening port, DHT, PEX, LSD, UPnP/NAT-PMP.
-- A search field in the rail filters sections by title, ignoring case and accents.
 - **List density**: Comfortable or Compact rows, persisted across launches.
 - **SOCKS5 proxy**: toggle and configure an anonymous proxy (host, port, and optional RFC 1929
   user/password). Credentials are sent when the **Username** field is filled in: the bridge
@@ -374,7 +373,7 @@ release requires dependencies for both architectures.
 LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
 floor, runs the suite under ThreadSanitizer and AddressSanitizer, and fuzzes the JSON
 escaping and UTF-8 validation used by the snapshot on every non-tag build. The suite
-(115 tests) covers formatters, snapshot JSON decoding, models, preferences,
+(114 tests) covers formatters, snapshot JSON decoding, models, preferences,
 the offline GeoIP tables (IPv4 and IPv6), the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command

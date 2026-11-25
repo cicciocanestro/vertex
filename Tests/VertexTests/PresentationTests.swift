@@ -65,28 +65,6 @@
                 )
             }
 
-            TestRunner.run("Presentation: ricerca nelle impostazioni") {
-                try TestRunner.assertEqual(
-                    SettingsSearch.matchingSections(SettingsSection.allCases, query: ""),
-                    SettingsSection.allCases,
-                    "Una ricerca vuota mostra tutte le sezioni"
-                )
-                try TestRunner.assertEqual(
-                    SettingsSearch.matchingSections(SettingsSection.allCases, query: "proxy"),
-                    [.proxy]
-                )
-                try TestRunner.assertEqual(
-                    SettingsSearch.matchingSections(SettingsSection.allCases, query: "  PROXY  "),
-                    [.proxy],
-                    "Spazi e maiuscole non devono contare"
-                )
-                try TestRunner.assertEqual(
-                    SettingsSearch.matchingSections(SettingsSection.allCases, query: "zzz"),
-                    [],
-                    "Una ricerca senza corrispondenze non deve restituire sezioni"
-                )
-            }
-
             TestRunner.run("Presentation: checklist diagnostica") {
                 var stats = SessionStats(
                     port: 6881,
