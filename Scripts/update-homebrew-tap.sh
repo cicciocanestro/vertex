@@ -23,6 +23,7 @@ if [ -z "$TAG" ]; then
     TAG="v${VERSION}"
 else
     VERSION="${TAG#v}"
+    TAG="v${VERSION}"
 fi
 
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -93,8 +94,7 @@ cask "vertex" do
 
   postflight_steps do
     run "/usr/bin/xattr",
-        args: ["-dr", "com.apple.quarantine", "Vertex.app"],
-        base: :appdir
+        args: ["-dr", "com.apple.quarantine", "{{appdir}}/Vertex.app"]
   end
 
   zap trash: [
