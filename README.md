@@ -225,7 +225,7 @@ Vertex passes `listen_interfaces = "<bound_ipv4>:<port>"` and
   available again or the user changes the setting.
 
 > *Note: This describes Vertex's socket-binding behavior (`listen_interfaces` /
-> `outgoing_interfaces` in libtorrent 2.1.2) and how to verify it; as stated in the MIT
+> `outgoing_interfaces` in libtorrent 2.1.3) and how to verify it; as stated in the MIT
 > license, the software is provided "as is" without warranty.*
 
 #### Reproducible disconnect test (manual, with WireGuard)

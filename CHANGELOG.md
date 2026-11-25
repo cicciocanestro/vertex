@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.17.13] — 2026-11-25
+
+### English
+- **Engine upgrade to libtorrent 2.1.3**: updated the pinned BitTorrent engine with critical memory-safety and stability fixes, resolving use-after-free conditions in `pread_disk_io` and UPnP HTTP parsing, out-of-bounds writes in alert/handle management, web seed SSRF bypasses over IPv6, HTTP redirect vulnerabilities, IPv6 DHT flooding, and disk cache hash reuse during `force_recheck`.
+- **Packaging and licenses**: updated CycloneDX SBOM, third-party notices and bundled license metadata for libtorrent-rasterbar 2.1.3.
+
+### Italiano
+- **Aggiornamento motore a libtorrent 2.1.3**: aggiornato il motore BitTorrent incorporato con importanti correzioni di sicurezza della memoria e stabilità, risolvendo condizioni di use-after-free in `pread_disk_io` e nel parsing HTTP UPnP, scritture fuori limite nella gestione di alert e handle, bypass SSRF per i web seed su IPv6, vulnerabilità nei redirect HTTP, flooding DHT su IPv6 e riuso di hash obsoleti della cache durante `force_recheck`.
+- **Packaging e licenze**: aggiornati CycloneDX SBOM, note sulle terze parti e metadati delle licenze incluse per libtorrent-rasterbar 2.1.3.
+
 ## [1.17.12] — 2026-11-25
 
 ### English

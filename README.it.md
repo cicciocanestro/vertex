@@ -230,7 +230,7 @@ e `outgoing_interfaces = "<ipv4_associato>"`:
   l'indirizzo del tunnel non torna attivo o l'impostazione non viene cambiata manualmente.
 
 > *Nota: quanto sopra descrive il comportamento di binding dei socket di Vertex
-> (`listen_interfaces` / `outgoing_interfaces` in libtorrent 2.1.2) e come verificarlo; come
+> (`listen_interfaces` / `outgoing_interfaces` in libtorrent 2.1.3) e come verificarlo; come
 > previsto dalla licenza MIT, il software è fornito "così com'è" ("as is"), senza garanzie.*
 
 #### Test di disconnessione riproducibile (manuale, con WireGuard)

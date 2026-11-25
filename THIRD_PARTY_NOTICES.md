@@ -8,7 +8,7 @@
 
 Vertex bundles the following third-party libraries in the application bundle.
 
-### libtorrent-rasterbar 2.1.2
+### libtorrent-rasterbar 2.1.3
 
 - License: BSD 3-Clause
 - Copyright: © 2003–2020 Arvid Norberg and contributors
@@ -50,7 +50,7 @@ accessible from the **Vertex → Open source licenses** menu.
 
 Vertex include nel bundle applicativo le seguenti librerie di terze parti.
 
-### libtorrent-rasterbar 2.1.2
+### libtorrent-rasterbar 2.1.3
 
 - Licenza: BSD 3-Clause
 - Copyright: © 2003–2020 Arvid Norberg e contributori

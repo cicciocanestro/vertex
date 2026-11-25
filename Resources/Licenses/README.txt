@@ -5,7 +5,7 @@ Vertex — licenze del software incluso / Bundled software licenses
 Vertex è distribuito con licenza MIT (Vertex-MIT.txt).
 
 Librerie e dati di terze parti inclusi nel bundle:
-- libtorrent-rasterbar 2.1.2 — BSD 3-Clause (libtorrent-BSD-3-Clause.txt)
+- libtorrent-rasterbar 2.1.3 — BSD 3-Clause (libtorrent-BSD-3-Clause.txt)
 - OpenSSL 3.5.9 — Apache License 2.0 (openssl-Apache-2.0.txt)
 - DB-IP "IP to Country Lite" 2026-11 — CC BY 4.0 (DB-IP-Lite.txt)
 
@@ -21,7 +21,7 @@ e non sono inclusi nell'app.
 Vertex is distributed under the MIT license (Vertex-MIT.txt).
 
 Third-party libraries and datasets bundled with the application:
-- libtorrent-rasterbar 2.1.2 — BSD 3-Clause (libtorrent-BSD-3-Clause.txt)
+- libtorrent-rasterbar 2.1.3 — BSD 3-Clause (libtorrent-BSD-3-Clause.txt)
 - OpenSSL 3.5.9 — Apache License 2.0 (openssl-Apache-2.0.txt)
 - DB-IP "IP to Country Lite" 2026-11 — CC BY 4.0 (DB-IP-Lite.txt)
 
