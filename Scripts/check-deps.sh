@@ -24,28 +24,32 @@ done
 
 failed=0
 
+TMP_RESP="$(mktemp "${TMPDIR:-/tmp}/vertex-osv.XXXXXX")"
+trap 'rm -f "${TMP_RESP:?}"' EXIT
+
 query() {
     local label="$1" payload="$2"
-    local response summary status
-    if ! response=$(curl -fsS --max-time 20 \
+    local summary status
+    if ! curl -fsS --max-time 20 \
         --proto '=https' --proto-redir '=https' --tlsv1.2 \
         -X POST https://api.osv.dev/v1/query \
         -H 'Content-Type: application/json' \
-        --data-binary "$payload"); then
+        --data-binary "$payload" \
+        -o "$TMP_RESP"; then
         echo "✗ $label: query OSV fallita" >&2
         failed=1
         return
     fi
 
     status=0
-    summary=$(python3 - "$label" "${VERTEX_DEPS_VERBOSE:-0}" <<<"$response" <<'PY'
+    summary=$(python3 - "$label" "${VERTEX_DEPS_VERBOSE:-0}" "$TMP_RESP" <<'PY'
 import json
-import re
 import sys
 
 label = sys.argv[1]
 verbose = sys.argv[2] == "1"
-raw = sys.stdin.read()
+with open(sys.argv[3], "r", encoding="utf-8") as fh:
+    raw = fh.read()
 doc = json.loads(raw or "{}")
 vulns = doc.get("vulns") or []
 if not vulns:
