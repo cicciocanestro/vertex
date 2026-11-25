@@ -16,10 +16,10 @@ Questo documento elenca cosa protegge, da chi e cosa resta fuori perimetro.
 | Avversario | Capacità | Mitigazione |
 |---|---|---|
 | Peer malevoli nel swarm | Inviano messaggi BEP malformati, nomi con escape, metadati enormi | Parsing libtorrent, limiti sul `.resume`, escaping JSON nel bridge |
-| Rete locale / ISP | Osserva connessioni in chiaro | Il proxy SOCKS5 è **fail-closed**: senza host la sessione non parte, non c'è fallback silenzioso |
-| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale creato `0600` in una cartella forzata a `0700` anche se preesistente. La lettura usa `O_NOFOLLOW`, `fstat` e `fchmod` sul descrittore: un symlink viene ignorato e il file puntato non viene né letto né modificato; dichiarato non cifrato |
+| Rete locale / ISP | Osserva connessioni in chiaro | Il proxy SOCKS5 è **fail-closed**: senza host la sessione non parte, non c'è fallback silenzioso; con il proxy attivo DHT e UPnP/NAT-PMP sono disattivati e un eventuale `bindAddress` assente blocca la sessione |
+| Processo locale non privilegiato | Legge file nella home | Password in Portachiavi per default; file opzionale creato `0600` in una cartella forzata a `0700` anche se preesistente (con `O_DIRECTORY\|O_NOFOLLOW` + `fchmod`). La lettura usa `O_NOFOLLOW`, `fstat` e `fchmod` sul descrittore: un symlink viene ignorato e il file puntato non viene né letto né modificato; dichiarato non cifrato |
 | Sito che distribuisce il DMG | Sostituisce il binario | Firma (ad-hoc o self-signed) + checksum SHA-256 pubblicato + Cask che rimuove la quarantena |
-| Malware con accesso alla sessione utente | Modifica i file di resume | `fsync` su file e directory prima della rinomina atomica; i file corrotti vengono messi in quarantena `.bad`; i symlink `.resume` non vengono enumerati (`symlink_status`) |
+| Malware con accesso alla sessione utente | Modifica i file di resume | Scrittura con `open(O_NOFOLLOW, 0600)` + `fchmod` + `fsync` su file e directory prima della rinomina atomica; lettura con `O_NOFOLLOW` e tetto 10 MiB; i file corrotti o non caricabili vengono messi in quarantena `.bad`; i symlink `.resume` non vengono né enumerati (`symlink_status`) né seguiti |
 
 ## Fuori perimetro (accettato)
 
@@ -43,8 +43,9 @@ Questo documento elenca cosa protegge, da chi e cosa resta fuori perimetro.
 - **GeoIP offline**: le tabelle IPv4 e IPv6 sono incluse nel bundle; la lookup
   non contatta nessun servizio, nessun IP di peer lascia la macchina. Un IP non
   presente nelle tabelle mostra la bandiera generica.
-- **DHT e tracker sono visibili al primo salto**: il proxy li copre quando è
-  attivo, ma un utente che lo disattiva accetta di esporre il proprio IP.
+- **DHT e tracker sono visibili al primo salto senza proxy**: quando il proxy è
+  attivo, i tracker passano dal proxy e la DHT è disattivata per evitare query DNS di
+  bootstrap in chiaro; un utente che disattiva il proxy accetta di esporre il proprio IP.
 
 ## Regole di verifica
 

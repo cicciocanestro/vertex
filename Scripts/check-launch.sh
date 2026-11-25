@@ -26,8 +26,27 @@ if grep -q "flags=.*runtime" <<<"$SIGNATURE" && grep -q "TeamIdentifier=not set"
 fi
 
 LOG="$(mktemp -t vertex-launch)"
-trap 'rm -f "$LOG"' EXIT
+FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vertex-launch-home.XXXXXX")"
+PID=""
+cleanup() {
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        kill "$PID" 2>/dev/null || true
+        for _ in $(seq 1 8); do
+            kill -0 "$PID" 2>/dev/null || break
+            sleep 0.25
+        done
+        kill -9 "$PID" 2>/dev/null || true
+        wait "$PID" 2>/dev/null || true
+    fi
+    rm -rf "$LOG" "$FAKE_HOME"
+}
+trap cleanup EXIT INT TERM
 
+# Isolate HOME and disable Keychain/notifications so running the smoke test
+# locally never touches the user's real resume folder or login Keychain.
+HOME="$FAKE_HOME" \
+VERTEX_KEYCHAIN_DISABLED=1 \
+VERTEX_NOTIFICATIONS_DISABLED=1 \
 "$BIN" >"$LOG" 2>&1 &
 PID=$!
 
@@ -36,6 +55,7 @@ for _ in $(seq 1 20); do
     if ! kill -0 "$PID" 2>/dev/null; then
         STATUS=0
         wait "$PID" || STATUS=$?
+        PID=""
         echo "✗ L'app è uscita durante l'avvio (status $STATUS)" >&2
         sed -n '1,40p' "$LOG" >&2
         exit 1
@@ -45,16 +65,7 @@ done
 if grep -Eq "Library not loaded|different Team IDs|code signature invalid|dyld:" "$LOG"; then
     echo "✗ Errori dyld nel log di avvio:" >&2
     grep -E "Library not loaded|different Team IDs|code signature invalid|dyld:" "$LOG" >&2
-    kill "$PID" 2>/dev/null || true
     exit 1
 fi
-
-kill "$PID" 2>/dev/null || true
-for _ in $(seq 1 8); do
-    kill -0 "$PID" 2>/dev/null || break
-    sleep 0.25
-done
-kill -9 "$PID" 2>/dev/null || true
-wait "$PID" 2>/dev/null || true
 
 echo "✓ L'app resta in esecuzione dopo 5 s"

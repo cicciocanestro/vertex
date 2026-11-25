@@ -96,6 +96,7 @@ struct SettingsSheetEventHandlers: ViewModifier {
 struct SettingsSheetChangeHandlers: ViewModifier {
     let engine: TorrentEngine
     @ObservedObject var proxyPasswordValue: UIState<String>
+    @ObservedObject var suppressNextPasswordSave: UIState<Bool>
     let scheduleSave: () -> Void
 
     @AppStorage(PrefKey.downloadLimitKB) var downloadLimitKB = PrefDefault.downloadLimitKB
@@ -142,14 +143,24 @@ struct SettingsSheetChangeHandlers: ViewModifier {
             v2
             .onChange(of: proxyEnabled) { _, enabled in
                 if enabled, proxyPasswordValue.value.isEmpty {
-                    proxyPasswordValue.value = Preferences.proxyPassword
+                    let cached = Preferences.proxyPassword
+                    if !cached.isEmpty {
+                        suppressNextPasswordSave.value = true
+                        proxyPasswordValue.value = cached
+                    }
                 }
                 engine.applySettingsNow()
             }
             .onChange(of: proxyHost) { engine.applySettingsSoon() }
             .onChange(of: proxyPort) { engine.applySettingsSoon() }
             .onChange(of: proxyUser) { engine.applySettingsSoon() }
-            .onChange(of: proxyPasswordValue.value) { scheduleSave() }
+            .onChange(of: proxyPasswordValue.value) {
+                if suppressNextPasswordSave.value {
+                    suppressNextPasswordSave.value = false
+                    return
+                }
+                scheduleSave()
+            }
             .onChange(of: appearanceRaw) { AppAppearance.apply() }
     }
 }

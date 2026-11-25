@@ -15,10 +15,11 @@ enum BridgeFuzzTests {
             let download = try workspace.directory("downloads")
             let resume = try workspace.directory("resume")
 
+            let port = Int32(try TestsSupport.freeTCPPort())
             let session = download.path.withCString { downloadPath in
                 resume.path.withCString { resumePath in
                     vt_session_create_full(
-                        downloadPath, resumePath, 6888,
+                        downloadPath, resumePath, port,
                         0, 0, 0, 0, 0, 0, nil, nil
                     )
                 }

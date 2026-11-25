@@ -36,6 +36,8 @@ struct AddTorrentSheet: View {
     @StateObject private var mode = UIState<AddTorrentMode>(.magnet)
     @StateObject private var magnet = UIState("")
     @StateObject private var fileURL = UIState<URL?>(nil)
+    @StateObject private var selectedFileSize = UIState<Int64?>(nil)
+    @StateObject private var isSubmitting = UIState(false)
     @StateObject private var errorMessage = UIState<String?>(nil)
     @StateObject private var dropTargeted = UIState(false)
 
@@ -116,7 +118,7 @@ struct AddTorrentSheet: View {
                     VStack(spacing: 8) {
                         Image(systemName: "arrow.down.doc.fill")
                             .font(Typography.iconLarge)
-                            .foregroundStyle(Theme.mint)
+                            .foregroundStyle(palette.mintText)
                         Text(L("Rilascia per aggiungere"))
                             .font(Typography.bodyLargeSemiboldText)
                             .foregroundStyle(palette.text)
@@ -255,7 +257,7 @@ struct AddTorrentSheet: View {
             if let fileURL = fileURL.value {
                 Image(systemName: "doc.fill")
                     .font(Typography.iconDoc)
-                    .foregroundStyle(Theme.mint)
+                    .foregroundStyle(palette.mintText)
 
                 Text(fileURL.lastPathComponent)
                     .font(Typography.bodyLargeSemiboldText)
@@ -270,7 +272,7 @@ struct AddTorrentSheet: View {
                     }
                     .buttonStyle(SmallButtonStyle())
 
-                    if let size = fileSize(fileURL) {
+                    if let size = selectedFileSize.value {
                         Text(Fmt.bytes(size))
                             .font(Typography.microRoundedText)
                             .foregroundStyle(palette.tertiary)
@@ -279,7 +281,7 @@ struct AddTorrentSheet: View {
             } else {
                 Image(systemName: dropTargeted.value ? "arrow.down.doc.fill" : "arrow.down.doc")
                     .font(Typography.iconSmall)
-                    .foregroundStyle(dropTargeted.value ? Theme.mint : palette.secondary)
+                    .foregroundStyle(dropTargeted.value ? palette.mintText : palette.secondary)
 
                 Text(L("Trascina qui un file .torrent"))
                     .font(Typography.bodyLargeMediumText)
@@ -311,7 +313,7 @@ struct AddTorrentSheet: View {
         HStack(spacing: 10) {
             Image(systemName: "folder")
                 .font(Typography.bodyLargeMediumText)
-                .foregroundStyle(Theme.mint)
+                .foregroundStyle(palette.mintText)
 
             VStack(alignment: .leading, spacing: 2) {
                 SectionLabel(text: "Cartella per questo torrent")
@@ -350,6 +352,7 @@ struct AddTorrentSheet: View {
     }
 
     private var canAdd: Bool {
+        guard !isSubmitting.value else { return false }
         switch mode.value {
         case .magnet:
             let value = magnet.value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -360,9 +363,11 @@ struct AddTorrentSheet: View {
     }
 
     private func add() {
+        guard !isSubmitting.value else { return }
         errorMessage.value = nil
         switch mode.value {
         case .magnet:
+            isSubmitting.value = true
             engine.addMagnet(
                 magnet.value,
                 destination: downloadPath.value,
@@ -372,6 +377,7 @@ struct AddTorrentSheet: View {
             )
         case .file:
             guard let url = fileURL.value else { return }
+            isSubmitting.value = true
             engine.addTorrentFile(
                 url,
                 destination: downloadPath.value,
@@ -386,6 +392,7 @@ struct AddTorrentSheet: View {
     /// The bridge call is asynchronous (it must not block the UI), so closing on
     /// the return value of `add()` would hide a failure such as a duplicate.
     private func finishAdd(_ failure: String?) {
+        isSubmitting.value = false
         if let failure {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
                 errorMessage.value = failure
@@ -395,13 +402,29 @@ struct AddTorrentSheet: View {
         }
     }
 
+    private func selectFile(_ url: URL) {
+        fileURL.value = url
+        selectedFileSize.value = nil
+        errorMessage.value = nil
+        let targetState = selectedFileSize
+        let selectedURL = url
+        let fileURLState = fileURL
+        Task.detached(priority: .utility) {
+            let size = Self.readFileSize(selectedURL)
+            await MainActor.run {
+                if fileURLState.value == selectedURL {
+                    targetState.value = size
+                }
+            }
+        }
+    }
+
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
         TorrentDropHandler.handle(providers) { item in
             switch item {
             case .torrent(let url):
-                fileURL.value = url
                 mode.value = .file
-                errorMessage.value = nil
+                selectFile(url)
             case .magnet(let text):
                 magnet.value = text
                 mode.value = .magnet
@@ -420,8 +443,7 @@ struct AddTorrentSheet: View {
             modal: true
         )
         if panel.runModal() == .OK, let url = panel.url {
-            fileURL.value = url
-            errorMessage.value = nil
+            selectFile(url)
         }
     }
 
@@ -436,7 +458,7 @@ struct AddTorrentSheet: View {
         }
     }
 
-    private func fileSize(_ url: URL) -> Int64? {
+    nonisolated private static func readFileSize(_ url: URL) -> Int64? {
         guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
             let size = values.fileSize
         else { return nil }

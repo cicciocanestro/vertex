@@ -83,12 +83,16 @@ struct EmptyStateView: View {
                         palette.strokeStrong,
                         style: StrokeStyle(lineWidth: 1, dash: [5, 4])
                     )
+                    .allowsHitTesting(false)
             )
             .padding(.top, 2)
 
             Button(action: onOpenSettings) {
                 Label(L("Apri impostazioni"), systemImage: "gearshape")
                     .font(Typography.smallMediumText)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(palette.secondary)
@@ -111,7 +115,7 @@ struct EmptyStateView: View {
                     .frame(width: 20, height: 20)
                 Text(verbatim: number)
                     .font(Typography.captionTinySemiboldText)
-                    .foregroundStyle(Theme.mint)
+                    .foregroundStyle(palette.mintText)
             }
 
             VStack(alignment: .leading, spacing: 2) {

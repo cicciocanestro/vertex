@@ -132,7 +132,7 @@ struct TorrentRow: View {
                     if torrent.hasError {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.microText)
-                            .foregroundStyle(Theme.coral)
+                            .foregroundStyle(palette.coralText)
                             .help(torrent.localizedError)
                     }
 
@@ -261,7 +261,7 @@ struct TorrentRow: View {
                     engine.reveal(torrent)
                 }
 
-                IconButton(icon: "trash", help: "Rimuovi", tint: hover.value ? Theme.coral : nil, size: 27) {
+                IconButton(icon: "trash", help: "Rimuovi", tint: hover.value ? palette.coralText : nil, size: 27) {
                     onDeleteWithFiles()
                 }
             }
@@ -402,7 +402,9 @@ struct TorrentRow: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityValue(Text(accessibilityValueText))
-        .accessibilityAction(named: Text(torrent.paused ? L("Riprendi") : L("Pausa"))) {
+        .accessibilityAction(
+            named: Text(torrent.isQueued ? L("Escludi dalla coda") : (torrent.paused ? L("Riprendi") : L("Pausa")))
+        ) {
             engine.togglePause(torrent)
         }
         .accessibilityAction(named: Text(L("Rimuovi"))) {

@@ -12,6 +12,8 @@ cd "$ROOT"
 
 # shellcheck source=Scripts/deps.env
 source Scripts/deps.env
+# shellcheck source=Scripts/geoip.env
+source Scripts/geoip.env
 
 VERSION="$(plutil -extract CFBundleShortVersionString raw -o - Resources/Info.plist)"
 BUILD="$(plutil -extract CFBundleVersion raw -o - Resources/Info.plist)"
@@ -61,6 +63,14 @@ cat >"$OUT" <<EOF
       "version": "$BOOST_VERSION",
       "hashes": [{ "alg": "SHA-256", "content": "$BOOST_SHA256" }],
       "externalReferences": [{ "type": "distribution", "url": "$BOOST_URL" }]
+    },
+    {
+      "type": "data",
+      "name": "dbip-country-lite",
+      "version": "$GEOIP_VERSION",
+      "licenses": [{ "license": { "id": "CC-BY-4.0" } }],
+      "hashes": [{ "alg": "SHA-256", "content": "$GEOIP_SHA256" }],
+      "externalReferences": [{ "type": "distribution", "url": "$GEOIP_URL" }]
     }
   ]
 }

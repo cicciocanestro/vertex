@@ -42,6 +42,12 @@
             TestRunner.run("PortReachability: request ID codificato nel path") {
                 try requestIDEncoding()
             }
+            TestRunner.run("PortReachability: blocco con proxy attivo e porta fuori range") {
+                try blockedWithProxyAndInvalidPort()
+            }
+            TestRunner.run("PortReachability: validazione IP pubblico e parentesi IPv6") {
+                try publicIPValidationAndIPv6Bracketing()
+            }
         }
 
         // MARK: - Cases
@@ -261,6 +267,87 @@
             let state = try onMain { try waitForState(tester) }
             let message = try failureMessage(state)
             try TestRunner.assertFalse(message.isEmpty, "Un risultato malformato deve produrre un errore")
+        }
+
+        private static func blockedWithProxyAndInvalidPort() throws {
+            let defaults = UserDefaults.standard
+            let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
+            defer {
+                if let savedProxy {
+                    defaults.set(savedProxy, forKey: PrefKey.proxyEnabled)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.proxyEnabled)
+                }
+            }
+
+            let (tester, stub) = onMain {
+                makeTester(check: #"{"ok":1,"request_id":"req-p","nodes":{"node-1":{}}}"#)
+            }
+            defer { onMain { tester.reset() } }
+
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            onMain { tester.start(port: 0) }
+            try TestRunner.assertEqual(onMain { tester.state }, .failed(L("Porta non valida")))
+
+            onMain { tester.start(port: 70_000) }
+            try TestRunner.assertEqual(onMain { tester.state }, .failed(L("Porta non valida")))
+
+            defaults.set(true, forKey: PrefKey.proxyEnabled)
+            onMain { tester.start(port: 6881) }
+            try TestRunner.assertEqual(
+                onMain { tester.state },
+                .failed(L("Test non disponibile con proxy SOCKS5 attivo"))
+            )
+            try TestRunner.assertTrue(
+                onMain { stub.requests.isEmpty },
+                "Con proxy attivo o porta fuori range non deve partire alcuna richiesta HTTP"
+            )
+        }
+
+        private static func publicIPValidationAndIPv6Bracketing() throws {
+            let defaults = UserDefaults.standard
+            let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            defer {
+                if let savedProxy {
+                    defaults.set(savedProxy, forKey: PrefKey.proxyEnabled)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.proxyEnabled)
+                }
+            }
+
+            // A non-literal IP payload from ipify must be rejected before calling check-host.net.
+            let (badTester, badStub) = onMain {
+                makeTester(ip: "evil.example.com:80/injected?", check: #"{"ok":1}"#)
+            }
+            defer { onMain { badTester.reset() } }
+            onMain { badTester.start(port: 6881) }
+            let badState = try onMain { try waitForState(badTester) }
+            _ = try failureMessage(badState)
+            try TestRunner.assertFalse(
+                onMain { badStub.requests.contains { $0.url?.path == "/check-tcp" } },
+                "Un payload non-IP non deve essere inoltrato a check-host.net"
+            )
+
+            // A valid IPv6 literal must be bracketed as [ipv6]:port.
+            let (v6Tester, v6Stub) = onMain {
+                makeTester(
+                    ip: "2001:db8::1",
+                    check: #"{"ok":1,"request_id":"req-v6","nodes":{"node-1":{}}}"#,
+                    result: #"{"node-1":[{"time":0.05}]}"#
+                )
+            }
+            defer { onMain { v6Tester.reset() } }
+            onMain { v6Tester.start(port: 6881) }
+            let v6State = try onMain { try waitForState(v6Tester) }
+            try TestRunner.assertEqual(v6State, .open(openNodes: 1, totalNodes: 1))
+            let checkURL = onMain {
+                v6Stub.requests.first { $0.url?.path == "/check-tcp" }?.url?.absoluteString ?? ""
+            }
+            try TestRunner.assertTrue(
+                checkURL.contains("%5B2001:db8::1%5D:6881") || checkURL.contains("[2001:db8::1]:6881"),
+                "L'indirizzo IPv6 deve essere racchiuso tra parentesi quadre: \(checkURL)"
+            )
         }
 
         // MARK: - Helpers

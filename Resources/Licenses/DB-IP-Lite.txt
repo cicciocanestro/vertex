@@ -7,8 +7,9 @@ Licensed under the Creative Commons Attribution 4.0 International License
 (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/legalcode
 
 The dataset is used unmodified in substance: Vertex converts the CSV ranges
-into a compact binary table (Resources/GeoIP/country-v4.bin.z) that maps IPv4
-address ranges to ISO 3166-1 alpha-2 country codes. The conversion is done by
+into compact binary tables (Resources/GeoIP/country-v4.bin.z and
+Resources/GeoIP/country-v6.bin.z) that map IPv4 and IPv6 address ranges to
+ISO 3166-1 alpha-2 country codes. The conversion is done by
 Scripts/build-geoip.sh and Scripts/geoip-encode.py in the Vertex source tree.
 
 No attribution is displayed per lookup; the attribution is provided here, in

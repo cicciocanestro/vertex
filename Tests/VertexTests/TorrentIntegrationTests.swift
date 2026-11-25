@@ -492,6 +492,15 @@ enum TorrentIntegrationTests {
             return true
         }
 
+        // M-02: resuming an already queued torrent must NOT bypass max_active == 1.
+        try session.control(torrentID: requeuedID, action: "resume")
+        try TestsSupport.waitUntilStable(
+            "resume su un torrent in coda non deve superare il limite di 1 attivo",
+            duration: 1.0
+        ) {
+            try session.snapshot().torrents.filter { !$0.paused }.count == 1
+        }
+
         // Force start bypasses the limit immediately by disabling auto_managed and resuming.
         try session.control(torrentID: requeuedID, action: "force_start")
         try TestsSupport.waitFor("forzato l'avvio ignorando il limite") {
@@ -777,27 +786,39 @@ enum TorrentIntegrationTests {
         )
         let torrent = try leech.waitForTorrent(fixture.rootName)
 
-        // Simulate tunnel drop BEFORE connecting: switch bind_address to a
-        // non-local TEST-NET-3 address (203.0.113.9). The socket must fail
-        // closed (listening == false, listenError populated) and any peer
-        // connection attempt must not transfer data over other interfaces.
-        try leech.applySettings(port: leechPort, bindAddress: "203.0.113.9")
-        try TestsSupport.waitFor("kill-switch: listen_error su indirizzo tunnel caduto") {
+        // H-02: connect first on 127.0.0.1 with a rate cap so the peer stays open,
+        // then switch bind_address to a downed tunnel IP (203.0.113.9) and verify
+        // that existing peer connections are immediately dropped and no bytes pass.
+        try leech.applySettings(port: leechPort, downloadLimit: 2048, bindAddress: "127.0.0.1")
+        try leech.addPeer(torrentID: torrent.id, port: seed.port)
+        try TestsSupport.waitFor("peer connesso prima del cambio bind_address", timeout: 15) {
             let snap = try leech.snapshot()
-            return !snap.listening && !snap.listenError.isEmpty && snap.bindAddress == "203.0.113.9"
+            guard let current = snap.torrents.first(where: { $0.id == torrent.id }) else {
+                return false
+            }
+            return current.peers > 0 || current.downloaded > 0
         }
 
+        try leech.applySettings(port: leechPort, downloadLimit: 2048, bindAddress: "203.0.113.9")
+        try TestsSupport.waitFor("kill-switch: listen_error e peer disconnessi su indirizzo tunnel caduto") {
+            let snap = try leech.snapshot()
+            let peersEmpty = try leech.detail(torrentID: torrent.id).peers.isEmpty
+            return !snap.listening && !snap.listenError.isEmpty && snap.bindAddress == "203.0.113.9" && peersEmpty
+        }
+
+        let baselineDownloaded = try leech.snapshot().torrents.first?.downloaded ?? 0
         try leech.addPeer(torrentID: torrent.id, port: seed.port)
         try TestsSupport.waitUntilStable(
-            "con tunnel giù il socket resta chiuso e non passa alcun byte"
+            "con tunnel giù il socket resta chiuso e non passa alcun byte aggiuntivo"
         ) {
             let snap = try leech.snapshot()
-            return !snap.listening && (snap.torrents.first?.downloaded ?? -1) == 0
+            let currentDownloaded = snap.torrents.first?.downloaded ?? -1
+            return !snap.listening && currentDownloaded == baselineDownloaded
         }
 
-        // Simulate tunnel recovery: rebind back to 127.0.0.1 (or automatic)
+        // Simulate tunnel recovery: rebind back to 127.0.0.1 without rate cap
         // and verify listenError clears and the download completes cleanly.
-        try leech.applySettings(port: leechPort, bindAddress: "127.0.0.1")
+        try leech.applySettings(port: leechPort, downloadLimit: 0, bindAddress: "127.0.0.1")
         try TestsSupport.waitFor("ripristino tunnel: ascolto attivo e listen_error azzerato") {
             let snap = try leech.snapshot()
             return snap.listening && snap.listenError.isEmpty && snap.bindAddress == "127.0.0.1"

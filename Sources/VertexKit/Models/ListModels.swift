@@ -57,10 +57,9 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
     }
 
     /// The category that owns a torrent for the purpose of the counts.
-    /// `Torrent.phase` is the source of truth: pause prevails, and "Download"
-    /// includes metadata and verification. `.completed` here means "download
-    /// finito ma non seeder puro" (files set to Skip), which is the only
-    /// torrent libtorrent reports with state 4.
+    /// `Torrent.phase` is the source of truth: manual pause prevails, "Download"
+    /// includes metadata and verification, active upload (`uploadRate > 0`) owns
+    /// "Seed", and finished idle/filtered torrents fall under `.completed`.
     package static func category(for torrent: Torrent) -> TorrentFilter {
         // Paused unfinished torrents belong to .paused; finished torrents (even if paused or idle)
         // are categorized according to their active state or under completed/paused.
@@ -271,20 +270,41 @@ package enum TorrentListPipeline {
 
         switch sort {
         case .recent:
-            list.sort { ascending ? ($0.added < $1.added) : ($0.added > $1.added) }
+            list.sort {
+                if $0.added == $1.added { return $0.id < $1.id }
+                return ascending ? ($0.added < $1.added) : ($0.added > $1.added)
+            }
         case .name:
             // `ascending` means the same thing for every criterion: the value
             // grows down the list (A→Z here, smallest first elsewhere).
             let target: ComparisonResult = ascending ? .orderedAscending : .orderedDescending
-            list.sort { $0.name.localizedStandardCompare($1.name) == target }
+            list.sort {
+                let cmp = $0.name.localizedStandardCompare($1.name)
+                if cmp == .orderedSame { return $0.id < $1.id }
+                return cmp == target
+            }
         case .size:
-            list.sort { ascending ? ($0.size < $1.size) : ($0.size > $1.size) }
+            list.sort {
+                if $0.size == $1.size { return $0.id < $1.id }
+                return ascending ? ($0.size < $1.size) : ($0.size > $1.size)
+            }
         case .progress:
             list.sort {
-                ascending ? ($0.displayProgress < $1.displayProgress) : ($0.displayProgress > $1.displayProgress)
+                if $0.displayProgress == $1.displayProgress { return $0.id < $1.id }
+                return ascending ? ($0.displayProgress < $1.displayProgress) : ($0.displayProgress > $1.displayProgress)
             }
         case .speed:
-            list.sort { ascending ? ($0.downloadRate < $1.downloadRate) : ($0.downloadRate > $1.downloadRate) }
+            list.sort {
+                let lhsTotal = $0.downloadRate + $0.uploadRate
+                let rhsTotal = $1.downloadRate + $1.uploadRate
+                if lhsTotal != rhsTotal {
+                    return ascending ? (lhsTotal < rhsTotal) : (lhsTotal > rhsTotal)
+                }
+                if $0.downloadRate != $1.downloadRate {
+                    return ascending ? ($0.downloadRate < $1.downloadRate) : ($0.downloadRate > $1.downloadRate)
+                }
+                return $0.id < $1.id
+            }
         }
 
         return TorrentListResult(torrents: list, counts: counts)

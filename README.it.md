@@ -109,9 +109,10 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **Proxy SOCKS5 con protezione anti-leak (fail-closed)**: instrada tracker e peer attraverso
   un proxy anonimo (come Tor su `127.0.0.1:9050` o proxy VPN SOCKS5) con supporto opzionale
   all'autenticazione (password nel Portachiavi di macOS). Abilita automaticamente
-  `anonymous_mode` rigoroso, disattiva UPnP/NAT-PMP
-  per prevenire leak dell'IP locale del router, blocca il traffico se il proxy cade e chiude
-  le connessioni già aperte quando il proxy viene attivato o modificato.
+  `anonymous_mode` rigoroso, disattiva DHT e UPnP/NAT-PMP
+  per prevenire leak dell'IP locale e query DNS di bootstrap in chiaro, blocca il traffico se il
+  proxy o l'interfaccia associata cadono e chiude le connessioni già aperte quando il proxy o
+  l'indirizzo associato vengono attivati o modificati.
 - **Diagnostica rete**: una checklist di stato più porta effettiva, IP locale, stato proxy, stato dei mapping e raggiungibilità TCP.
 - **Onboarding al primo avvio**: la libreria vuota mostra tre passi (aggiungi, cartella, proxy) e una scorciatoia alle impostazioni.
 - Interfaccia in italiano o inglese in base alla lingua di sistema.
@@ -330,9 +331,9 @@ Lo script verifica firma, dipendenze, `minos` e architettura prima di creare la 
 averla montata.
 
 La pubblicazione è gestita dalla CI: i push su `main` producono un artefatto di build, solo
-i tag `v*` creano una GitHub Release. Il tag deve corrispondere a `Info.plist`; gli asset
-pubblicati non vengono sovrascritti. La DMG attuale è solo arm64; una release universale
-richiede dipendenze per entrambe le architetture.
+i tag `v*` creano una GitHub Release. Il tag deve corrispondere a `Info.plist`; una riesecuzione
+del workflow di release aggiorna gli asset in modo idempotente (`--clobber`). La DMG attuale è
+solo arm64; una release universale richiede dipendenze per entrambe le architetture.
 
 ### Architettura
 
@@ -378,7 +379,7 @@ richiede dipendenze per entrambe le architetture.
 LCOV). La CI carica entrambi, tratta ogni warning del compilatore come errore, impone una
 soglia di copertura, esegue la suite sotto ThreadSanitizer e AddressSanitizer e fa fuzzing
 di escaping JSON e validazione UTF-8 dello snapshot su ogni build non di release. La suite
-(110 test) copre formattatori, decodifica snapshot JSON,
+(115 test) copre formattatori, decodifica snapshot JSON,
 modelli, preferenze, tabelle GeoIP offline (IPv4 e IPv6), ciclo vitale del bridge C++, magnet malformati,
 engine (aggiunta, dettaglio, priorità, pausa/ripresa, riavvio PEX, shutdown), navigazione da
 tastiera, drag&drop, politica di polling adattivo, raggiungibilità rete con loader HTTP finto
@@ -417,11 +418,12 @@ Le modifiche tra le versioni sono documentate in [`CHANGELOG.md`](CHANGELOG.md).
 
 Vertex è distribuito con **licenza MIT**: vedi [`LICENSE`](LICENSE).
 
-Le librerie incluse mantengono le proprie licenze:
+Le librerie e i dataset inclusi mantengono le proprie licenze:
 
 - **libtorrent-rasterbar** — BSD 3-Clause
 - **OpenSSL** — Apache License 2.0
 - **Boost** (solo header in fase di compilazione) — Boost Software License 1.0
+- **DB-IP "IP to Country Lite"** — Creative Commons Attribution 4.0 (CC BY 4.0)
 
 I testi completi sono in [`Resources/Licenses/`](Resources/Licenses) e
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Sono inclusi anche nel bundle e

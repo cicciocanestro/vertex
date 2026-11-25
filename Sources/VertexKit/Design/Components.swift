@@ -58,12 +58,13 @@ struct ProgressRing: View {
     }
 
     private var iconColor: Color {
+        let palette = Palette(scheme: scheme)
         switch phase {
         case .paused, .completedPaused: return Color.primary.opacity(0.45)
-        case .metadata: return Theme.amber
-        case .checking: return Theme.blue
-        case .seeding: return Theme.violet
-        case .completed: return Theme.green
+        case .metadata: return palette.amberText
+        case .checking: return palette.blueText
+        case .seeding: return palette.violetText
+        case .completed: return palette.greenText
         case .downloading: return Color.primary.opacity(0.82)
         case .queued: return Color.primary.opacity(0.55)
         }
@@ -383,6 +384,14 @@ struct ToastView: View {
         }
     }
 
+    private func iconTint(_ palette: Palette) -> Color {
+        switch toast.kind {
+        case .success: return palette.greenText
+        case .error: return palette.coralText
+        case .info: return palette.blueText
+        }
+    }
+
     var body: some View {
         let palette = Palette(scheme: scheme)
         HStack(spacing: 11) {
@@ -390,7 +399,7 @@ struct ToastView: View {
                 Circle().fill(accent.opacity(0.16)).frame(width: 28, height: 28)
                 Image(systemName: icon)
                     .font(Typography.bodySemiboldText)
-                    .foregroundStyle(accent)
+                    .foregroundStyle(iconTint(palette))
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -445,6 +454,7 @@ struct ToastView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(palette.strokeStrong, lineWidth: 1)
+                .allowsHitTesting(false)
         )
         .shadow(color: palette.shadow, radius: 20, x: 0, y: 8)
     }

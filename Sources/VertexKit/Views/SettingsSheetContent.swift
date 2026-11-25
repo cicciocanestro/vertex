@@ -17,15 +17,22 @@ extension SettingsSheet {
                 SettingsSheetChangeHandlers(
                     engine: engine,
                     proxyPasswordValue: proxyPasswordValue,
+                    suppressNextPasswordSave: suppressNextPasswordSave,
                     scheduleSave: scheduleProxyPasswordSave
                 ))
     }
 
     func handleOnAppear() {
         interfaces.value = LocalNetwork.ipv4Interfaces()
-        let resolved = Preferences.resolvedDownloadPath(downloadPath)
-        if resolved != downloadPath {
-            downloadPath = resolved
+        let current = downloadPath
+        Task.detached(priority: .utility) {
+            let resolved = Preferences.resolvedDownloadPath(current)
+            guard resolved != current else { return }
+            await MainActor.run {
+                if UserDefaults.standard.string(forKey: PrefKey.downloadPath) == current {
+                    UserDefaults.standard.set(resolved, forKey: PrefKey.downloadPath)
+                }
+            }
         }
         DispatchQueue.main.async {
             NSApp.keyWindow?.makeFirstResponder(nil)
@@ -135,20 +142,27 @@ extension SettingsSheet {
         }
     }
 
-    /// Writes the pending password before the sheet closes. The dirty flag
-    /// avoids touching the keychain when the password was never edited (for
-    /// example in the off-screen rendering tests).
+    /// Updates the in-memory cache immediately so `applySettingsNow()` sees the
+    /// edited password, then persists it off `@MainActor` so closing the sheet
+    /// never blocks the UI thread on Keychain or `fsync` I/O.
     func flushProxyPassword() {
         proxyPasswordSaveTask.value?.cancel()
         proxyPasswordSaveTask.value = nil
         guard proxyPasswordDirty.value else { return }
-        if Preferences.setProxyPassword(proxyPasswordValue.value) {
-            proxyPasswordDirty.value = false
-        } else {
-            engine.showToast(
-                L("Impossibile salvare la password nel Portachiavi"),
-                kind: .error
-            )
+        proxyPasswordDirty.value = false
+        let value = proxyPasswordValue.value
+        Preferences.updateCachedProxyPassword(value)
+        let engine = engine
+        Task { @MainActor in
+            let saved = await Task.detached(priority: .userInitiated) {
+                Preferences.setProxyPassword(value)
+            }.value
+            if !saved {
+                engine.showToast(
+                    L("Impossibile salvare la password nel Portachiavi"),
+                    kind: .error
+                )
+            }
         }
     }
 
@@ -270,6 +284,12 @@ extension SettingsSheet {
                         isOn: Binding(
                             get: { proxyPasswordInFile },
                             set: { newValue in
+                                if proxyPasswordDirty.value {
+                                    proxyPasswordSaveTask.value?.cancel()
+                                    proxyPasswordSaveTask.value = nil
+                                    proxyPasswordDirty.value = false
+                                    Preferences.updateCachedProxyPassword(proxyPasswordValue.value)
+                                }
                                 proxyPasswordInFile = newValue
                                 engine.setProxyPasswordStorage(inFile: newValue)
                             }
@@ -446,7 +466,7 @@ extension SettingsSheet {
         HStack(spacing: 10) {
             Image(systemName: "folder")
                 .font(Typography.bodyLargeMediumText)
-                .foregroundStyle(Theme.mint)
+                .foregroundStyle(palette.mintText)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {

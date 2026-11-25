@@ -560,6 +560,7 @@ package struct RootView: View {
     }
 
     private func pasteMagnet() {
+        guard !hasModalOverlay else { return }
         guard
             let magnet = RootActionFactory.magnetToAdd(
                 from: NSPasteboard.general.string(forType: .string)

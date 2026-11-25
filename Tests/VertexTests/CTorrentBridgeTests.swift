@@ -34,14 +34,16 @@ enum CTorrentBridgeTests {
         print("\n\u{001B}[1m[Suite: CTorrentBridgeTests]\u{001B}[0m")
 
         TestRunner.run("Session lifecycle: create, poll, settings, snapshot, destroy") {
-            try withRawSession(port: 6882) { session, _, downloadDir, _ in
+            let initialPort = Int32(try TestsSupport.freeTCPPort())
+            let updatedPort = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: initialPort) { session, _, downloadDir, _ in
                 // Poll
                 vt_session_poll(session)
 
                 // Apply settings
                 let settingsResult = vt_apply_settings_ex(
                     session,
-                    6883,
+                    updatedPort,
                     1024 * 1024,
                     512 * 1024,
                     0,
@@ -95,7 +97,8 @@ enum CTorrentBridgeTests {
         }
 
         TestRunner.run("Default save path: aggiornamento usato dai torrent senza destinazione") {
-            try withRawSession(port: 6884) { session, workspace, _, _ in
+            let port = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: port) { session, workspace, _, _ in
                 let secondDownloadDir = workspace.root.appendingPathComponent("downloads-2")
 
                 let updated = secondDownloadDir.path.withCString {
@@ -164,6 +167,16 @@ enum CTorrentBridgeTests {
                     workspace.root.path,
                     "Un .torrent inesistente deve usare la cartella che lo contiene"
                 )
+                try TestRunner.assertEqual(
+                    normalizedPath("~otheruser/Downloads", fallback: workspace.root.path) ?? "",
+                    "~otheruser/Downloads",
+                    "~utente non deve essere espanso usando $HOME dell'utente corrente"
+                )
+                let fallbackExpanded = normalizedPath("   ", fallback: "~/Downloads") ?? ""
+                try TestRunner.assertFalse(
+                    fallbackExpanded.hasPrefix("~"),
+                    "Una richiesta solo spazi deve normalizzare ed espandere anche il fallback"
+                )
             }
         }
         TestRunner.run("Session lifecycle: errore di creazione con percorso non valido") {
@@ -172,6 +185,7 @@ enum CTorrentBridgeTests {
             let resume = try workspace.directory("resume")
             let invalidDownload = workspace.root.appendingPathComponent("downloads")
             try Data("x".utf8).write(to: invalidDownload)
+            let port = Int32(try TestsSupport.freeTCPPort())
 
             var errorPointer: UnsafeMutablePointer<CChar>?
             let session = invalidDownload.path.withCString { downloadPath in
@@ -179,7 +193,7 @@ enum CTorrentBridgeTests {
                     vt_session_create_full(
                         downloadPath,
                         resumePath,
-                        6882,
+                        port,
                         0,
                         0,
                         0,
@@ -273,7 +287,8 @@ enum CTorrentBridgeTests {
         }
 
         TestRunner.run("Bridge: configurazione SOCKS5 proxy") {
-            try withRawSession(port: 6888) { session, _, _, _ in
+            let port = Int32(try TestsSupport.freeTCPPort())
+            try withRawSession(port: port) { session, _, _, _ in
                 // Initially proxy is disabled
                 vt_session_poll(session)
                 guard let cInit = vt_snapshot_json(session) else {
@@ -314,7 +329,7 @@ enum CTorrentBridgeTests {
                 // Verify runtime settings update preserves UPnP disabled when proxy is active
                 let settingsUpdate = vt_apply_settings_ex(
                     session,
-                    6888,
+                    port,
                     0,
                     0,
                     1,  // enable_dht
@@ -611,6 +626,18 @@ enum CTorrentBridgeTests {
         TestRunner.run("Bridge: chiamate concorrenti sulla stessa sessione") {
             try concurrentCalls()
         }
+
+        TestRunner.run("Snapshot: 300 torrent e cache degli aggiornamenti") {
+            try snapshotBenchmark()
+        }
+
+        TestRunner.run("Bridge: input malevoli o malformati") {
+            try malformedInputs()
+        }
+
+        TestRunner.run("Bridge: guardie su priorità file, rimozione uppercase e bind+proxy fail-closed") {
+            try bridgeSecurityAndBoundsGuards()
+        }
     }
 
     /// Decodes the session snapshot through the same model the UI uses, so the
@@ -718,60 +745,136 @@ enum CTorrentBridgeTests {
                 "Uno snapshot concorrente non è un JSON valido"
             )
         }
+    }
 
-        TestRunner.run("Snapshot: 300 torrent e cache degli aggiornamenti") {
-            try snapshotBenchmark()
-        }
-
-        TestRunner.run("Bridge: input malevoli o malformati") {
-            try withRawSession(port: 6885) { session, _, download, _ in
-                let rejected = [
-                    "",
-                    "magnet:",
-                    "magnet:?xt=urn:btih:",
-                    "magnet:?xt=urn:btih:zzzz",
-                    "magnet:?xt=urn:btih:" + String(repeating: "g", count: 40),
-                    String(repeating: "m", count: 100_000),
-                ]
-                for raw in rejected {
-                    let rc = raw.withCString { uri in
-                        download.path.withCString { path in
-                            vt_add_magnet(session, uri, path, 1, 0)
-                        }
-                    }
-                    try TestRunner.assertTrue(
-                        rc != 0,
-                        "input accettato: \(raw.prefix(40))"
-                    )
-                    if let error = vt_last_error(session) { vt_free_string(error) }
-                }
-
-                // A valid infohash with a huge non-ASCII name may be accepted;
-                // what matters is that it cannot crash or corrupt the snapshot.
-                let hugeName =
-                    "magnet:?xt=urn:btih:"
-                    + String(repeating: "0", count: 40)
-                    + "&dn=" + String(repeating: "é", count: 4096)
-                _ = hugeName.withCString { uri in
+    private static func malformedInputs() throws {
+        let port = Int32(try TestsSupport.freeTCPPort())
+        try withRawSession(port: port) { session, _, download, _ in
+            let rejected = [
+                "",
+                "magnet:",
+                "magnet:?xt=urn:btih:",
+                "magnet:?xt=urn:btih:zzzz",
+                "magnet:?xt=urn:btih:" + String(repeating: "g", count: 40),
+                String(repeating: "m", count: 100_000),
+            ]
+            for raw in rejected {
+                let rc = raw.withCString { uri in
                     download.path.withCString { path in
                         vt_add_magnet(session, uri, path, 1, 0)
                     }
                 }
+                try TestRunner.assertTrue(
+                    rc != 0,
+                    "input accettato: \(raw.prefix(40))"
+                )
                 if let error = vt_last_error(session) { vt_free_string(error) }
+            }
 
-                let detail = "no-such-id".withCString { vt_detail_json(session, $0) }
-                if let detail {
-                    defer { vt_free_string(detail) }
-                    let decoded = try JSONDecoder().decode(
-                        TorrentDetail.self,
-                        from: Data(String(cString: detail).utf8)
-                    )
-                    try TestRunner.assertTrue(
-                        decoded.files.isEmpty,
-                        "Un id inesistente non deve produrre file"
-                    )
+            // A valid infohash with a huge non-ASCII name may be accepted;
+            // what matters is that it cannot crash or corrupt the snapshot.
+            let hugeName =
+                "magnet:?xt=urn:btih:"
+                + String(repeating: "0", count: 40)
+                + "&dn=" + String(repeating: "é", count: 4096)
+            _ = hugeName.withCString { uri in
+                download.path.withCString { path in
+                    vt_add_magnet(session, uri, path, 1, 0)
                 }
-                _ = try Self.decodeSnapshot(session)
+            }
+            if let error = vt_last_error(session) { vt_free_string(error) }
+
+            let detail = "no-such-id".withCString { vt_detail_json(session, $0) }
+            if let detail {
+                defer { vt_free_string(detail) }
+                let decoded = try JSONDecoder().decode(
+                    TorrentDetail.self,
+                    from: Data(String(cString: detail).utf8)
+                )
+                try TestRunner.assertTrue(
+                    decoded.files.isEmpty,
+                    "Un id inesistente non deve produrre file"
+                )
+            }
+            _ = try Self.decodeSnapshot(session)
+        }
+    }
+
+    private static func bridgeSecurityAndBoundsGuards() throws {
+        let port = Int32(try TestsSupport.freeTCPPort())
+        try withRawSession(port: port) { session, _, download, _ in
+            let magnetID = "abcdef0123456789abcdef0123456789abcdef01"
+            let magnet = "magnet:?xt=urn:btih:\(magnetID)"
+            let magnetAdded = magnet.withCString { uri in
+                download.path.withCString { path in
+                    vt_add_magnet(session, uri, path, 1, 0)
+                }
+            }
+            try TestRunner.assertEqual(magnetAdded, 0)
+
+            let noMetadataPrio = magnetID.withCString { id in
+                vt_set_file_priority(session, id, 0, 4)
+            }
+            try TestRunner.assertEqual(
+                noMetadataPrio,
+                -1,
+                "vt_set_file_priority deve rifiutare un magnet senza metadati"
+            )
+
+            let uppercaseRemoved = magnetID.uppercased().withCString { id in
+                vt_control(session, id, "remove")
+            }
+            try TestRunner.assertEqual(
+                uppercaseRemoved,
+                0,
+                "vt_control deve accettare e canonicalizzare anche info-hash uppercase"
+            )
+            try TestsSupport.waitFor("rimozione magnet uppercase", timeout: 5) {
+                try Self.decodeSnapshot(session).torrents.isEmpty
+            }
+
+            let fixture = IntegrationFixture.v1
+            let fileAdded = fixture.torrentURL.path.withCString { torrentPath in
+                download.path.withCString { path in
+                    vt_add_torrent_file(session, torrentPath, path, 1, 0)
+                }
+            }
+            try TestRunner.assertEqual(fileAdded, 0)
+            let snap = try Self.decodeSnapshot(session)
+            let fixtureID = try TestRunner.assertNotNil(snap.torrents.first?.id)
+
+            let outOfBoundsFileIndex = fixtureID.withCString { id in
+                vt_set_file_priority(session, id, 99, 4)
+            }
+            try TestRunner.assertEqual(
+                outOfBoundsFileIndex,
+                -1,
+                "vt_set_file_priority deve rifiutare un file_index >= num_files()"
+            )
+
+            // H-03: bind_address + SOCKS5 proxy must fail closed if the bound local interface is absent.
+            let proxyApplied = "127.0.0.1".withCString { host in
+                vt_apply_proxy_settings(session, 1, host, 1080, nil, nil)
+            }
+            try TestRunner.assertEqual(proxyApplied, 0)
+            let downBind = "203.0.113.9".withCString { bind in
+                vt_apply_settings_ex(session, port, 0, 0, 1, 0, 0, bind)
+            }
+            try TestRunner.assertEqual(downBind, 0)
+            let guardedSnap = try Self.decodeSnapshot(session)
+            try TestRunner.assertFalse(
+                guardedSnap.listening, "Con bind non locale + proxy non deve risultare in ascolto")
+            try TestRunner.assertTrue(
+                guardedSnap.listenError.contains("203.0.113.9"),
+                "listenError deve segnalare l'interfaccia assente: \(guardedSnap.listenError)"
+            )
+
+            let recoveredBind = "127.0.0.1".withCString { bind in
+                vt_apply_settings_ex(session, port, 0, 0, 1, 0, 0, bind)
+            }
+            try TestRunner.assertEqual(recoveredBind, 0)
+            try TestsSupport.waitFor("ripristino guardia bind+proxy su 127.0.0.1", timeout: 5) {
+                try Self.decodeSnapshot(session).listenError.isEmpty
             }
         }
     }
@@ -787,9 +890,10 @@ enum CTorrentBridgeTests {
         let download = try workspace.directory("downloads")
         let resume = try workspace.directory("resume")
 
+        let port = Int32(try TestsSupport.freeTCPPort())
         let session = download.path.withCString { dlPath in
             resume.path.withCString { resPath in
-                vt_session_create_full(dlPath, resPath, 6884, 0, 0, 0, 0, 0, 0, nil, nil)
+                vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, nil)
             }
         }
         guard let session else {

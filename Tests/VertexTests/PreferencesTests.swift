@@ -83,6 +83,8 @@ enum PreferencesTests {
             try TestRunner.assertFalse(Preferences.isValidIPv4("0.0.0.0"))  // rejected: not a usable bind address
             try TestRunner.assertFalse(Preferences.isValidIPv4("127.0.0.1"))  // rejected: loopback
             try TestRunner.assertFalse(Preferences.isValidIPv4("169.254.1.1"))  // rejected: link-local
+            try TestRunner.assertFalse(Preferences.isValidIPv4("224.0.0.1"))  // rejected: multicast
+            try TestRunner.assertFalse(Preferences.isValidIPv4("255.255.255.255"))  // rejected: broadcast
             try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1"))  // rejected: short form
             try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.001.001"))  // rejected: leading zeros
             try TestRunner.assertFalse(Preferences.isValidIPv4("192.168.1.10.1"))
@@ -164,11 +166,11 @@ enum PreferencesTests {
             let keys = [
                 PrefKey.listenPort, PrefKey.downloadLimitKB, PrefKey.uploadLimitKB,
                 PrefKey.maxActiveTorrents, PrefKey.bindAddress, PrefKey.appearance,
-                PrefKey.downloadPath, PrefKey.proxyPort, PrefKey.proxyHost,
+                PrefKey.uiDensity, PrefKey.downloadPath, PrefKey.proxyPort, PrefKey.proxyHost,
                 PrefKey.proxyUser, PrefKey.proxyPassword, PrefKey.proxyEnabled,
-                PrefKey.seedRatioLimit, PrefKey.dhtEnabled, PrefKey.pexEnabled,
-                PrefKey.lsdEnabled, PrefKey.upnpEnabled, PrefKey.startPaused,
-                PrefKey.sequentialDefault, PrefKey.notificationsEnabled,
+                PrefKey.proxyPasswordInFile, PrefKey.seedRatioLimit, PrefKey.dhtEnabled,
+                PrefKey.pexEnabled, PrefKey.lsdEnabled, PrefKey.upnpEnabled,
+                PrefKey.startPaused, PrefKey.sequentialDefault, PrefKey.notificationsEnabled,
             ]
             let backup: [String: Any?] = Dictionary(
                 uniqueKeysWithValues: keys.map { ($0, defaults.object(forKey: $0)) })
@@ -190,6 +192,7 @@ enum PreferencesTests {
             defaults.set(Int32.max, forKey: PrefKey.uploadLimitKB)
             defaults.set("utun3", forKey: PrefKey.bindAddress)
             defaults.set("chartreuse", forKey: PrefKey.appearance)
+            defaults.set("ultra-wide", forKey: PrefKey.uiDensity)
             defaults.set(88888, forKey: PrefKey.proxyPort)
             defaults.set("  proxy.local  ", forKey: PrefKey.proxyHost)
             defaults.set(-10.5, forKey: PrefKey.seedRatioLimit)
@@ -211,6 +214,10 @@ enum PreferencesTests {
                 PrefDefault.appearance
             )
             try TestRunner.assertEqual(
+                defaults.string(forKey: PrefKey.uiDensity),
+                PrefDefault.uiDensity
+            )
+            try TestRunner.assertEqual(
                 defaults.integer(forKey: PrefKey.maxActiveTorrents),
                 PrefDefault.maxActiveTorrents
             )
@@ -221,6 +228,19 @@ enum PreferencesTests {
                 defaults.string(forKey: PrefKey.downloadPath),
                 "/tmp"
             )
+
+            // Empty proxyHost: startup validation resets to PrefDefault.proxyHost, while
+            // runtime currentConfiguration preserves "" when proxyEnabled == true (fail-closed).
+            defaults.set(true, forKey: PrefKey.proxyEnabled)
+            defaults.set("   ", forKey: PrefKey.proxyHost)
+            let runtimeConfig = TorrentEngine.currentConfiguration(resolvedDownloadPathOverride: "/tmp")
+            try TestRunner.assertEqual(
+                runtimeConfig.proxyHost,
+                "",
+                "Con proxyEnabled attivo non deve sostituire un host vuoto con 127.0.0.1"
+            )
+            TorrentEngine.validateAllPreferences()
+            try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), PrefDefault.proxyHost)
         }
     }
 }

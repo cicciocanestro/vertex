@@ -18,18 +18,20 @@ extern "C" {
 
 typedef struct vt_session vt_session;
 
-/* Creates the session. PEX is a session-level plugin in libtorrent, so changing
-   it requires recreating the session. LSD and UPnP/NAT-PMP are normal session
-   settings and can also be changed at runtime with vt_apply_settings_ex. This
-   is the only session entry point: the legacy create variants were removed.
+/* Creates the session without a proxy. PEX is a session-level plugin in
+   libtorrent, so changing it requires recreating the session. LSD, DHT and
+   UPnP/NAT-PMP are runtime session settings updated via vt_apply_settings_ex.
+   Prefer vt_session_create_configured when proxy or version configuration is
+   needed at startup.
 
    bind_address optionally pins the session to one local address (typically a
    VPN tunnel address such as the WireGuard interface). It sets both
    listen_interfaces and outgoing_interfaces, so the listening socket and every
    outgoing connection use that address only; libtorrent rejects incoming
    traffic on any other local interface. NULL or "" listens on every interface,
-   which is the default. It accepts a literal IPv4 or IPv6 address, not a device
-   name.
+   which is the default. The C bridge validates literal IPv4/IPv6 addresses (not
+   device names); the Swift preferences layer further restricts UI input to
+   canonical unicast IPv4 addresses.
 
    On failure returns NULL and, when error_message is not NULL, stores a
    malloc'd description of the failure to free with vt_free_string. */

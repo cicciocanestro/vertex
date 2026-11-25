@@ -221,6 +221,7 @@ struct InspectorView: View {
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.secondary)
                     .frame(width: 34, height: 34)
+                    .contentShape(Circle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -745,8 +746,8 @@ struct InspectorView: View {
     private func priorityColor(_ level: FilePriority, _ palette: Palette) -> Color {
         switch level {
         case .skip: return palette.tertiary
-        case .normal: return Theme.mint
-        case .high: return Theme.violet
+        case .normal: return palette.mintText
+        case .high: return palette.violetText
         }
     }
 

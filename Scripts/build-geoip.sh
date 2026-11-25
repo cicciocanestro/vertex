@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Regenerates Resources/GeoIP/country-v4.bin.z from the pinned DB-IP Lite CSV.
-# The generated table is committed: run this only when refreshing the dataset.
+# Regenerates Resources/GeoIP/country-v4.bin.z and country-v6.bin.z from the pinned DB-IP Lite CSV.
+# The generated tables are committed: run this only when refreshing the dataset.
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

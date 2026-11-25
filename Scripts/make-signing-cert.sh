@@ -41,6 +41,7 @@ if ! command -v openssl >/dev/null 2>&1; then
     exit 1
 fi
 
+umask 077
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/vertex-cert.XXXXXX")"
 cleanup() {
     rm -rf "$WORK"
@@ -73,13 +74,13 @@ echo "→ Creazione del bundle PKCS#12…"
 # If the local openssl does not support these flags, fall back to its defaults
 # (LibreSSL already produces the legacy format).
 P12_ARGS=(-certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1)
-if ! openssl pkcs12 -export \
+if ! VERTEX_EXPORT_PW="$PASSWORD" openssl pkcs12 -export \
     -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-    -name "$CN" -out "$OUT" -passout "pass:$PASSWORD" \
+    -name "$CN" -out "$OUT" -passout env:VERTEX_EXPORT_PW \
     "${P12_ARGS[@]}" 2>/dev/null; then
-    openssl pkcs12 -export \
+    VERTEX_EXPORT_PW="$PASSWORD" openssl pkcs12 -export \
         -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-        -name "$CN" -out "$OUT" -passout "pass:$PASSWORD"
+        -name "$CN" -out "$OUT" -passout env:VERTEX_EXPORT_PW
 fi
 
 # Single-line base64: a secret pasted with line breaks is the classic way this

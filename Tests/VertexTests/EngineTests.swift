@@ -628,6 +628,95 @@
                 let callback = onMain { answered.value }
                 try TestRunner.assertEqual(callback ?? "", L("Motore non disponibile."))
             }
+
+            TestRunner.run("Engine: serializzazione impostazioni, ratio in coda, URL pendenti e path traversal") {
+                let workspace = try IntegrationWorkspace()
+                let (engine, configuration) = try makeEngineWithConfiguration(in: workspace, name: "guards")
+                defer { shutdown(engine) }
+
+                // L-02: safeTorrentChildURL blocks ../ traversal outside savePath.
+                try TestRunner.assertNil(
+                    TorrentEngine.safeTorrentChildURL(savePath: "/tmp/downloads", name: "../escape")
+                )
+                try TestRunner.assertNil(
+                    TorrentEngine.safeTorrentChildURL(savePath: "/tmp/downloads", name: "../../etc/passwd")
+                )
+                try TestRunner.assertEqual(
+                    TorrentEngine.safeTorrentChildURL(savePath: "/tmp/downloads", name: "ubuntu.iso")?.path,
+                    "/tmp/downloads/ubuntu.iso"
+                )
+
+                // H-01: two rapid applySettings() calls back-to-back must serialize and
+                // converge on the second configuration instead of dropping the update.
+                var firstEdit = configuration
+                firstEdit.lsd = true
+                var secondEdit = configuration
+                secondEdit.lsd = false
+                secondEdit.bindAddress = "127.0.0.1"
+                onMain {
+                    engine.setConfigurationForTesting(firstEdit)
+                    engine.applySettings()
+                    engine.setConfigurationForTesting(secondEdit)
+                    engine.applySettings()
+                }
+                try waitFor(engine) {
+                    onMain {
+                        !engine.isApplyingSettings && engine.stats.bindAddress == "127.0.0.1"
+                    }
+                }
+
+                // M-11: a finished torrent that is paused ONLY because it is queued
+                // (paused && autoManaged) must NOT be marked satisfied prematurely.
+                var ratioCfg = secondEdit
+                ratioCfg.seedRatioLimit = 1.0
+                onMain {
+                    engine.setConfigurationForTesting(ratioCfg)
+                    engine.applySettings()
+                }
+                try waitUntil("applicazione ratioCfg") {
+                    onMain { !engine.isApplyingSettings }
+                }
+                let queuedSeeder = Torrent.test(
+                    id: "queued-seeder",
+                    name: "QueuedSeeder",
+                    stateCode: 5,
+                    progress: 1.0,
+                    finished: true,
+                    seeding: true,
+                    paused: true,
+                    autoManaged: true,
+                    ratio: 2.0
+                )
+                onMain {
+                    engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [queuedSeeder]))
+                }
+                try TestRunner.assertFalse(
+                    onMain { engine.ratioLimitSatisfiedIDs.contains("queued-seeder") },
+                    "Un torrent in coda non deve essere marcato soddisfatto prima della pausa automatica"
+                )
+
+                // Pending external URLs queued during PEX session restart must drain once ready.
+                var pexToggle = ratioCfg
+                pexToggle.pex = !configuration.pex
+                let externalMagnet = URL(
+                    string: "magnet:?xt=urn:btih:1111222233334444555566667777888899990000"
+                )!
+                onMain {
+                    engine.setConfigurationForTesting(pexToggle)
+                    engine.applySettings()
+                    engine.openExternalURLs([externalMagnet])
+                }
+                try waitUntil("riavvio PEX e drenaggio URL pendenti") {
+                    onMain { engine.isReady && !engine.isRestartingSession }
+                }
+                try waitForTorrent(engine)
+                try TestRunner.assertTrue(
+                    onMain {
+                        engine.torrents.contains { $0.id == "1111222233334444555566667777888899990000" }
+                    },
+                    "Il magnet ricevuto durante il riavvio PEX deve essere accodato e aggiunto"
+                )
+            }
         }
 
         // MARK: - Helpers

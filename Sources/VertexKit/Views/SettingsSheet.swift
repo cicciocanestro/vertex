@@ -34,6 +34,7 @@ struct SettingsSheet: View {
         UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) ? Preferences.proxyPassword : ""
     )
     @StateObject var proxyPasswordDirty = UIState(false)
+    @StateObject var suppressNextPasswordSave = UIState(false)
     @StateObject var proxyPasswordSaveTask = UIState<Task<Void, Never>?>(nil)
     /// The raw appearance string is kept in UserDefaults; we bridge it to the
     /// enum for the picker and back so the `SegmentedPicker` works with the

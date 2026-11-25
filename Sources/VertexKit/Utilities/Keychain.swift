@@ -24,8 +24,7 @@ enum Keychain {
     static func setProxyPassword(_ password: String) -> Bool {
         guard isEnabled else { return false }
         if password.isEmpty {
-            deleteProxyPassword()
-            return true
+            return deleteProxyPassword()
         }
 
         let data = Data(password.utf8)
@@ -93,13 +92,15 @@ enum Keychain {
         return nil
     }
 
-    static func deleteProxyPassword() {
-        guard isEnabled else { return }
+    @discardableResult
+    static func deleteProxyPassword() -> Bool {
+        guard isEnabled else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

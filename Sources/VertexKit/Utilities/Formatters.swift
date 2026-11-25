@@ -4,7 +4,7 @@ package enum Fmt {
     private static let units = ["B", "KB", "MB", "GB", "TB", "PB"]
 
     package static func bytes(_ value: Int64) -> String {
-        let magnitude = Double(abs(value))
+        let magnitude = Double(value.magnitude)
         if magnitude < 1000 {
             return "\(value) B"
         }

@@ -91,7 +91,7 @@ if [ -d "Resources/Licenses" ]; then
     cp -R "Resources/Licenses" "${STAGE_PATH}/Contents/Resources/Licenses"
 fi
 
-# Offline IPv4 country table for the peer flags: bundled, never fetched at runtime.
+# Offline IPv4/IPv6 country tables for peer flags: bundled, never fetched at runtime.
 if [ -d "Resources/GeoIP" ]; then
     cp -R "Resources/GeoIP" "${STAGE_PATH}/Contents/Resources/GeoIP"
 fi

@@ -28,6 +28,7 @@ using vertex::json_escape;
 using vertex::normalized_save_path;
 
 #include <algorithm>
+#include <arpa/inet.h>
 #include <chrono>
 #include <cstdio>
 #include <exception>
@@ -37,11 +38,15 @@ using vertex::normalized_save_path;
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <ifaddrs.h>
 #include <iomanip>
 #include <locale>
 #include <memory>
 #include <mutex>
+#include <net/if.h>
 #include <set>
+#include <string_view>
+#include <sys/stat.h>
 #include <unordered_set>
 #include <sstream>
 #include <string>
@@ -52,16 +57,31 @@ using vertex::normalized_save_path;
 namespace fs = std::filesystem;
 
 // Same error contract for the public operations: report the exception through
-// last_error and return the bridge's failure value.
+// last_error and return the bridge's failure value without letting a secondary
+// allocation failure escape across extern "C".
 #define VT_CATCH_ALL(session_ptr, fallback)                                      \
     catch (std::exception const& e)                                             \
     {                                                                           \
-        (session_ptr)->last_error = e.what();                                   \
+        try                                                                     \
+        {                                                                       \
+            (session_ptr)->last_error = e.what();                               \
+        }                                                                       \
+        catch (...)                                                             \
+        {                                                                       \
+            (session_ptr)->last_error.clear();                                  \
+        }                                                                       \
         return fallback;                                                        \
     }                                                                           \
     catch (...)                                                                 \
     {                                                                           \
-        (session_ptr)->last_error = "Errore sconosciuto";                       \
+        try                                                                     \
+        {                                                                       \
+            (session_ptr)->last_error = "Errore sconosciuto";                   \
+        }                                                                       \
+        catch (...)                                                             \
+        {                                                                       \
+            (session_ptr)->last_error.clear();                                  \
+        }                                                                       \
         return fallback;                                                        \
     }
 
@@ -119,7 +139,7 @@ bool is_usable_directory(std::string const& path)
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::create_directories(path, ec);
-    return !ec && ::access(path.c_str(), W_OK) == 0;
+    return !ec && fs::is_directory(path, ec) && !ec && ::access(path.c_str(), W_OK | X_OK) == 0;
 }
 
 std::string prepared_save_path(std::string const& requested, std::string const& fallback)
@@ -138,6 +158,79 @@ bool has_flag(lt::torrent_flags_t flags, lt::torrent_flags_t flag)
 std::string portmap_transport_string(lt::portmap_transport transport)
 {
     return transport == lt::portmap_transport::upnp ? "UPnP" : "NAT-PMP";
+}
+
+// Validates and canonicalizes an optional bind_address. Empty means all
+// interfaces; bracketed IPv6 literals ("[::1]") are unwrapped so
+// listen_interfaces_setting never produces "[[::1]]:port", and device names
+// or malformed strings are rejected.
+bool normalize_bind_address_c(const char* raw, std::string& out)
+{
+    out.clear();
+    if (!raw || !*raw)
+        return true;
+
+    std::string candidate(raw);
+    auto const first = candidate.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos)
+        return true;
+    auto const last = candidate.find_last_not_of(" \t\r\n");
+    candidate = candidate.substr(first, last - first + 1);
+    if (candidate.size() >= 2 && candidate.front() == '[' && candidate.back() == ']')
+        candidate = candidate.substr(1, candidate.size() - 2);
+
+    lt::error_code ec;
+    auto const parsed = lt::make_address(candidate, ec);
+    if (ec)
+        return false;
+    out = parsed.to_string();
+    return true;
+}
+
+bool is_local_address_present(std::string const& bind_address)
+{
+    if (bind_address.empty())
+        return true;
+
+    lt::error_code ec;
+    auto const target = lt::make_address(bind_address, ec);
+    if (ec)
+        return false;
+
+    ifaddrs* head = nullptr;
+    if (::getifaddrs(&head) != 0 || !head)
+        return false;
+
+    bool found = false;
+    for (ifaddrs* cur = head; cur != nullptr; cur = cur->ifa_next)
+    {
+        if (!cur->ifa_addr || (cur->ifa_flags & IFF_UP) == 0)
+            continue;
+        if (cur->ifa_addr->sa_family == AF_INET && target.is_v4())
+        {
+            auto const* sin = reinterpret_cast<sockaddr_in const*>(cur->ifa_addr);
+            lt::address_v4::bytes_type bytes{};
+            std::memcpy(bytes.data(), &sin->sin_addr, bytes.size());
+            if (lt::address_v4(bytes) == target.to_v4())
+            {
+                found = true;
+                break;
+            }
+        }
+        else if (cur->ifa_addr->sa_family == AF_INET6 && target.is_v6())
+        {
+            auto const* sin6 = reinterpret_cast<sockaddr_in6 const*>(cur->ifa_addr);
+            lt::address_v6::bytes_type bytes{};
+            std::memcpy(bytes.data(), &sin6->sin6_addr, bytes.size());
+            if (lt::address_v6(bytes) == target.to_v6())
+            {
+                found = true;
+                break;
+            }
+        }
+    }
+    ::freeifaddrs(head);
+    return found;
 }
 
 // listen_interfaces expects "ip:port" pairs, with IPv6 literals in brackets.
@@ -214,7 +307,12 @@ struct vt_session
     std::deque<std::string> alert_errors;
     int actual_listen_port = 0;
     bool listening = false;
+    bool dht_enabled = true;
     bool upnp_enabled = true;
+    // True when both bind_address and SOCKS5 are active and bind_address is not
+    // present on any UP local interface: libtorrent's use_proxy listener binds
+    // 0.0.0.0, so the bridge pauses the session itself to stay fail-closed.
+    bool bound_interface_down = false;
     portmap_state tcp;
     portmap_state udp;
     // Error whose TCP/UDP protocol could not be determined from the alert.
@@ -228,6 +326,8 @@ struct vt_session
     bool proxy_auth = false;
     std::string proxy_host;
     int proxy_port = 1080;
+    std::string proxy_user;
+    std::string proxy_password;
     std::string proxy_error;
     // Ids of torrents removed by the user: late resume-data alerts must not recreate their files.
     // Bounded FIFO: such alerts only arrive shortly after the removal. The set
@@ -354,21 +454,45 @@ void unmark_removed(vt_session* session, std::string const& id)
         session->removed_ids.end());
 }
 
-// `torrent::pause()` and `torrent::resume()` do not ask the queue manager to
-// recompute the active set, so a freed slot would only be reused at the next
-// periodic pass (30 s by default). Re-applying the current limit triggers the
-// recalculation (subject to libtorrent's 1 s rate limit).
-void nudge_auto_manage(vt_session* session)
+void drop_all_peer_connections(vt_session* session);
+
+// When both bind_address and SOCKS5 proxy are active, libtorrent 2.1's
+// use_proxy path binds its internal proxy listener to 0.0.0.0, ignoring
+// listen_interfaces for HTTP tracker SOCKS5 connections and suppressing
+// listen_failed_alert when the VPN interface goes down. Enforce fail-closed
+// semantics explicitly by pausing the libtorrent session whenever the bound
+// local address is absent, and resuming when it returns.
+void enforce_bound_proxy_guard(vt_session* session)
 {
-    try
+    if (!session || !session->session)
+        return;
+
+    if (session->proxy_type == 1 && !session->bind_address.empty())
     {
-        lt::settings_pack pack;
-        int const value = session->max_active > 0 ? session->max_active : -1;
-        pack.set_int(lt::settings_pack::active_limit, value);
-        session->session->apply_settings(pack);
+        if (!is_local_address_present(session->bind_address))
+        {
+            if (!session->bound_interface_down)
+            {
+                session->bound_interface_down = true;
+                session->session->pause();
+                drop_all_peer_connections(session);
+            }
+            if (session->listen_error.empty())
+                session->listen_error = session->bind_address + ": address not available";
+        }
+        else if (session->bound_interface_down)
+        {
+            session->bound_interface_down = false;
+            session->listen_error.clear();
+            session->session->resume();
+        }
     }
-    catch (...)
+    else if (session->bound_interface_down)
     {
+        session->bound_interface_down = false;
+        if (session->bind_address.empty())
+            session->listen_error.clear();
+        session->session->resume();
     }
 }
 
@@ -415,23 +539,23 @@ bool configure_proxy_pack(vt_session* session,
     {
         session->proxy_type = 1;
         session->proxy_host = hostname;
-        session->proxy_port = port > 0 ? port : 1080;
+        session->proxy_port = (port > 0 && port <= 65535) ? port : 1080;
+        session->proxy_user = (username && *username) ? username : "";
+        session->proxy_password = (password && *password) ? password : "";
         session->proxy_error.clear();
 
         // libtorrent offers username/password authentication only when the
         // proxy type is socks5_pw AND the username is non-empty
         // (socks5_stream.hpp sends the no-auth method when m_user is empty).
         // A password without a username therefore cannot authenticate.
-        session->proxy_auth = username && *username;
+        session->proxy_auth = !session->proxy_user.empty();
         settings.set_int(lt::settings_pack::proxy_type,
                          session->proxy_auth ? lt::settings_pack::socks5_pw
                                              : lt::settings_pack::socks5);
         settings.set_str(lt::settings_pack::proxy_hostname, session->proxy_host);
         settings.set_int(lt::settings_pack::proxy_port, session->proxy_port);
-        settings.set_str(lt::settings_pack::proxy_username,
-                         (username && *username) ? username : "");
-        settings.set_str(lt::settings_pack::proxy_password,
-                         (password && *password) ? password : "");
+        settings.set_str(lt::settings_pack::proxy_username, session->proxy_user);
+        settings.set_str(lt::settings_pack::proxy_password, session->proxy_password);
 
         // Leak prevention: all tracker and peer traffic routed through SOCKS5 proxy
         settings.set_bool(lt::settings_pack::proxy_tracker_connections, true);
@@ -443,9 +567,13 @@ bool configure_proxy_pack(vt_session* session,
         // by the caller (see drop_all_peer_connections).
         settings.set_bool(lt::settings_pack::anonymous_mode, true);
 
-        // With SOCKS5 active, router UPnP/NAT-PMP mapping is disabled
+        // With SOCKS5 active, router UPnP/NAT-PMP mapping and DHT are disabled:
+        // libtorrent resolves dht_bootstrap_nodes via the system DNS resolver
+        // even when proxy_hostnames and anonymous_mode are enabled.
+        settings.set_bool(lt::settings_pack::enable_dht, false);
         settings.set_bool(lt::settings_pack::enable_upnp, false);
         settings.set_bool(lt::settings_pack::enable_natpmp, false);
+        session->dht_nodes = 0;
         reset_portmap_state(session);
     }
     else
@@ -454,6 +582,8 @@ bool configure_proxy_pack(vt_session* session,
         session->proxy_auth = false;
         session->proxy_host.clear();
         session->proxy_port = 0;
+        session->proxy_user.clear();
+        session->proxy_password.clear();
         session->proxy_error.clear();
 
         settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
@@ -462,7 +592,8 @@ bool configure_proxy_pack(vt_session* session,
         settings.set_str(lt::settings_pack::proxy_password, "");
         settings.set_bool(lt::settings_pack::anonymous_mode, false);
 
-        // Restore UPnP / NAT-PMP setting according to session preference
+        // Restore DHT and UPnP / NAT-PMP settings according to session preferences
+        settings.set_bool(lt::settings_pack::enable_dht, session->dht_enabled);
         settings.set_bool(lt::settings_pack::enable_upnp, session->upnp_enabled);
         settings.set_bool(lt::settings_pack::enable_natpmp, session->upnp_enabled);
         reset_portmap_state(session);
@@ -597,21 +728,33 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
         fs::path tmp_path = final_path;
         tmp_path += ".tmp";
 
-        auto write_file = [&]() -> bool {
-            std::ofstream file(tmp_path, std::ios::binary | std::ios::trunc);
-            if (!file)
-                return false;
-            file.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            file.flush();
-            return file.good();
-        };
-
-        // The rename is atomic, but without fsync a power loss can leave the
-        // renamed file empty: flush the data first.
-        auto sync_file = [&]() -> bool {
-            int const fd = ::open(tmp_path.c_str(), O_RDONLY);
+        // Open no-follow with 0600 permissions, write all bytes, and fsync on
+        // the same descriptor before atomic rename so symlinks cannot be
+        // followed and resume files (which hold tracker URLs and names) are
+        // private to the user.
+        auto write_and_sync_file = [&]() -> bool {
+            int const fd = ::open(
+                tmp_path.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
+                0600);
             if (fd < 0)
                 return false;
+            ::fchmod(fd, 0600);
+            char const* ptr = buffer.data();
+            std::size_t remaining = buffer.size();
+            while (remaining > 0)
+            {
+                ssize_t const written = ::write(fd, ptr, remaining);
+                if (written < 0)
+                {
+                    if (errno == EINTR)
+                        continue;
+                    ::close(fd);
+                    return false;
+                }
+                ptr += written;
+                remaining -= static_cast<std::size_t>(written);
+            }
             bool const ok = ::fsync(fd) == 0;
             ::close(fd);
             return ok;
@@ -619,19 +762,16 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
 
         // The directory is created once with the session; recreate it only if
         // it disappeared, so the periodic save does not hit the filesystem.
-        if (!write_file())
+        if (!write_and_sync_file())
         {
             std::error_code dir_ec;
             fs::create_directories(resume_dir, dir_ec);
-            if (dir_ec || !write_file())
+            if (dir_ec || !write_and_sync_file())
+            {
+                std::error_code remove_ec;
+                fs::remove(tmp_path, remove_ec);
                 return false;
-        }
-
-        if (!sync_file())
-        {
-            std::error_code remove_ec;
-            fs::remove(tmp_path, remove_ec);
-            return false;
+            }
         }
 
         std::error_code ec;
@@ -642,8 +782,21 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
             return false;
         }
 
+        // Hybrid torrents added from a v1-only magnet switch get_best() from
+        // v1 to truncated v2 once metadata arrives: clean up any earlier
+        // <v1>.resume so restarts and removals stay consistent.
+        if (params.info_hashes.has_v1() && params.info_hashes.has_v2())
+        {
+            auto const v1_id = to_hex(params.info_hashes.v1);
+            if (!v1_id.empty() && v1_id != id)
+            {
+                std::error_code stale_ec;
+                fs::remove(fs::path(resume_dir) / (v1_id + ".resume"), stale_ec);
+            }
+        }
+
         // Persist the directory entry too, so the new name survives a crash.
-        int const dir_fd = ::open(resume_dir.c_str(), O_RDONLY | O_DIRECTORY);
+        int const dir_fd = ::open(resume_dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
         if (dir_fd >= 0)
         {
             ::fsync(dir_fd);
@@ -741,8 +894,14 @@ vt_session* vt_session_create_configured(const char* download_dir,
         auto session = std::make_unique<vt_session>();
         session->default_save_path = download_dir ? download_dir : "";
         session->resume_dir = resume_dir ? resume_dir : "";
-        session->listen_port = listen_port > 0 ? listen_port : 6881;
-        session->bind_address = bind_address ? bind_address : "";
+        session->listen_port = (listen_port > 0 && listen_port <= 65535) ? listen_port : 6881;
+        if (!normalize_bind_address_c(bind_address, session->bind_address))
+        {
+            if (error_message)
+                *error_message = ::strdup("Parametri non validi");
+            return nullptr;
+        }
+        session->dht_enabled = enable_dht != 0;
         session->upnp_enabled = enable_upnp != 0;
 
         auto ensure_directory = [&](std::string const& path) {
@@ -764,7 +923,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
             && !ensure_directory(session->resume_dir))
             return nullptr;
 
-        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.7";
+        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.11";
         lt::settings_pack settings;
         settings.set_str(lt::settings_pack::user_agent,
                          "Vertex/" + version_str + " libtorrent/" LIBTORRENT_VERSION);
@@ -780,8 +939,9 @@ vt_session* vt_session_create_configured(const char* download_dir,
         {
             settings.set_str(lt::settings_pack::outgoing_interfaces, session->bind_address);
         }
+        bool const effective_dht = session->dht_enabled && (proxy_type != 1);
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
-                            enable_dht, enable_upnp, enable_lsd);
+                            effective_dht ? 1 : 0, enable_upnp, enable_lsd);
         if (proxy_type == 1)
         {
             // Configure SOCKS5 and anonymous_mode in the initial settings_pack
@@ -800,8 +960,11 @@ vt_session* vt_session_create_configured(const char* download_dir,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
                          "dht.transmissionbt.com:6881,router.utorrent.com:6881");
         settings.set_int(lt::settings_pack::connections_limit, 400);
-        settings.set_int(lt::settings_pack::active_limit, 100);
-        settings.set_int(lt::settings_pack::alert_queue_size, 1000);
+        settings.set_int(lt::settings_pack::active_limit, -1);
+        settings.set_int(lt::settings_pack::active_downloads, -1);
+        settings.set_int(lt::settings_pack::active_seeds, -1);
+        settings.set_bool(lt::settings_pack::dont_count_slow_torrents, false);
+        settings.set_int(lt::settings_pack::alert_queue_size, 4096);
         settings.set_int(lt::settings_pack::stop_tracker_timeout, 1);
         settings.set_bool(lt::settings_pack::announce_to_all_tiers, true);
         settings.set_bool(lt::settings_pack::announce_to_all_trackers, true);
@@ -818,6 +981,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
         session->dht_metric_index = lt::find_metric_idx("dht.dht_nodes");
         session->last_stats = std::chrono::steady_clock::now();
         session->last_resume_save = std::chrono::steady_clock::now();
+        enforce_bound_proxy_guard(session.get());
 
         if (!session->resume_dir.empty())
         {
@@ -832,39 +996,70 @@ vt_session* vt_session_create_configured(const char* download_dir,
             };
 
             std::error_code ec;
-            for (auto const& entry : fs::directory_iterator(session->resume_dir, ec))
+            fs::directory_iterator it(session->resume_dir, ec);
+            fs::directory_iterator const end;
+            for (; !ec && it != end; it.increment(ec))
             {
-                if (ec)
-                    break;
+                auto const entry_path = it->path();
                 // symlink_status does not follow links: a symlink named
                 // *.resume must never make the bridge read another file.
                 std::error_code type_ec;
-                if (!fs::is_regular_file(fs::symlink_status(entry.path(), type_ec))
-                    || type_ec || entry.path().extension() != ".resume")
+                if (!fs::is_regular_file(fs::symlink_status(entry_path, type_ec))
+                    || type_ec || entry_path.extension() != ".resume")
                     continue;
 
                 try
                 {
-                    // A resume file is a compact bencoded dict. Check the size
-                    // before reading so a corrupt or oversized file cannot
-                    // exhaust memory at startup.
-                    std::error_code size_ec;
-                    auto const resume_size = fs::file_size(entry.path(), size_ec);
-                    constexpr std::uintmax_t MAX_RESUME_FILE = 10 * 1024 * 1024; // 10 MiB
-                    if (size_ec || resume_size == 0 || resume_size > MAX_RESUME_FILE)
+                    // Open no-follow and bound the read on the file descriptor
+                    // itself so neither a swapped symlink nor a file growing past
+                    // MAX_RESUME_FILE can be read into memory.
+                    constexpr std::size_t MAX_RESUME_FILE = 10 * 1024 * 1024; // 10 MiB
+                    int const fd = ::open(entry_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+                    if (fd < 0)
+                        continue;
+
+                    struct stat st{};
+                    if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)
+                        || st.st_size <= 0
+                        || static_cast<std::uintmax_t>(st.st_size) > MAX_RESUME_FILE)
                     {
-                        quarantine(entry.path());
+                        bool const bad_size = S_ISREG(st.st_mode)
+                            && (st.st_size <= 0
+                                || static_cast<std::uintmax_t>(st.st_size) > MAX_RESUME_FILE);
+                        ::close(fd);
+                        if (bad_size)
+                            quarantine(entry_path);
                         continue;
                     }
 
-                    std::ifstream file(entry.path(), std::ios::binary);
-                    std::vector<char> data((std::istreambuf_iterator<char>(file)),
-                                           std::istreambuf_iterator<char>());
-                    // Re-check after reading: the file may have grown between
-                    // the stat and the read, and this bounds the int cast below.
-                    if (data.empty() || data.size() > MAX_RESUME_FILE)
+                    std::vector<char> data;
+                    data.reserve(static_cast<std::size_t>(st.st_size));
+                    char chunk[65536];
+                    bool read_failed = false;
+                    while (true)
                     {
-                        quarantine(entry.path());
+                        ssize_t const n = ::read(fd, chunk, sizeof(chunk));
+                        if (n < 0)
+                        {
+                            if (errno == EINTR)
+                                continue;
+                            read_failed = true;
+                            break;
+                        }
+                        if (n == 0)
+                            break;
+                        if (data.size() + static_cast<std::size_t>(n) > MAX_RESUME_FILE)
+                        {
+                            read_failed = true;
+                            break;
+                        }
+                        data.insert(data.end(), chunk, chunk + n);
+                    }
+                    ::close(fd);
+
+                    if (read_failed || data.empty() || data.size() > MAX_RESUME_FILE)
+                    {
+                        quarantine(entry_path);
                         continue;
                     }
 
@@ -873,7 +1068,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
                         lt::span<char const>(data.data(), static_cast<int>(data.size())), resume_ec);
                     if (resume_ec)
                     {
-                        quarantine(entry.path());
+                        quarantine(entry_path);
                         continue;
                     }
 
@@ -883,6 +1078,8 @@ vt_session* vt_session_create_configured(const char* download_dir,
                     // the user must stay paused (no auto_managed).
                     lt::error_code add_ec;
                     session->session->add_torrent(std::move(params), add_ec);
+                    if (add_ec && add_ec != lt::errors::duplicate_torrent)
+                        quarantine(entry_path);
                 }
                 catch (...)
                 {
@@ -947,11 +1144,19 @@ void vt_session_destroy(vt_session* session)
 
     try
     {
+        // Only wait for resume data of torrents that are still in the session
+        // and either need saving or do not yet have a resume file on disk.
+        // Stale alerts from removed torrents must neither recreate their files
+        // nor decrement the pending counter.
+        std::set<std::string> requested_ids;
+
         // Drain any save_resume_data_alert already posted before shutdown
         // (for instance by vt_set_file_priority, vt_set_trackers, vt_control or
         // the periodic timer). libtorrent clears need_save_resume_data() as soon
         // as the alert is posted, so skipping this drain would lose updates made
-        // right before Cmd-Q.
+        // right before Cmd-Q. If file_prio_alert or storage_moved_alert arrives
+        // here, request a fresh save and track its id in requested_ids so the
+        // loop below waits for the updated resume buffer.
         {
             std::vector<lt::alert*> pre_alerts;
             session->session->pop_alerts(&pre_alerts);
@@ -963,14 +1168,45 @@ void vt_session_destroy(vt_session* session)
                     if (!id.empty() && !is_removed(session, id) && saved->handle.is_valid())
                         write_resume_impl(session->resume_dir, saved->params);
                 }
+                else if (auto* prio = lt::alert_cast<lt::file_prio_alert>(alert))
+                {
+                    if (prio->handle.is_valid())
+                    {
+                        try
+                        {
+                            auto const id = to_hex(prio->handle.info_hashes().get_best());
+                            if (!id.empty() && !is_removed(session, id))
+                            {
+                                prio->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                                requested_ids.insert(id);
+                            }
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
+                }
+                else if (auto* moved = lt::alert_cast<lt::storage_moved_alert>(alert))
+                {
+                    if (moved->handle.is_valid())
+                    {
+                        try
+                        {
+                            auto const id = to_hex(moved->handle.info_hashes().get_best());
+                            if (!id.empty() && !is_removed(session, id))
+                            {
+                                moved->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                                requested_ids.insert(id);
+                            }
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
+                }
             }
         }
 
-        // Only wait for resume data of torrents that are still in the session
-        // and either need saving or do not yet have a resume file on disk.
-        // Stale alerts from removed torrents must neither recreate their files
-        // nor decrement the pending counter.
-        std::set<std::string> requested_ids;
         for (auto const& handle : session->session->get_torrents())
         {
             try
@@ -979,7 +1215,7 @@ void vt_session_destroy(vt_session* session)
                     continue;
 
                 auto id = to_hex(handle.info_hashes().get_best());
-                if (id.empty() || is_removed(session, id))
+                if (id.empty() || is_removed(session, id) || requested_ids.count(id) > 0)
                     continue;
 
                 bool resume_exists = false;
@@ -1098,6 +1334,7 @@ void vt_session_poll(vt_session* session)
 
     try
     {
+        enforce_bound_proxy_guard(session);
         auto now = std::chrono::steady_clock::now();
 
         if (now - session->last_stats > std::chrono::milliseconds(1500))
@@ -1159,6 +1396,37 @@ void vt_session_poll(vt_session* session)
                     }
                 }
             }
+            else if (auto* prio = lt::alert_cast<lt::file_prio_alert>(alert))
+            {
+                if (prio->handle.is_valid())
+                {
+                    try
+                    {
+                        prio->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+            else if (lt::alert_cast<lt::alerts_dropped_alert>(alert))
+            {
+                // A dropped state_update_alert or save_resume_data_alert would
+                // leave status_cache stale or skip persisting a dirty torrent:
+                // invalidate the cache and re-request pending resume saves.
+                session->status_cache.clear();
+                for (auto const& handle : session->session->get_torrents())
+                {
+                    try
+                    {
+                        if (handle.is_valid())
+                            handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
             else if (auto* move_failed = lt::alert_cast<lt::storage_moved_failed_alert>(alert))
             {
                 push_alert_error(session, move_failed->error.message());
@@ -1182,7 +1450,8 @@ void vt_session_poll(vt_session* session)
             }
             else if (lt::alert_cast<lt::listen_succeeded_alert>(alert))
             {
-                session->listen_error.clear();
+                if (!session->bound_interface_down)
+                    session->listen_error.clear();
             }
             else if (auto* mapped = lt::alert_cast<lt::portmap_alert>(alert))
             {
@@ -1366,8 +1635,16 @@ char* vt_snapshot_json(vt_session* session)
 
         try
         {
-            session->actual_listen_port = int(session->session->listen_port());
-            session->listening = session->session->is_listening();
+            if (session->bound_interface_down)
+            {
+                session->actual_listen_port = 0;
+                session->listening = false;
+            }
+            else
+            {
+                session->actual_listen_port = int(session->session->listen_port());
+                session->listening = session->session->is_listening();
+            }
         }
         catch (...)
         {
@@ -1627,9 +1904,14 @@ int vt_add_magnet(vt_session* session,
                   int paused,
                   int sequential)
 {
-    if (!session || !uri)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!uri)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     // MEDIUM #5: reject magnet URIs larger than 8 KiB before handing to libtorrent
     constexpr std::size_t MAX_MAGNET_URI = 8 * 1024;
@@ -1661,9 +1943,14 @@ int vt_add_torrent_file(vt_session* session,
                         int paused,
                         int sequential)
 {
-    if (!session || !path)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!path)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     // MEDIUM #6: validate torrent file path before loading
     // - canonicalize
@@ -1693,15 +1980,7 @@ int vt_add_torrent_file(vt_session* session,
         }
         canonical_path = canonical.string();
         path = canonical_path.c_str();
-    }
-    catch (std::exception const& e)
-    {
-        session->last_error = std::string("Invalid torrent path: ") + e.what();
-        return -1;
-    }
 
-    try
-    {
         lt::error_code ec;
         auto params = lt::load_torrent_file(path, ec, lt::load_torrent_limits{});
         if (ec)
@@ -1720,9 +1999,14 @@ int vt_add_peer(vt_session* session,
                 const char* host,
                 int port)
 {
-    if (!session || !torrent_id_value || !host || port <= 0 || port > 65535)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!torrent_id_value || !host || port <= 0 || port > 65535)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     try
     {
@@ -1786,9 +2070,14 @@ ControlAction parse_control_action(std::string const& action)
 
 int vt_control(vt_session* session, const char* torrent_id_value, const char* action)
 {
-    if (!session || !torrent_id_value || !action)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!torrent_id_value || !action)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     try
     {
@@ -1812,15 +2101,21 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             break;
 
         case ControlAction::resume:
+        {
             // A torrent stopped by an error stays stopped until the error is cleared.
-            if (handle.status(lt::status_flags_t{}).errc)
+            auto const st = handle.status(lt::status_flags_t{});
+            if (st.errc)
                 handle.clear_error();
-            // Resuming puts the torrent back in the queue: the auto-manager owns
-            // the decision of when it actually starts.
+            // Resuming hands the torrent back to the auto-manager: when no queue
+            // limit is active (max_active <= 0), unpause immediately; when a
+            // positive limit is active, let the auto-manager assign a slot so a
+            // queued torrent cannot exceed max_active.
             handle.set_flags(lt::torrent_flags::auto_managed);
-            handle.resume();
+            if (session->max_active <= 0)
+                handle.resume();
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
+        }
 
         case ControlAction::forceStart:
             // Force start starts the torrent immediately, bypassing queue limits
@@ -1855,7 +2150,20 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
         case ControlAction::remove:
         case ControlAction::removeFiles:
-            mark_removed(session, torrent_id_value);
+        {
+            auto const hashes = handle.info_hashes();
+            auto const best_id = to_hex(hashes.get_best());
+            auto const v1_id = hashes.has_v1() ? to_hex(hashes.v1) : std::string{};
+            if (!best_id.empty())
+            {
+                mark_removed(session, best_id);
+                session->status_cache.erase(best_id);
+            }
+            if (!v1_id.empty() && v1_id != best_id)
+            {
+                mark_removed(session, v1_id);
+                session->status_cache.erase(v1_id);
+            }
             if (command == ControlAction::removeFiles)
                 session->session->remove_torrent(handle, lt::session::delete_files);
             else
@@ -1863,19 +2171,18 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             if (!session->resume_dir.empty())
             {
                 std::error_code ec;
-                fs::remove(fs::path(session->resume_dir) / (std::string(torrent_id_value) + ".resume"),
-                           ec);
+                if (!best_id.empty())
+                    fs::remove(fs::path(session->resume_dir) / (best_id + ".resume"), ec);
+                if (!v1_id.empty() && v1_id != best_id)
+                    fs::remove(fs::path(session->resume_dir) / (v1_id + ".resume"), ec);
             }
             break;
+        }
 
         case ControlAction::unknown:
             session->last_error = "Comando non supportato";
             return -1;
         }
-
-        // Pause, resume, dequeue and remove all change how many torrents are
-        // active: let the queue manager reuse the slot immediately.
-        nudge_auto_manage(session);
 
         return 0;
     }
@@ -1884,9 +2191,14 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
 int vt_set_trackers(vt_session* session, const char* torrent_id_value, const char* urls)
 {
-    if (!session || !torrent_id_value || !urls)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!torrent_id_value || !urls)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     // Bounds for a list that comes from a text field: a torrent with hundreds of
     // trackers is a configuration mistake, and a huge URL is not a URL.
@@ -1957,6 +2269,17 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
         if (!handle.is_valid())
         {
             session->last_error = "Torrent non trovato";
+            return -1;
+        }
+        auto info = handle.torrent_file();
+        if (!info)
+        {
+            session->last_error = "Metadati non disponibili";
+            return -1;
+        }
+        if (file_index >= info->layout().num_files())
+        {
+            session->last_error = "Parametri non validi";
             return -1;
         }
         handle.file_priority(lt::file_index_t(file_index),
@@ -2030,6 +2353,14 @@ int vt_move_storage(vt_session* session, const char* torrent_id_value, const cha
             return -1;
         }
 
+        auto const current_save = handle.status(lt::torrent_handle::query_save_path).save_path;
+        if (!current_save.empty())
+        {
+            std::error_code eq_ec;
+            if (fs::equivalent(destination, current_save, eq_ec) && !eq_ec)
+                return 0;
+        }
+
         if (auto info = handle.torrent_file())
         {
             auto const& storage = info->layout();
@@ -2066,10 +2397,22 @@ int vt_apply_settings_ex(vt_session* session,
 
     try
     {
+        std::string requested_bind;
+        if (!normalize_bind_address_c(bind_address, requested_bind))
+        {
+            session->last_error = "Parametri non validi";
+            return -1;
+        }
+        if (listen_port > 65535)
+        {
+            session->last_error = "Parametri non validi";
+            return -1;
+        }
+
         lt::settings_pack settings;
-        std::string const requested_bind = bind_address ? bind_address : "";
         bool const port_changed = listen_port > 0 && listen_port != session->listen_port;
-        if (port_changed || requested_bind != session->bind_address)
+        bool const bind_changed = requested_bind != session->bind_address;
+        if (port_changed || bind_changed)
         {
             if (listen_port > 0)
                 session->listen_port = listen_port;
@@ -2083,15 +2426,20 @@ int vt_apply_settings_ex(vt_session* session,
             settings.set_str(lt::settings_pack::outgoing_interfaces,
                              session->bind_address);
         }
+        session->dht_enabled = enable_dht != 0;
         if ((enable_upnp != 0) != session->upnp_enabled)
         {
             session->upnp_enabled = enable_upnp != 0;
             reset_portmap_state(session);
         }
+        bool const effective_dht = session->dht_enabled && (session->proxy_type == 0);
         bool const effective_upnp = (enable_upnp != 0) && (session->proxy_type == 0);
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
-                            enable_dht, effective_upnp ? 1 : 0, enable_lsd);
+                            effective_dht ? 1 : 0, effective_upnp ? 1 : 0, enable_lsd);
         session->session->apply_settings(settings);
+        if (bind_changed)
+            drop_all_peer_connections(session);
+        enforce_bound_proxy_guard(session);
         return 0;
     }
     VT_CATCH_ALL(session, -1)
@@ -2143,6 +2491,8 @@ int vt_apply_proxy_settings(vt_session* session,
         std::string const previous_host = session->proxy_host;
         int const previous_port = session->proxy_port;
         bool const previous_auth = session->proxy_auth;
+        std::string const previous_user = session->proxy_user;
+        std::string const previous_password = session->proxy_password;
 
         lt::settings_pack settings;
         if (!configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password))
@@ -2157,9 +2507,12 @@ int vt_apply_proxy_settings(vt_session* session,
             || (now_active
                 && (previous_host != session->proxy_host
                     || previous_port != session->proxy_port
-                    || previous_auth != session->proxy_auth));
+                    || previous_auth != session->proxy_auth
+                    || previous_user != session->proxy_user
+                    || previous_password != session->proxy_password));
         if (endpoint_changed)
             drop_all_peer_connections(session);
+        enforce_bound_proxy_guard(session);
         return 0;
     }
     VT_CATCH_ALL(session, -1)
@@ -2190,9 +2543,14 @@ char* vt_normalize_save_path(const char* requested, const char* fallback)
 
 int vt_set_default_save_path(vt_session* session, const char* path)
 {
-    if (!session || !path || !*path)
+    if (!session)
         return -1;
     VT_LOCK_SESSION(session);
+    if (!path || !*path)
+    {
+        session->last_error = "Parametri non validi";
+        return -1;
+    }
 
     try
     {
@@ -2209,7 +2567,7 @@ int vt_set_default_save_path(vt_session* session, const char* path)
             session->last_error = "La destinazione non è una cartella.";
             return -1;
         }
-        if (::access(target.c_str(), W_OK) != 0)
+        if (::access(target.c_str(), W_OK | X_OK) != 0)
         {
             session->last_error = "La cartella di destinazione non è scrivibile.";
             return -1;
@@ -2239,7 +2597,7 @@ int vt_is_valid_utf8(const char* input)
 {
     if (!input)
         return 0;
-    return is_valid_utf8(std::string(input)) ? 1 : 0;
+    return is_valid_utf8(std::string_view(input)) ? 1 : 0;
 }
 
 void vt_free_string(char* value)

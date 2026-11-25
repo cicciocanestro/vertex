@@ -269,6 +269,7 @@ extension SettingsSheet {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(palette.stroke, lineWidth: 1)
+                        .allowsHitTesting(false)
                 )
 
             Text(verbatim: ":")
@@ -290,6 +291,7 @@ extension SettingsSheet {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(palette.stroke, lineWidth: 1)
+                        .allowsHitTesting(false)
                 )
         }
         .padding(.vertical, 7)
@@ -328,6 +330,7 @@ extension SettingsSheet {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(palette.stroke, lineWidth: 1)
+                        .allowsHitTesting(false)
                 )
 
             SecureField(L("Password"), text: $proxyPasswordValue.value)
@@ -344,6 +347,7 @@ extension SettingsSheet {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(palette.stroke, lineWidth: 1)
+                        .allowsHitTesting(false)
                 )
         }
         .padding(.vertical, 7)

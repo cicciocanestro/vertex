@@ -10,13 +10,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace vertex {
 
 /// Returns the length in bytes (1..4) of a valid RFC 3629 UTF-8 code point at
 /// `p` when at least that many bytes are available in `remaining`, or 0 when
 /// the byte sequence is malformed (overlong, surrogate, or > U+10FFFF).
-inline std::size_t utf8_sequence_length(unsigned char const* p, std::size_t remaining)
+inline std::size_t utf8_sequence_length(unsigned char const* p, std::size_t remaining) noexcept
 {
     if (remaining == 0)
         return 0;
@@ -67,7 +68,7 @@ inline std::size_t utf8_sequence_length(unsigned char const* p, std::size_t rema
 
 /// Validate UTF-8 strictly according to RFC 3629 without allocating.
 /// Rejects overlong sequences, UTF-16 surrogates, and values above U+10FFFF.
-inline bool is_valid_utf8(std::string const& input)
+inline bool is_valid_utf8(std::string_view input) noexcept
 {
     auto const* bytes = reinterpret_cast<unsigned char const*>(input.data());
     std::size_t i = 0;
@@ -141,24 +142,35 @@ inline std::string normalized_save_path(
     std::string const& fallback)
 {
     namespace fs = std::filesystem;
-    std::string candidate = requested.empty() ? fallback : requested;
-
-    // MEDIUM #7: trim and expand ~ exactly like Preferences.resolvedDownloadPath,
-    // so the path the Swift side normalizes and the one the C++ side uses for
-    // resume data and save_path can never drift apart.
-    auto trim = [](std::string& s) {
+    auto trim = [](std::string s) {
         auto first = s.find_first_not_of(" \t\n\r");
-        if (first == std::string::npos) { s.clear(); return; }
+        if (first == std::string::npos)
+            return std::string{};
         auto last = s.find_last_not_of(" \t\n\r");
-        s = s.substr(first, last - first + 1);
+        return s.substr(first, last - first + 1);
     };
-    trim(candidate);
-    if (!candidate.empty() && candidate[0] == '~')
-    {
-        char const* home = std::getenv("HOME");
-        if (home && *home)
-            candidate = std::string(home) + candidate.substr(1);
-    }
+    auto expand_tilde = [](std::string& s) {
+        // Expand only standalone "~" or "~/...": "~alice" refers to another user
+        // or a literal directory name and must not be concatenated onto $HOME.
+        if (s == "~" || s.rfind("~/", 0) == 0)
+        {
+            char const* home = std::getenv("HOME");
+            if (home && *home)
+                s = std::string(home) + s.substr(1);
+        }
+    };
+
+    std::string trimmed_fallback = trim(fallback);
+    expand_tilde(trimmed_fallback);
+
+    std::string candidate = trim(requested);
+    if (candidate.empty())
+        candidate = trimmed_fallback;
+    else
+        expand_tilde(candidate);
+
+    if (candidate.empty())
+        return fallback;
 
     std::error_code ec;
     fs::path path(candidate);
@@ -176,7 +188,7 @@ inline std::string normalized_save_path(
         candidate = path.parent_path().string();
     }
 
-    return candidate.empty() ? fallback : candidate;
+    return candidate.empty() ? (trimmed_fallback.empty() ? fallback : trimmed_fallback) : candidate;
 }
 
 } // namespace vertex

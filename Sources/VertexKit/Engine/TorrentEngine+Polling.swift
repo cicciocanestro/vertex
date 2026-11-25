@@ -26,6 +26,9 @@ extension TorrentEngine {
         if let configurationOverride {
             return Preferences.clampedSeedRatio(configurationOverride.seedRatioLimit)
         }
+        if let applied = lastAppliedConfiguration {
+            return Preferences.clampedSeedRatio(applied.seedRatioLimit)
+        }
         return Preferences.clampedSeedRatio(UserDefaults.standard.double(forKey: PrefKey.seedRatioLimit))
     }
 
@@ -96,29 +99,45 @@ extension TorrentEngine {
                 isProxyProbeInFlight = true
                 let host = snapshot.stats.proxy.hostname
                 let port = snapshot.stats.proxy.port
+                let bindAddress = snapshot.stats.bindAddress
+                let probeGen = proxyProbeGeneration
                 DispatchQueue.global(qos: .utility).async { [weak self] in
-                    let isReachable = Self.probeTCPConnection(host: host, port: port, timeoutSeconds: 0.5)
+                    let isReachable = Self.probeTCPConnection(
+                        host: host,
+                        port: port,
+                        bindAddress: bindAddress,
+                        timeoutSeconds: 0.5
+                    )
                     DispatchQueue.main.async {
                         guard let self else { return }
                         self.isProxyProbeInFlight = false
-                        guard self.sessionGeneration == generation, !self.isShuttingDown else { return }
+                        guard self.sessionGeneration == generation,
+                            self.proxyProbeGeneration == probeGen,
+                            !self.isShuttingDown
+                        else { return }
                         // Ensure the probed target still matches the currently active proxy configuration
                         let currentProxy = self.pollState.stats.proxy
                         guard currentProxy.enabled, currentProxy.hostname == host, currentProxy.port == port else {
                             return
                         }
                         let newError: String? = isReachable ? nil : L("Connessione rifiutata")
+                        let hadHealthError = self.proxyHealthError != nil
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError
                             if let newError {
                                 self.pollState.stats.proxy.error = newError
                             }
-                            if isReachable, self.hasSession {
-                                Task {
-                                    await self.sessionController.perform { pointer in
-                                        vt_clear_proxy_error(pointer)
-                                        return 0
-                                    }
+                        }
+                        if isReachable,
+                            self.hasSession,
+                            hadHealthError
+                                || (!currentProxy.error.isEmpty && !Self.isProxyAuthError(currentProxy.error))
+                        {
+                            self.pollState.stats.proxy.error = ""
+                            Task {
+                                await self.sessionController.perform { pointer in
+                                    vt_clear_proxy_error(pointer)
+                                    return 0
                                 }
                             }
                         }
@@ -128,20 +147,43 @@ extension TorrentEngine {
         } else {
             proxyHealthError = nil
             proxyCheckTick = 0
-            isProxyProbeInFlight = false
         }
 
         apply(snapshot)
     }
 
-    nonisolated static func probeTCPConnection(host: String, port: Int, timeoutSeconds: Double) -> Bool {
+    nonisolated private static func isProxyAuthError(_ raw: String) -> Bool {
+        let lower = raw.lowercased()
+        return lower.contains("authentication")
+            || lower.contains("username required")
+            || lower.contains("autenticazione socks5")
+    }
+
+    nonisolated static func probeTCPConnection(
+        host: String,
+        port: Int,
+        bindAddress: String = "",
+        timeoutSeconds: Double
+    ) -> Bool {
+        var normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedHost.count >= 2 && normalizedHost.hasPrefix("[") && normalizedHost.hasSuffix("]") {
+            normalizedHost.removeFirst()
+            normalizedHost.removeLast()
+        }
+        guard !normalizedHost.isEmpty else { return false }
+
         var hints = addrinfo()
         hints.ai_family = AF_UNSPEC
         hints.ai_socktype = SOCK_STREAM
+        // When pinned to a local tunnel IP, never trigger clearnet DNS lookups
+        // unless the bound address itself can be bound locally first.
+        if !bindAddress.isEmpty {
+            guard Self.canBindLocalAddress(bindAddress) else { return false }
+        }
 
         var res: UnsafeMutablePointer<addrinfo>?
         let portStr = String(port)
-        guard getaddrinfo(host, portStr, &hints, &res) == 0, let first = res else {
+        guard getaddrinfo(normalizedHost, portStr, &hints, &res) == 0, let first = res else {
             return false
         }
         defer { freeaddrinfo(res) }
@@ -151,6 +193,11 @@ extension TorrentEngine {
         while let current = ptr {
             let fd = socket(current.pointee.ai_family, current.pointee.ai_socktype, current.pointee.ai_protocol)
             if fd >= 0 {
+                if !bindAddress.isEmpty && !Self.bindSocket(fd, family: current.pointee.ai_family, to: bindAddress) {
+                    close(fd)
+                    ptr = current.pointee.ai_next
+                    continue
+                }
                 // Set non-blocking to honor timeout
                 let flags = fcntl(fd, F_GETFL, 0)
                 _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
@@ -180,6 +227,56 @@ extension TorrentEngine {
             ptr = current.pointee.ai_next
         }
         return connected
+    }
+
+    nonisolated private static func canBindLocalAddress(_ address: String) -> Bool {
+        var v4 = in_addr()
+        if address.withCString({ inet_pton(AF_INET, $0, &v4) }) == 1 {
+            let fd = socket(AF_INET, SOCK_STREAM, 0)
+            guard fd >= 0 else { return false }
+            defer { close(fd) }
+            return bindSocket(fd, family: AF_INET, to: address)
+        }
+        var v6 = in6_addr()
+        if address.withCString({ inet_pton(AF_INET6, $0, &v6) }) == 1 {
+            let fd = socket(AF_INET6, SOCK_STREAM, 0)
+            guard fd >= 0 else { return false }
+            defer { close(fd) }
+            return bindSocket(fd, family: AF_INET6, to: address)
+        }
+        return false
+    }
+
+    nonisolated private static func bindSocket(_ fd: Int32, family: Int32, to address: String) -> Bool {
+        if family == AF_INET {
+            var addr = sockaddr_in()
+            addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = 0
+            guard address.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
+                return false
+            }
+            return withUnsafePointer(to: &addr) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
+                }
+            }
+        }
+        if family == AF_INET6 {
+            var addr6 = sockaddr_in6()
+            addr6.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            addr6.sin6_family = sa_family_t(AF_INET6)
+            addr6.sin6_port = 0
+            guard address.withCString({ inet_pton(AF_INET6, $0, &addr6.sin6_addr) }) == 1 else {
+                return false
+            }
+            return withUnsafePointer(to: &addr6) { ptr in
+                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) == 0
+                }
+            }
+        }
+        return false
     }
 
     private func appendHistory(_ value: Double, to history: inout [Double]) {
@@ -250,9 +347,9 @@ extension TorrentEngine {
                 let completed = snapshot.torrents.filter { newlyFinished.contains($0.id) }
                 completionNotification(completed.map(\.name))
                 if completed.count == 1, let torrent = completed.first {
-                    let path = URL(fileURLWithPath: torrent.savePath)
-                        .appendingPathComponent(torrent.name)
-                        .path
+                    let path =
+                        Self.safeTorrentChildURL(savePath: torrent.savePath, name: torrent.name)?.path
+                        ?? torrent.savePath
                     showToast(
                         L("Download completato"),
                         kind: .success,
@@ -282,20 +379,36 @@ extension TorrentEngine {
                     continue
                 }
                 guard torrent.finished, !torrent.paused else {
-                    if torrent.finished && torrent.paused {
+                    // Only treat a manual pause (!autoManaged) as already satisfied:
+                    // a queued finished torrent is paused by the queue manager and
+                    // must still be auto-paused if it later gets an active slot.
+                    if torrent.finished && torrent.paused && !torrent.autoManaged {
                         ratioLimitSatisfiedIDs.insert(torrent.id)
                     }
                     continue
                 }
                 guard !ratioLimitSatisfiedIDs.contains(torrent.id) else { continue }
                 ratioLimitSatisfiedIDs.insert(torrent.id)
+                let torrentID = torrent.id
                 let name = torrent.name
-                control("pause", id: torrent.id) { [weak self] in
+                let queued = enqueueSessionOperation { session in
+                    torrentID.withCString { idPointer in
+                        "pause".withCString { actionPointer in
+                            vt_control(session, idPointer, actionPointer)
+                        }
+                    }
+                } onSuccess: { [weak self] in
                     self?.showToast(
                         L("Seed completato (limite rapporto raggiunto)"),
                         kind: .info,
                         detail: name
                     )
+                    self?.poll()
+                } onFailure: { [weak self] _ in
+                    self?.ratioLimitSatisfiedIDs.remove(torrentID)
+                }
+                if !queued {
+                    ratioLimitSatisfiedIDs.remove(torrentID)
                 }
             }
         } else if !ratioLimitSatisfiedIDs.isEmpty {
@@ -404,17 +517,24 @@ extension TorrentEngine {
             }
             return
         }
+        detailTask?.cancel()
+        detailRequestID &+= 1
+        let requestID = detailRequestID
         let generation = sessionGeneration
-        Task { [weak self] in
-            guard let self else { return }
+        detailTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
             let decoded = await self.sessionController.detail(id: id)
-            self.applyDetail(decoded, id: id, generation: generation)
+            guard !Task.isCancelled else { return }
+            self.applyDetail(decoded, id: id, generation: generation, requestID: requestID)
         }
     }
 
-    func applyDetail(_ decoded: TorrentDetail?, id: String, generation: Int? = nil) {
+    func applyDetail(_ decoded: TorrentDetail?, id: String, generation: Int? = nil, requestID: Int? = nil) {
         guard selectedID == id else { return }
         if let generation, generation != sessionGeneration {
+            return
+        }
+        if let requestID, requestID != detailRequestID {
             return
         }
         guard let decoded else {
@@ -441,13 +561,19 @@ extension TorrentEngine {
 
     #if DEBUG
         package func pollNowForTesting() {
-            guard !isShuttingDown, let pointer = sessionController.testPointerBox.value else { return }
+            guard !isShuttingDown, !isRestartingSession, hasSession else { return }
             let generation = sessionGeneration
-            let snapshot = SessionController.readSnapshot(pointer)
-            finishPoll(snapshot, generation: generation)
-            if let id = selectedID {
-                let decoded = SessionController.readDetail(pointer, id: id)
-                applyDetail(decoded, id: id, generation: generation)
+            let selected = selectedID
+            guard
+                let polled = sessionController.testPointerBox.withPointer({ pointer in
+                    let snapshot = SessionController.readSnapshot(pointer)
+                    let detail = selected.flatMap { SessionController.readDetail(pointer, id: $0) }
+                    return (snapshot, detail)
+                })
+            else { return }
+            finishPoll(polled.0, generation: generation)
+            if let selected {
+                applyDetail(polled.1, id: selected, generation: generation)
             }
         }
 

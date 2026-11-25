@@ -25,6 +25,11 @@ else
     VERSION="${TAG#v}"
 fi
 
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "✗ Versione non valida: ${VERSION}" >&2
+    exit 1
+fi
+
 TAP_REPO="${VERTEX_TAP_REPO:-cicciocanestro/homebrew-tap}"
 DMG_NAME="${VERTEX_APP_NAME}-${VERSION}-macOS${VERTEX_MIN_MACOS}-${VERTEX_ARCH}.dmg"
 SHA_FILE="${DMG_NAME}.sha256"
@@ -52,8 +57,15 @@ echo "  Versione: ${VERSION}"
 echo "  SHA-256:  ${SHA256}"
 
 TAP_CLONE="$TMP_DIR/homebrew-tap"
+GIT_AUTH_ENV=()
 if [ -n "${HOMEBREW_TAP_TOKEN:-}" ]; then
-    git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_REPO}.git" "$TAP_CLONE"
+    AUTH_B64="$(printf 'x-access-token:%s' "$HOMEBREW_TAP_TOKEN" | base64 | tr -d '\n')"
+    GIT_AUTH_ENV=(
+        GIT_CONFIG_COUNT=1
+        "GIT_CONFIG_KEY_0=http.https://github.com/.extraheader"
+        "GIT_CONFIG_VALUE_0=AUTHORIZATION: basic ${AUTH_B64}"
+    )
+    env "${GIT_AUTH_ENV[@]}" git clone "https://github.com/${TAP_REPO}.git" "$TAP_CLONE"
 else
     gh repo clone "$TAP_REPO" "$TAP_CLONE"
 fi
@@ -100,6 +112,10 @@ fi
 
 git -C "$TAP_CLONE" add Casks/vertex.rb
 git -C "$TAP_CLONE" commit -m "vertex ${VERSION}"
-git -C "$TAP_CLONE" push origin main
+if [ "${#GIT_AUTH_ENV[@]}" -gt 0 ]; then
+    env "${GIT_AUTH_ENV[@]}" git -C "$TAP_CLONE" push origin main
+else
+    git -C "$TAP_CLONE" push origin main
+fi
 
 echo "✓ Tap Homebrew aggiornato: ${TAP_REPO} (vertex ${VERSION})"

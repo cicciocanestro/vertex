@@ -395,6 +395,8 @@ extension TorrentEngine {
                 loadDetail(singleID)
             }
         } else {
+            detailTask?.cancel()
+            detailTask = nil
             selectedID = nil
             detailTick = 0
             detail = nil
@@ -427,7 +429,7 @@ extension TorrentEngine {
     }
 
     func setFilePriority(_ file: TorrentFile, priority: FilePriority, torrentID: String) {
-        let index = Int32(file.index)
+        let index = Int32(clamping: file.index)
         let value = Int32(priority.rawValue)
         enqueueSessionOperation { session in
             torrentID.withCString { idPointer in
@@ -523,12 +525,64 @@ extension TorrentEngine {
         }
     }
 
+    nonisolated static func safeTorrentChildURL(savePath: String, name: String) -> URL? {
+        guard !savePath.isEmpty, !name.isEmpty else { return nil }
+        let baseURL = URL(fileURLWithPath: savePath, isDirectory: true).standardizedFileURL
+        let basePrefix = baseURL.path.hasSuffix("/") ? baseURL.path : baseURL.path + "/"
+        let candidate = baseURL.appendingPathComponent(name).standardizedFileURL
+        guard candidate.path.hasPrefix(basePrefix) else { return nil }
+        return candidate
+    }
+
     func reveal(_ torrent: Torrent) {
-        let direct = URL(fileURLWithPath: torrent.savePath).appendingPathComponent(torrent.name)
-        if FileManager.default.fileExists(atPath: direct.path) {
+        if let direct = Self.safeTorrentChildURL(savePath: torrent.savePath, name: torrent.name),
+            FileManager.default.fileExists(atPath: direct.path)
+        {
             NSWorkspace.shared.activateFileViewerSelecting([direct])
         } else {
             NSWorkspace.shared.open(URL(fileURLWithPath: torrent.savePath))
+        }
+    }
+
+    /// Accepts `.torrent` files and `magnet:` URLs opened from Finder or a
+    /// browser. If the engine is still starting (or restarting for PEX), queues
+    /// them so they are added as soon as the session becomes ready instead of
+    /// timing out and being dropped.
+    package func openExternalURLs(_ urls: [URL]) {
+        guard !isShuttingDown, !urls.isEmpty else { return }
+        guard isReady, hasSession, !isRestartingSession else {
+            pendingOpenURLs.append(contentsOf: urls)
+            return
+        }
+        consumeExternalURLs(urls)
+    }
+
+    func drainPendingOpenURLs() {
+        guard isReady, hasSession, !pendingOpenURLs.isEmpty else { return }
+        let queued = pendingOpenURLs
+        pendingOpenURLs.removeAll()
+        consumeExternalURLs(queued)
+    }
+
+    private func consumeExternalURLs(_ urls: [URL]) {
+        let paused = Preferences.startPaused
+        let sequential = Preferences.sequentialDefault
+        for url in urls {
+            if TorrentInput.isMagnet(url.absoluteString) {
+                _ = addMagnet(
+                    url.absoluteString,
+                    destination: nil,
+                    startPaused: paused,
+                    sequential: sequential
+                )
+            } else if TorrentInput.isTorrentFile(url) {
+                _ = addTorrentFile(
+                    url,
+                    destination: nil,
+                    startPaused: paused,
+                    sequential: sequential
+                )
+            }
         }
     }
 

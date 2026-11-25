@@ -68,6 +68,13 @@ extension TorrentEngine {
                 return
             }
             if defaults.bool(forKey: PrefKey.proxyEnabled) {
+                let rawProxyHost =
+                    (defaults.string(forKey: PrefKey.proxyHost) ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !rawProxyHost.isEmpty else {
+                    showToast(L("Host proxy non valido"), kind: .error)
+                    return
+                }
                 let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
                 guard Preferences.isValidPort(rawProxyPort) else {
                     showToast(
@@ -78,11 +85,28 @@ extension TorrentEngine {
                     return
                 }
             }
-            configuration = Self.currentConfiguration()
+            let rawDownload = defaults.string(forKey: PrefKey.downloadPath)
+            let resolvedDownload: String
+            if rawDownload == cachedRawDownloadPath, let cachedResolvedDownloadPath {
+                resolvedDownload = cachedResolvedDownloadPath
+            } else {
+                resolvedDownload = Preferences.resolvedDownloadPath(rawDownload)
+                cachedRawDownloadPath = rawDownload
+                cachedResolvedDownloadPath = resolvedDownload
+            }
+            configuration = Self.currentConfiguration(resolvedDownloadPathOverride: resolvedDownload)
         }
 
         if configuration.pex != sessionPexEnabled {
             restartSessionForPeerExchange(configuration: configuration, oldPex: sessionPexEnabled)
+            return
+        }
+
+        // Serialize settings diffs: lastAppliedConfiguration updates only once
+        // the actor finishes, so a second edit while one is in flight must re-run
+        // afterwards instead of comparing against the stale baseline.
+        if isApplyingSettings {
+            needsSettingsReapply = true
             return
         }
 
@@ -128,7 +152,16 @@ extension TorrentEngine {
             return
         }
 
-        enqueueSessionOperation(
+        if proxyChanged || networkChanged {
+            proxyProbeGeneration += 1
+            if !configuration.proxyEnabled {
+                proxyHealthError = nil
+            }
+        }
+
+        isApplyingSettings = true
+        needsSettingsReapply = false
+        let queued = enqueueSessionOperation(
             errorTitle: L("Impostazioni non applicate"),
             operation: { session in
                 if downloadPathChanged {
@@ -181,10 +214,28 @@ extension TorrentEngine {
                 return 0
             },
             onSuccess: { [weak self] in
-                self?.lastAppliedConfiguration = configuration
-                self?.poll()
+                guard let self else { return }
+                self.isApplyingSettings = false
+                self.lastAppliedConfiguration = configuration
+                self.poll()
+                if self.needsSettingsReapply {
+                    self.needsSettingsReapply = false
+                    self.applySettings()
+                }
+            },
+            onFailure: { [weak self] message in
+                guard let self else { return }
+                self.isApplyingSettings = false
+                self.showToast(L("Impostazioni non applicate"), kind: .error, detail: message)
+                if self.needsSettingsReapply {
+                    self.needsSettingsReapply = false
+                    self.applySettings()
+                }
             }
         )
+        if !queued {
+            isApplyingSettings = false
+        }
     }
 
     func dismissToast() {
@@ -312,6 +363,7 @@ extension TorrentEngine {
         // The bridge reports a proxy request without a host in Italian: without
         // this branch the English UI would show the raw C++ string.
         if lower.contains("host proxy non valido") { return L("Host proxy non valido") }
+        if lower.contains("invalid argument") { return L("Parametri non validi.") }
         if lower.contains("invalid")
             || lower.contains("parse")
             || lower.contains("missing info-hash")
@@ -340,6 +392,7 @@ extension TorrentEngine {
             return L("Link o file non valido.")
         }
         switch value {
+        case "Motore non disponibile", "Motore non disponibile.": return L("Motore non disponibile.")
         case "Torrent non trovato": return L("Torrent non trovato")
         case "Metadati non disponibili": return L("In attesa dei metadati…")
         case "Comando non supportato": return L("Comando non supportato")

@@ -226,6 +226,33 @@ package struct TorrentFile: Decodable, Identifiable, Equatable {
     package var id: Int { index }
     package var isWanted: Bool { priority > 0 }
 
+    package init(
+        index: Int,
+        path: String,
+        size: Int64,
+        progress: Double,
+        priority: Int
+    ) {
+        self.index = max(index, 0)
+        self.path = path
+        self.size = max(size, 0)
+        self.progress = min(max(progress, 0), 1)
+        self.priority = min(max(priority, 0), 7)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case index, path, size, progress, priority
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        index = max(try c.decode(Int.self, forKey: .index), 0)
+        path = try c.decode(String.self, forKey: .path)
+        size = max(try c.decode(Int64.self, forKey: .size), 0)
+        progress = min(max(try c.decode(Double.self, forKey: .progress), 0), 1)
+        priority = min(max(try c.decode(Int.self, forKey: .priority), 0), 7)
+    }
+
     /// Resume data may contain intermediate values (1-6); they map to the two
     /// wanted levels so the UI always has an unambiguous state.
     package var priorityLevel: FilePriority {

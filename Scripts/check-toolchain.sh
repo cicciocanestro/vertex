@@ -74,6 +74,10 @@ printf '  Swift:               %s\n' "${actual_swift:-non disponibile}"
 compare_cmake() {
     local label="CMake"
     local actual="$1"
+    if [ "$actual" = "$VERTEX_CANONICAL_CMAKE_VERSION" ]; then
+        printf '  ✓ %-20s %s\n' "$label" "$actual"
+        return
+    fi
     # GitHub rolls the `macos-15` image and its CMake moves between 4.4.x and
     # 4.5.x; the image label cannot be pinned to a build. A release therefore
     # accepts the declared compatibility window instead of an exact match, and
@@ -97,16 +101,20 @@ compare "macOS SDK" "$VERTEX_CANONICAL_MACOS_SDK" "$actual_sdk"
 compare_cmake "$actual_cmake"
 
 if [ -n "${ImageVersion:-}" ]; then
-    # Same reasoning as CMake: the runner image is assigned by GitHub and is not
-    # pinnable, so the accepted window is declared here and printed.
-    case "$ImageVersion" in
-        20261104.*|20261118.*)
-            printf '  ✓ %-20s %s (compatibile, non canonica)\n' "Immagine runner" "$ImageVersion"
-            ;;
-        *)
-            compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
-            ;;
-    esac
+    if [ "$ImageVersion" = "$VERTEX_CANONICAL_RUNNER_IMAGE" ]; then
+        printf '  ✓ %-20s %s\n' "Immagine runner" "$ImageVersion"
+    else
+        # Same reasoning as CMake: the runner image is assigned by GitHub and is
+        # not pinnable, so the accepted window is declared here and printed.
+        case "$ImageVersion" in
+            20261104.*|20261118.*)
+                printf '  ✓ %-20s %s (compatibile, non canonica)\n' "Immagine runner" "$ImageVersion"
+                ;;
+            *)
+                compare "Immagine runner" "$VERTEX_CANONICAL_RUNNER_IMAGE" "$ImageVersion"
+                ;;
+        esac
+    fi
 elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     MISMATCHES=$((MISMATCHES + 1))
     printf '  ✗ %-20s non impostata in GitHub Actions\n' "Immagine runner" >&2

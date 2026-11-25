@@ -82,42 +82,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        let paused = Preferences.startPaused
-        let sequential = Preferences.sequentialDefault
         Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
             if let window = NSApp.windows.first(where: { $0.canBecomeMain }) {
                 window.makeKeyAndOrderFront(nil)
             }
-
-            // The session is created off the main actor. A file opened from
-            // Finder can arrive before it is ready, so wait briefly instead of
-            // dropping the add.
-            let deadline = Date().addingTimeInterval(5)
-            while !TorrentEngine.shared.isEngineReady,
-                TorrentEngine.shared.engineStartupError == nil,
-                Date() < deadline
-            {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-            }
-
-            for url in urls {
-                if TorrentInput.isMagnet(url.absoluteString) {
-                    _ = TorrentEngine.shared.addMagnet(
-                        url.absoluteString,
-                        destination: nil,
-                        startPaused: paused,
-                        sequential: sequential
-                    )
-                } else if TorrentInput.isTorrentFile(url) {
-                    _ = TorrentEngine.shared.addTorrentFile(
-                        url,
-                        destination: nil,
-                        startPaused: paused,
-                        sequential: sequential
-                    )
-                }
-            }
+            TorrentEngine.shared.openExternalURLs(urls)
         }
     }
 

@@ -41,14 +41,33 @@ fi
 
 # Verify the application that is actually inside the image: dist/Vertex.app may
 # be newer or older than the DMG that is about to be submitted.
+attach_image() {
+    local help
+    help=$(diskutil image attach --help 2>/dev/null || true)
+    if grep -q -- '--mountPoint' <<<"$help" &&
+        grep -q -- '--readOnly' <<<"$help" &&
+        grep -q -- '--nobrowse' <<<"$help"; then
+        diskutil image attach --nobrowse --readOnly --mountPoint "$2" "$1" >/dev/null
+    else
+        hdiutil attach "$1" -nobrowse -readonly -mountpoint "$2" >/dev/null
+    fi
+}
+
+detach_image() {
+    if diskutil eject "$1" >/dev/null 2>&1; then
+        return 0
+    fi
+    hdiutil detach "$1" >/dev/null 2>&1 || true
+}
+
 MOUNT="$(mktemp -d "${TMPDIR:-/tmp}/vertex-notarize.XXXXXX")"
 cleanup() {
-    hdiutil detach "$MOUNT" >/dev/null 2>&1 || true
+    detach_image "$MOUNT"
     rmdir "$MOUNT" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
-hdiutil attach "$DMG" -readonly -nobrowse -mountpoint "$MOUNT" >/dev/null
+attach_image "$DMG" "$MOUNT"
 APP_IN_IMAGE="$MOUNT/${VERTEX_APP_NAME}.app"
 if [ ! -d "$APP_IN_IMAGE" ]; then
     echo "✗ L'immagine non contiene ${VERTEX_APP_NAME}.app" >&2

@@ -137,6 +137,7 @@ package enum Preferences {
         if first == 0 { return false }  // 0.0.0.0
         if first == 127 { return false }  // 127.x loopback
         if first == 169 && second == 254 { return false }  // 169.254.x link-local
+        if first >= 224 { return false }  // multicast and reserved/broadcast
 
         return true
     }
@@ -227,11 +228,10 @@ package enum Preferences {
 
         var value = resolved
         if value == nil, !legacy.isEmpty {
-            // One-time migration. A failed write must not lose the value, so the
-            // plaintext is dropped only after the Keychain accepted it; when the
-            // Keychain is unavailable (tests) the cache stays cold and
-            // `proxyPassword` keeps reading the plaintext.
-            guard Keychain.setProxyPassword(legacy) else { return }
+            // One-time migration through ProxyPasswordStore (serialized on
+            // ioQueue and honoring proxyPasswordInFile). A failed write must
+            // not lose the value, so the plaintext stays until persisted.
+            guard ProxyPasswordStore.write(legacy) else { return }
             value = legacy
         }
         if value != nil, !legacy.isEmpty {
@@ -239,7 +239,19 @@ package enum Preferences {
         }
 
         proxyPasswordLock.lock()
-        cachedProxyPassword = value ?? ""
+        if !proxyPasswordLoaded {
+            cachedProxyPassword = value ?? ""
+            proxyPasswordLoaded = true
+        }
+        proxyPasswordLock.unlock()
+    }
+
+    /// Updates only the in-memory proxy password cache so an immediate settings
+    /// flush on `@MainActor` sees the edited password while persistence runs on
+    /// a background thread.
+    package static func updateCachedProxyPassword(_ value: String) {
+        proxyPasswordLock.lock()
+        cachedProxyPassword = value
         proxyPasswordLoaded = true
         proxyPasswordLock.unlock()
     }
@@ -458,6 +470,13 @@ extension TorrentEngine {
             }
         }
 
+        // list density
+        if let density = defaults.string(forKey: PrefKey.uiDensity),
+            ListDensity(rawValue: density) == nil
+        {
+            defaults.set(PrefDefault.uiDensity, forKey: PrefKey.uiDensity)
+        }
+
         // proxy port
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
         let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
@@ -468,7 +487,7 @@ extension TorrentEngine {
         // proxy host
         if let rawHost = defaults.string(forKey: PrefKey.proxyHost) {
             let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed != rawHost {
+            if trimmed.isEmpty || trimmed != rawHost {
                 defaults.set(trimmed.isEmpty ? PrefDefault.proxyHost : trimmed, forKey: PrefKey.proxyHost)
             }
         }
@@ -489,15 +508,20 @@ extension TorrentEngine {
     /// validation is done once by `validateAllPreferences()`; runtime edits are
     /// validated by `applySettings()` before this is called. This keeps a
     /// single write path and avoids sanitizing/writing on every read.
-    nonisolated static func currentConfiguration() -> SessionConfiguration {
+    package nonisolated static func currentConfiguration(
+        resolvedDownloadPathOverride: String? = nil
+    ) -> SessionConfiguration {
         let defaults = UserDefaults.standard
+        let proxyEnabled = defaults.bool(forKey: PrefKey.proxyEnabled)
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
         let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
         let rawHost = defaults.string(forKey: PrefKey.proxyHost)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let proxyHost = rawHost.isEmpty ? PrefDefault.proxyHost : rawHost
+        // Never substitute 127.0.0.1 when the proxy is enabled and the host was
+        // cleared: fail-closed requires rejecting an empty proxy host explicitly.
+        let proxyHost = proxyEnabled ? rawHost : (rawHost.isEmpty ? PrefDefault.proxyHost : rawHost)
 
         return SessionConfiguration(
-            downloadPath: Preferences.downloadPath,
+            downloadPath: resolvedDownloadPathOverride ?? Preferences.downloadPath,
             resumePath: Preferences.resumeDirectory.path,
             port: Preferences.validPort(defaults.integer(forKey: PrefKey.listenPort)),
             maxActive: Int32(
@@ -512,11 +536,11 @@ extension TorrentEngine {
             lsd: defaults.bool(forKey: PrefKey.lsdEnabled),
             upnp: defaults.bool(forKey: PrefKey.upnpEnabled),
             bindAddress: Preferences.normalizedBindAddress(defaults.string(forKey: PrefKey.bindAddress)),
-            proxyEnabled: defaults.bool(forKey: PrefKey.proxyEnabled),
+            proxyEnabled: proxyEnabled,
             proxyHost: proxyHost,
             proxyPort: proxyPort,
             proxyUser: defaults.string(forKey: PrefKey.proxyUser) ?? "",
-            proxyPassword: defaults.bool(forKey: PrefKey.proxyEnabled)
+            proxyPassword: proxyEnabled
                 ? Preferences.proxyPassword
                 : ""
         )

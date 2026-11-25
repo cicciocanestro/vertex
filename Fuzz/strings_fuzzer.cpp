@@ -20,6 +20,11 @@ namespace {
     std::abort();
 }
 
+bool is_hex_digit(unsigned char c) noexcept
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
 } // namespace
 
 extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size)
@@ -27,8 +32,8 @@ extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size
     std::string const input(reinterpret_cast<char const*>(data), size);
     std::string const escaped = vertex::json_escape(input);
 
-    // A backslash always introduces an escape pair; a quote must never appear
-    // unescaped, and control bytes must be encoded as \u00XX or a short escape.
+    // Every backslash must introduce a valid RFC 8259 escape sequence; quotes
+    // and raw control bytes (< 0x20) must never appear unescaped.
     for (std::size_t i = 0; i < escaped.size();)
     {
         unsigned char const c = static_cast<unsigned char>(escaped[i]);
@@ -36,7 +41,33 @@ extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size
         {
             if (i + 1 >= escaped.size())
                 fail("dangling escape at end of output");
-            i += 2;
+            unsigned char const next = static_cast<unsigned char>(escaped[i + 1]);
+            switch (next)
+            {
+            case '"':
+            case '\\':
+            case '/':
+            case 'b':
+            case 'f':
+            case 'n':
+            case 'r':
+            case 't':
+                i += 2;
+                break;
+            case 'u':
+                if (i + 5 >= escaped.size()
+                    || !is_hex_digit(static_cast<unsigned char>(escaped[i + 2]))
+                    || !is_hex_digit(static_cast<unsigned char>(escaped[i + 3]))
+                    || !is_hex_digit(static_cast<unsigned char>(escaped[i + 4]))
+                    || !is_hex_digit(static_cast<unsigned char>(escaped[i + 5])))
+                {
+                    fail("invalid \\uXXXX escape in output");
+                }
+                i += 6;
+                break;
+            default:
+                fail("invalid escape character in output");
+            }
             continue;
         }
         if (c == '"')

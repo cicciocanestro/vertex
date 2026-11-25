@@ -349,7 +349,7 @@ jobs:
           cd dist
           shasum -a 256 -c Vertex-*.dmg.sha256
 
-      - name: Create GitHub Release (no asset overwrite)
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}

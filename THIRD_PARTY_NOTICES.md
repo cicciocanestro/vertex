@@ -22,18 +22,18 @@ Vertex bundles the following third-party libraries in the application bundle.
 - Website: https://www.openssl.org/
 - Full text: [`Resources/Licenses/openssl-Apache-2.0.txt`](Resources/Licenses/openssl-Apache-2.0.txt)
 
-### Boost 1.92 (headers only at build time)
+### Boost 1.92.0 (headers only at build time)
 
 - License: Boost Software License 1.0
 - Website: https://www.boost.org/
 - Full text: [`Resources/Licenses/boost-BSL-1.0.txt`](Resources/Licenses/boost-BSL-1.0.txt)
 
-### DB-IP "IP to Country Lite"
+### DB-IP "IP to Country Lite" 2026-11
 
 - License: Creative Commons Attribution 4.0 International (CC BY 4.0)
 - Copyright: © DB-IP (https://db-ip.com)
 - Website: https://db-ip.com/db/download/ip-to-country-lite
-- Used for: offline country flag next to each peer (IPv4 only, no network lookup)
+- Used for: offline country flag next to each peer (IPv4 and IPv6, no network lookup)
 - Full text: [`Resources/Licenses/DB-IP-Lite.txt`](Resources/Licenses/DB-IP-Lite.txt)
 
 ### Apple Frameworks
@@ -64,18 +64,18 @@ Vertex include nel bundle applicativo le seguenti librerie di terze parti.
 - Sito: https://www.openssl.org/
 - Testo completo: [`Resources/Licenses/openssl-Apache-2.0.txt`](Resources/Licenses/openssl-Apache-2.0.txt)
 
-### Boost 1.92 (solo header, in fase di compilazione)
+### Boost 1.92.0 (solo header, in fase di compilazione)
 
 - Licenza: Boost Software License 1.0
 - Sito: https://www.boost.org/
 - Testo completo: [`Resources/Licenses/boost-BSL-1.0.txt`](Resources/Licenses/boost-BSL-1.0.txt)
 
-### DB-IP "IP to Country Lite"
+### DB-IP "IP to Country Lite" 2026-11
 
 - Licenza: Creative Commons Attribution 4.0 International (CC BY 4.0)
 - Copyright: © DB-IP (https://db-ip.com)
 - Sito: https://db-ip.com/db/download/ip-to-country-lite
-- Uso: bandiera del paese accanto a ogni peer, offline (solo IPv4, nessuna chiamata di rete)
+- Uso: bandiera del paese accanto a ogni peer, offline (IPv4 e IPv6, nessuna chiamata di rete)
 - Testo completo: [`Resources/Licenses/DB-IP-Lite.txt`](Resources/Licenses/DB-IP-Lite.txt)
 
 ### Framework Apple

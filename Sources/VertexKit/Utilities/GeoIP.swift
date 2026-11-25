@@ -172,6 +172,9 @@ package enum GeoIP {
 /// followed by a raw DEFLATE stream (`COMPRESSION_ZLIB` on Apple platforms
 /// decodes raw deflate and rejects a zlib/gzip wrapper).
 private enum GeoIPPayload {
+    /// Upper bound for decompressed GeoIP tables (actual v4 + v6 tables are ~1.5 MB and ~3 MB).
+    private static let maxDecompressedBytes = 16 * 1024 * 1024
+
     static func decompress(_ data: Data) -> [UInt8]? {
         guard data.count > 4 else { return nil }
         let expected = Int(
@@ -180,7 +183,7 @@ private enum GeoIPPayload {
                     $0.loadUnaligned(as: UInt32.self)
                 })
         )
-        guard expected > 0 else { return nil }
+        guard expected > 0, expected <= maxDecompressedBytes else { return nil }
 
         var payload = [UInt8](repeating: 0, count: expected)
         let written = payload.withUnsafeMutableBytes { destination -> Int in
@@ -241,7 +244,8 @@ package struct GeoIPTable {
 
         guard let countLow = readByte(), let countHigh = readByte() else { return nil }
         let count = Int(countLow) | (Int(countHigh) << 8)
-        guard count > 0 else { return nil }
+        // Indices are stored as UInt8, so at most 256 country codes can exist.
+        guard count > 0, count <= 256 else { return nil }
 
         var codes: [String] = []
         codes.reserveCapacity(count)
@@ -258,16 +262,22 @@ package struct GeoIPTable {
         var ends: [UInt32] = []
         var indices: [UInt8] = []
         var previous: UInt64 = 0
+        var hasFirst = false
         while cursor < payload.count {
             guard let delta = readVarint(),
                 let length = readVarint(),
                 let index = readByte(),
                 Int(index) < count
             else { return nil }
-            previous += delta
-            guard previous <= UInt64(UInt32.max) else { return nil }
+            let (nextStart, startOverflow) = previous.addingReportingOverflow(delta)
+            guard !startOverflow, nextStart <= UInt64(UInt32.max) else { return nil }
+            if hasFirst && nextStart < previous { return nil }
+            hasFirst = true
+            previous = nextStart
             starts.append(UInt32(previous))
-            ends.append(UInt32(min(UInt64(UInt32.max), previous + length)))
+            let (rawEnd, endOverflow) = previous.addingReportingOverflow(length)
+            let clampedEnd = endOverflow ? UInt64(UInt32.max) : min(UInt64(UInt32.max), rawEnd)
+            ends.append(UInt32(clampedEnd))
             indices.append(index)
         }
         guard !starts.isEmpty else { return nil }
@@ -316,11 +326,14 @@ package struct IPv6Address: Equatable, Comparable, Sendable {
     }
 
     package static func + (lhs: IPv6Address, rhs: IPv6Address) -> IPv6Address {
-        let (low, overflow) = lhs.low.addingReportingOverflow(rhs.low)
-        return IPv6Address(
-            high: lhs.high &+ rhs.high &+ (overflow ? 1 : 0),
-            low: low
-        )
+        lhs.addingReportingOverflow(rhs).partialValue
+    }
+
+    package func addingReportingOverflow(_ rhs: IPv6Address) -> (partialValue: IPv6Address, overflow: Bool) {
+        let (low, lowOverflow) = self.low.addingReportingOverflow(rhs.low)
+        let (midHigh, highOverflow1) = self.high.addingReportingOverflow(rhs.high)
+        let (high, highOverflow2) = midHigh.addingReportingOverflow(lowOverflow ? 1 : 0)
+        return (IPv6Address(high: high, low: low), highOverflow1 || highOverflow2)
     }
 }
 
@@ -359,6 +372,9 @@ package struct GeoIPv6Table {
                         high |= bits >> (64 - shift)
                     }
                 } else {
+                    if shift == 126 && (byte & 0xFC) != 0 {
+                        return nil
+                    }
                     high |= bits << (shift - 64)
                 }
                 if byte & 0x80 == 0 {
@@ -370,7 +386,7 @@ package struct GeoIPv6Table {
 
         guard let countLow = readByte(), let countHigh = readByte() else { return nil }
         let count = Int(countLow) | (Int(countHigh) << 8)
-        guard count > 0 else { return nil }
+        guard count > 0, count <= 256 else { return nil }
 
         var codes: [String] = []
         codes.reserveCapacity(count)
@@ -393,9 +409,12 @@ package struct GeoIPv6Table {
                 let index = readByte(),
                 Int(index) < count
             else { return nil }
-            let start = previous + delta
+            let (start, startOverflow) = previous.addingReportingOverflow(delta)
+            guard !startOverflow else { return nil }
+            let (rawEnd, endOverflow) = start.addingReportingOverflow(length)
+            let clampedEnd = endOverflow ? IPv6Address(high: .max, low: .max) : rawEnd
             starts.append(start)
-            ends.append(start + length)
+            ends.append(clampedEnd)
             indices.append(index)
             previous = start
         }

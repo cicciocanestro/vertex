@@ -98,11 +98,12 @@ package enum DiagnosticsChecklist {
                     status: .ok
                 ))
         } else {
+            let localizedListen = RuntimeErrorLocalizer.torrent(stats.listenError)
             checks.append(
                 DiagnosticCheck(
                     id: "listen",
                     title: L("Porta di ascolto"),
-                    detail: stats.listenError.isEmpty ? L("Non in ascolto") : stats.listenError,
+                    detail: localizedListen.isEmpty ? L("Non in ascolto") : localizedListen,
                     status: .error
                 ))
         }
@@ -118,16 +119,20 @@ package enum DiagnosticsChecklist {
                     detail: reason,
                     status: .info
                 ))
-        } else if stats.portmap.tcp.mapped {
+        } else if stats.portmap.tcp.mapped || stats.portmap.udp.mapped {
+            let mappedPort =
+                stats.portmap.tcp.mapped
+                ? stats.portmap.tcp.externalPort
+                : stats.portmap.udp.externalPort
             checks.append(
                 DiagnosticCheck(
                     id: "mapping",
                     title: L("UPnP / NAT-PMP"),
                     detail: String(
                         format: L("porta esterna %ld"),
-                        stats.portmap.tcp.externalPort
+                        mappedPort
                     ),
-                    status: .ok
+                    status: stats.portmap.hasError ? .warning : .ok
                 ))
         } else if stats.portmap.hasError {
             checks.append(
@@ -162,7 +167,7 @@ package enum DiagnosticsChecklist {
                 DiagnosticCheck(
                     id: "proxy",
                     title: L("Proxy SOCKS5"),
-                    detail: stats.proxy.error,
+                    detail: stats.proxy.localizedError,
                     status: .error
                 ))
         } else {

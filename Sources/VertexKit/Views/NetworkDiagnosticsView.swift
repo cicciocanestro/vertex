@@ -81,6 +81,9 @@ struct NetworkDiagnosticsView: View {
         .background(AmbientBackground(ignoresSafeArea: false))
         .onDisappear { tester.cancel() }
         .onChange(of: testPort) { _, _ in tester.reset() }
+        .onChange(of: engine.stats.isProxyActive) { _, active in
+            if active { tester.reset() }
+        }
     }
 
     private func checklistCard(_ palette: Palette) -> some View {
@@ -114,6 +117,7 @@ struct NetworkDiagnosticsView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(palette.stroke, lineWidth: 1)
+                .allowsHitTesting(false)
         )
     }
 
@@ -128,9 +132,9 @@ struct NetworkDiagnosticsView: View {
 
     private func checklistColor(_ status: DiagnosticCheckStatus, _ palette: Palette) -> Color {
         switch status {
-        case .ok: return Theme.green
-        case .warning: return .orange
-        case .error: return Theme.coral
+        case .ok: return palette.greenText
+        case .warning: return palette.amberText
+        case .error: return palette.coralText
         case .info: return palette.tertiary
         }
     }
@@ -283,7 +287,7 @@ struct NetworkDiagnosticsView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.captionText)
                             .foregroundStyle(palette.coralText)
-                        Text(engine.stats.listenError)
+                        Text(RuntimeErrorLocalizer.torrent(engine.stats.listenError))
                             .font(Typography.captionMonoText)
                             .foregroundStyle(palette.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -390,7 +394,7 @@ struct NetworkDiagnosticsView: View {
                     if !info.transport.isEmpty {
                         Text(info.transport)
                             .font(Typography.captionMicroSemiboldText)
-                            .foregroundStyle(Theme.green)
+                            .foregroundStyle(palette.greenText)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
                             .background(Capsule().fill(Theme.green.opacity(0.12)))
@@ -442,7 +446,7 @@ struct NetworkDiagnosticsView: View {
                 }
 
                 if let publicIP = tester.publicIP {
-                    let endpoint = "\(publicIP):\(testPort)"
+                    let endpoint = publicIP.contains(":") ? "[\(publicIP)]:\(testPort)" : "\(publicIP):\(testPort)"
                     HStack(spacing: 8) {
                         Text(verbatim: endpoint)
                             .font(Typography.captionMonoText)

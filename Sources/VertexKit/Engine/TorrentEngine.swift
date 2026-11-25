@@ -40,8 +40,15 @@ package final class TorrentEngine: ObservableObject {
     /// UI state). The pointer itself never leaves the actor.
     private(set) var hasSession = false
     var pollTask: Task<Void, Never>?
+    var detailTask: Task<Void, Never>?
+    var detailRequestID = 0
     var toastTask: Task<Void, Never>?
     var settingsApplyTask: Task<Void, Never>?
+    var isApplyingSettings = false
+    var needsSettingsReapply = false
+    var pendingOpenURLs: [URL] = []
+    var cachedRawDownloadPath: String?
+    var cachedResolvedDownloadPath: String?
     var unfinishedIDs: Set<String> = []
     /// Finished torrents that have already been auto-paused by the seed ratio
     /// limit (or manually resumed by the user while already >= the limit), so
@@ -64,6 +71,7 @@ package final class TorrentEngine: ObservableObject {
     var configurationOverride: SessionConfiguration?
     var lastAppliedConfiguration: SessionConfiguration?
     var proxyCheckTick = 0
+    var proxyProbeGeneration = 0
     var proxyHealthError: String?
     var isProxyProbeInFlight = false
     var isWarmingProxyPassword = false
@@ -128,20 +136,25 @@ package final class TorrentEngine: ObservableObject {
         isStarting = false
 
         if isShuttingDown {
-            Task { await sessionController.destroy() }
+            Task { [weak self] in
+                guard let self else { return }
+                await self.sessionController.destroy()
+                self.completeShutdown()
+            }
             return
         }
 
         guard outcome.started else {
             Log.engine.error("startup failed: \(outcome.error ?? "unknown", privacy: .private)")
             hasSession = false
-            startupError = Self.sessionFailureDetail(
+            startupError = sessionFailureDetail(
                 outcome.error,
                 fallback: L(
                     "Il motore incluso nell'app non è riuscito ad avviarsi. Riavvia Vertex; se il problema persiste, reinstalla l'app."
                 )
             )
             isReady = false
+            pendingOpenURLs.removeAll()
             return
         }
 
@@ -150,7 +163,10 @@ package final class TorrentEngine: ObservableObject {
         isReady = true
         startupError = nil
         lastAppliedConfiguration = outcome.configuration
+        cachedRawDownloadPath = UserDefaults.standard.string(forKey: PrefKey.downloadPath)
+        cachedResolvedDownloadPath = outcome.configuration.downloadPath
         startPolling()
+        drainPendingOpenURLs()
     }
 
     /// Retries the initial session creation after a failure. The persistent
@@ -198,13 +214,13 @@ package final class TorrentEngine: ObservableObject {
         return Date().timeIntervalSince(shown) < Self.errorToastDedupWindow
     }
 
-    private static func sessionFailureDetail(_ error: String?, fallback: String) -> String {
+    private func sessionFailureDetail(_ error: String?, fallback: String) -> String {
         guard let error,
             !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return fallback
         }
-        return fallback + "\n" + error
+        return fallback + "\n" + localizedError(error)
     }
 
     /// PEX is a session plugin in libtorrent: changing it requires recreating
@@ -217,15 +233,21 @@ package final class TorrentEngine: ObservableObject {
         guard !isRestartingSession, !isShuttingDown else { return }
         isRestartingSession = true
         sessionGeneration += 1
+        proxyProbeGeneration += 1
         isPollInFlight = false
+        isApplyingSettings = false
+        needsSettingsReapply = false
         hasSession = false
         lastAppliedConfiguration = nil
         isReady = false
         hasLoadedSnapshot = false
         unfinishedIDs.removeAll()
-        ratioLimitSatisfiedIDs.removeAll()
         pollTask?.cancel()
         pollTask = nil
+        detailTask?.cancel()
+        detailTask = nil
+        settingsApplyTask?.cancel()
+        settingsApplyTask = nil
 
         showToast(L("Riavvio del motore BitTorrent…"), kind: .info)
 
@@ -233,12 +255,19 @@ package final class TorrentEngine: ObservableObject {
             guard let self else { return }
             await self.sessionController.destroy()
 
-            var outcome = await self.sessionController.create(configuration: configuration)
+            var outcome = await self.sessionController.create(
+                configuration: configuration,
+                validatePreferences: false
+            )
+            let primaryError = outcome.error
             var restoredPreviousPex = false
             if !outcome.started, configuration.pex != oldPex {
                 var fallbackConfiguration = configuration
                 fallbackConfiguration.pex = oldPex
-                let fallback = await self.sessionController.create(configuration: fallbackConfiguration)
+                let fallback = await self.sessionController.create(
+                    configuration: fallbackConfiguration,
+                    validatePreferences: false
+                )
                 if fallback.started {
                     outcome = fallback
                     restoredPreviousPex = true
@@ -247,6 +276,7 @@ package final class TorrentEngine: ObservableObject {
 
             self.finishSessionRestart(
                 outcome,
+                primaryError: primaryError,
                 requested: configuration,
                 oldPex: oldPex,
                 restoredPreviousPex: restoredPreviousPex
@@ -256,6 +286,7 @@ package final class TorrentEngine: ObservableObject {
 
     private func finishSessionRestart(
         _ outcome: SessionCreationOutcome,
+        primaryError: String?,
         requested: SessionConfiguration,
         oldPex: Bool,
         restoredPreviousPex: Bool
@@ -290,12 +321,13 @@ package final class TorrentEngine: ObservableObject {
             startPolling()
             poll()
             applySettings()
+            drainPendingOpenURLs()
             if restoredPreviousPex {
                 showToast(
                     L("La modifica a Peer Exchange non è stata applicata."),
                     kind: .error,
-                    detail: Self.sessionFailureDetail(
-                        outcome.error,
+                    detail: sessionFailureDetail(
+                        primaryError,
                         fallback: L("La sessione precedente è stata ripristinata.")
                     )
                 )
@@ -304,16 +336,18 @@ package final class TorrentEngine: ObservableObject {
         }
 
         // Both attempts failed: put the preference back and surface a retry view.
-        Log.engine.error("session restart failed: \(outcome.error ?? "unknown", privacy: .private)")
+        let failureMessage = outcome.error ?? primaryError
+        Log.engine.error("session restart failed: \(failureMessage ?? "unknown", privacy: .private)")
         UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
         sessionPexEnabled = oldPex
         hasSession = false
         lastAppliedConfiguration = nil
         isReady = false
+        pendingOpenURLs.removeAll()
         // Without this the empty library is indistinguishable from a dead
         // engine and the retry button never appears.
-        startupError = Self.sessionFailureDetail(
-            outcome.error,
+        startupError = sessionFailureDetail(
+            failureMessage,
             fallback: L("Il motore BitTorrent non è disponibile. Riavvia Vertex.")
         )
         pollState = PollState()
@@ -324,8 +358,8 @@ package final class TorrentEngine: ObservableObject {
         showToast(
             L("Impossibile riavviare il motore BitTorrent"),
             kind: .error,
-            detail: Self.sessionFailureDetail(
-                outcome.error,
+            detail: sessionFailureDetail(
+                failureMessage,
                 fallback: L("La modifica a Peer Exchange non è stata applicata. Riavvia Vertex.")
             )
         )
@@ -343,15 +377,21 @@ package final class TorrentEngine: ObservableObject {
 
         isShuttingDown = true
         sessionGeneration += 1
+        proxyProbeGeneration += 1
         isPollInFlight = false
+        isApplyingSettings = false
+        needsSettingsReapply = false
+        pendingOpenURLs.removeAll()
         shutdownCompletions = completion.map { [$0] } ?? []
         pollTask?.cancel()
         pollTask = nil
+        detailTask?.cancel()
+        detailTask = nil
         toastTask?.cancel()
         settingsApplyTask?.cancel()
         settingsApplyTask = nil
 
-        if isRestartingSession {
+        if isRestartingSession || isStarting {
             return
         }
 

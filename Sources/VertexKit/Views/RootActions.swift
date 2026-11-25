@@ -25,7 +25,7 @@ enum RootActionFactory {
     ) -> RootEventHandlerActions {
         RootEventHandlerActions(
             onAddFile: {
-                guard !dependencies.isModalOpen() else { return }
+                guard !dependencies.isModalOpen(), engine.isReady, !engine.isRestartingSession else { return }
                 dependencies.chooseFile()
             },
             onAddMagnet: {
@@ -83,7 +83,7 @@ enum RootActionFactory {
                 dependencies.setModal(.diagnostics)
             },
             onFilter: { raw in
-                guard let value = TorrentFilter(rawValue: raw) else { return }
+                guard !dependencies.isModalOpen(), let value = TorrentFilter(rawValue: raw) else { return }
                 dependencies.setFilter(value)
             }
         )

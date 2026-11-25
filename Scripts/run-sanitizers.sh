@@ -19,6 +19,8 @@ case "$MODE" in
         ;;
 esac
 
+"$ROOT/Scripts/build-deps.sh"
+
 echo "→ Compilazione con sanitizer: $MODE"
 swift build -c debug --sanitize="$MODE"
 
@@ -30,6 +32,7 @@ fi
 
 echo "→ Esecuzione suite con sanitizer: $MODE"
 export VERTEX_SANITIZER="$MODE"
+export VERTEX_KEYCHAIN_DISABLED=1
 if [[ "$MODE" == "thread" ]]; then
     TSAN_OPTIONS="${TSAN_OPTIONS:-halt_on_error=1}" "$BIN"
 else

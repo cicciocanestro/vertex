@@ -120,6 +120,18 @@ mkdir -p "$STAGE"
 ditto "$APP" "$STAGE/${VERTEX_APP_NAME}.app"
 ln -s /Applications "$STAGE/Applications"
 
+SIGN_INFO="$(codesign -dv --verbose=2 "$APP" 2>&1 || true)"
+if grep -q "Authority=Developer ID Application" <<<"$SIGN_INFO"; then
+    SIGN_NOTE_IT="- L'app è firmata con certificato Developer ID."
+    SIGN_NOTE_EN="- The app is signed with a Developer ID certificate."
+elif grep -q "Signature=adhoc" <<<"$SIGN_INFO"; then
+    SIGN_NOTE_IT="- L'app è firmata ad-hoc e non è notarizzata da Apple."
+    SIGN_NOTE_EN="- The app is ad-hoc signed and not notarized by Apple."
+else
+    SIGN_NOTE_IT="- L'app è firmata con identità self-signed stabile e non è notarizzata da Apple."
+    SIGN_NOTE_EN="- The app is signed with a stable self-signed identity and not notarized by Apple."
+fi
+
 cat > "$STAGE/Leggimi.txt" <<EOF
 ${VERTEX_APP_NAME} ${VERSION} — client BitTorrent per macOS
 ================================================
@@ -138,8 +150,8 @@ Installazione
 
 Note
 ----
-- L'app è firmata ad-hoc e non è notarizzata da Apple.
-- libtorrent, OpenSSL e le rispettive licenze sono incluse nell'app.
+${SIGN_NOTE_IT}
+- libtorrent, OpenSSL, DB-IP Lite e le rispettive licenze sono incluse nell'app.
 - Licenze: menu ${VERTEX_APP_NAME} > Licenze open source.
 - Progetto: https://github.com/cicciocanestro/vertex
 - Interfaccia: italiano se il sistema è in italiano, altrimenti inglese.
@@ -161,8 +173,8 @@ Installation
 
 Notes
 -----
-- The app is ad-hoc signed and not notarized by Apple.
-- libtorrent, OpenSSL and their licenses are bundled with the app.
+${SIGN_NOTE_EN}
+- libtorrent, OpenSSL, DB-IP Lite and their licenses are bundled with the app.
 - Licenses: ${VERTEX_APP_NAME} menu > Open source licenses.
 - Project: https://github.com/cicciocanestro/vertex
 - Interface: Italian when the system language is Italian, English otherwise.
@@ -198,6 +210,3 @@ rm -rf "$STAGE"
 echo "✓ DMG creata: $DMG"
 echo "  SHA256:     $DMG_SHA"
 echo "  Dimensione: $(du -h "$DMG" | awk '{print $1}')"
-echo
-echo "Nota: la firma è ad-hoc. Per una distribuzione pubblica senza avvisi"
-echo "      Gatekeeper serve una firma Developer ID e la notarizzazione Apple."

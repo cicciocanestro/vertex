@@ -24,6 +24,8 @@ enum FormattersTests {
 
         TestRunner.run("Bytes formatting: valori negativi") {
             try TestRunner.assertEqual(Fmt.bytes(-500), "-500 B")
+            let minBytes = Fmt.bytes(Int64.min)
+            try TestRunner.assertTrue(minBytes.hasPrefix("-"), "Int64.min non deve andare in trap: \(minBytes)")
         }
 
         TestRunner.run("Rate formatting: velocità di trasferimento") {

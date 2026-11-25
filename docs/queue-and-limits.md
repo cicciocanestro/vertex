@@ -36,11 +36,12 @@ in coda appartiene al bucket in cui girerà (`Download` o `Seed`), così "In pau
   corrisponderebbe all'impostazione.
 - `add_torrent_common`: `paused` → `paused` + **`auto_managed` off**; altrimenti `paused` off
   + `auto_managed` on. Senza questo, l'auto-manager riavvierebbe i torrent aggiunti "in pausa".
-- `vt_control`: `pause` toglie `auto_managed` (pausa manuale reale), `resume` lo rimette
-  (rientro in coda), `dequeue` toglie `auto_managed` lasciando `paused` (esci dalla coda).
-- `nudge_auto_manage`: `torrent::pause()`/`resume()` non chiedono il ricalcolo, quindi dopo
-  pausa/ripresa/esclusione/rimozione viene riapplicato il limite corrente per triggerarlo
-  (libtorrent ha un rate limit di 1 s).
+- `vt_control`: `pause` toglie `auto_managed` (pausa manuale reale), `resume` rimette
+  `auto_managed` e chiama `handle.resume()` solo se `max_active <= 0` (altrimenti lascia che
+  l'auto-manager assegni lo slot senza scavalcare il tetto), `force_start` toglie `auto_managed`
+  e avvia subito, `dequeue` toglie `auto_managed` lasciando `paused` (esci dalla coda).
+- `set_flags(auto_managed)` in libtorrent schedula già `trigger_auto_manage()`; riapplicare lo
+  stesso intero in `settings_pack` era un no-op ed è stato rimosso.
 - Snapshot: nuovo campo `auto_managed`; il decode Swift lo tratta come opzionale, così uno
   snapshot precedente resta valido.
 

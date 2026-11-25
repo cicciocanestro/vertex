@@ -25,7 +25,11 @@ Corpus makeSeeds()
         {0x0a, 0x09, 0x0d, 0x08, 0x0c},
         {0xc3, 0xa9, 0xe2, 0x9c, 0x93},
         {0xf0, 0x9f, 0x8c, 0x8d},
-        {'b', 'a', 'd', 0xff, 0xfe},
+        {0xe0, 0xa0, 0x80, 0xed, 0x9f, 0xbf, 0xf0, 0x90, 0x80, 0x80, 0xf4, 0x8f, 0xbf, 0xbf},
+        {'b', 'a', 'd', 0xff, 0xfe, 0xe0, 0x80, 0x80, 0xed, 0xa0, 0x80},
+        {'~', '/', 'D', 'o', 'w', 'n', 'l', 'o', 'a', 'd', 's'},
+        {'~', 'a', 'l', 'i', 'c', 'e', '/', 'x', '.', 't', 'o', 'r', 'r', 'e', 'n', 't'},
+        {' ', '\t', '\n'},
         {},
     };
 }
@@ -77,9 +81,15 @@ void mutate(std::vector<std::uint8_t>& input, std::mt19937& rng)
 
 int main(int argc, char** argv)
 {
-    int seconds = argc > 1 ? std::atoi(argv[1]) : 30;
-    if (seconds <= 0)
-        seconds = 30;
+    long parsed = 30;
+    if (argc > 1 && argv[1] && *argv[1])
+    {
+        char* end = nullptr;
+        parsed = std::strtol(argv[1], &end, 10);
+        if (end == argv[1] || parsed <= 0 || parsed > 86400)
+            parsed = 30;
+    }
+    int const seconds = static_cast<int>(parsed);
 
     std::mt19937 rng(0xC0FFEEu);
     Corpus corpus = makeSeeds();

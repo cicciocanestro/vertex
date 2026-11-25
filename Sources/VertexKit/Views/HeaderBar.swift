@@ -57,7 +57,7 @@ struct HeaderBar: View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass")
                 .font(Typography.smallMediumText)
-                .foregroundStyle(searchFocused.wrappedValue ? Theme.mint : palette.tertiary)
+                .foregroundStyle(searchFocused.wrappedValue ? palette.mintText : palette.tertiary)
 
             TextField(L("Cerca torrent…"), text: $search)
                 .textFieldStyle(.plain)

@@ -1,4 +1,5 @@
 import Combine
+import Darwin
 import Foundation
 
 @MainActor
@@ -16,6 +17,8 @@ final class PortReachabilityTester: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var publicIP: String?
 
+    private static let maxResponseBytes = 65_536
+    private static let ephemeralSession = URLSession(configuration: .ephemeral)
     private static let userAgent: String = {
         let version = AppInfo.version
         return "Vertex/\(version == "—" ? "1.0" : version)"
@@ -26,7 +29,7 @@ final class PortReachabilityTester: ObservableObject {
     private var task: Task<Void, Never>?
 
     init(
-        load: @escaping Loader = { try await URLSession.shared.data(for: $0) },
+        load: @escaping Loader = { try await PortReachabilityTester.ephemeralSession.data(for: $0) },
         pollInterval: UInt64 = 1_500_000_000
     ) {
         self.load = load
@@ -36,6 +39,14 @@ final class PortReachabilityTester: ObservableObject {
     func start(port: Int) {
         task?.cancel()
         publicIP = nil
+        guard (1...65535).contains(port) else {
+            state = .failed(L("Porta non valida"))
+            return
+        }
+        guard !UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) else {
+            state = .failed(L("Test non disponibile con proxy SOCKS5 attivo"))
+            return
+        }
         state = .running
 
         task = Task { @MainActor [weak self] in
@@ -147,23 +158,25 @@ final class PortReachabilityTester: ObservableObject {
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await load(request)
-        try validate(response)
+        try validate(response, data: data)
 
         struct IPResponse: Decodable {
             let ip: String
         }
 
         let decoded = try JSONDecoder().decode(IPResponse.self, from: data)
-        guard !decoded.ip.isEmpty else {
+        let candidate = decoded.ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isLiteralIPAddress(candidate) else {
             throw TestError(L("IP pubblico non disponibile."))
         }
-        return decoded.ip
+        return candidate
     }
 
     private func startExternalCheck(ip: String, port: Int) async throws -> ExternalCheck {
+        let hostEndpoint = ip.contains(":") ? "[\(ip)]:\(port)" : "\(ip):\(port)"
         var components = URLComponents(string: "https://check-host.net/check-tcp")
         components?.queryItems = [
-            URLQueryItem(name: "host", value: "\(ip):\(port)"),
+            URLQueryItem(name: "host", value: hostEndpoint),
             URLQueryItem(name: "max_nodes", value: "3"),
         ]
         guard let url = components?.url else {
@@ -176,7 +189,7 @@ final class PortReachabilityTester: ObservableObject {
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await load(request)
-        try validate(response)
+        try validate(response, data: data)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             (root["ok"] as? Int) == 1,
@@ -211,7 +224,7 @@ final class PortReachabilityTester: ObservableObject {
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await load(request)
-        try validate(response)
+        try validate(response, data: data)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw TestError(L("Risposta del test non valida."))
@@ -219,12 +232,25 @@ final class PortReachabilityTester: ObservableObject {
         return root
     }
 
-    private func validate(_ response: URLResponse) throws {
+    private func validate(_ response: URLResponse, data: Data) throws {
         guard let http = response as? HTTPURLResponse,
             (200..<300).contains(http.statusCode)
         else {
             throw TestError(L("Il servizio di test non è raggiungibile."))
         }
+        guard data.count <= Self.maxResponseBytes else {
+            throw TestError(L("Il servizio di test ha restituito una risposta non valida."))
+        }
+    }
+
+    nonisolated static func isLiteralIPAddress(_ value: String) -> Bool {
+        guard !value.isEmpty else { return false }
+        var v4 = in_addr()
+        if value.withCString({ inet_pton(AF_INET, $0, &v4) }) == 1 {
+            return true
+        }
+        var v6 = in6_addr()
+        return value.withCString({ inet_pton(AF_INET6, $0, &v6) }) == 1
     }
 
     private struct ExternalCheck {

@@ -188,7 +188,7 @@ enum NetworkLeakTests {
         let session = try createSession(
             download: download,
             resume: resume,
-            port: proxyEnabled ? 6886 : 6887,
+            port: try TestsSupport.freeTCPPort(),
             proxyPort: proxyEnabled ? proxy.port : nil
         )
         defer { vt_session_destroy(session) }
@@ -217,11 +217,12 @@ enum NetworkLeakTests {
                 vt_session_poll(session)
                 return proxy.acceptedCount > 0
             }
-            // Give a direct attempt (if any) plenty of time to show up.
-            let deadline = Date().addingTimeInterval(2.5)
-            while Date() < deadline {
+            try TestsSupport.waitUntilStable(
+                "nessuna connessione diretta al tracker con il proxy attivo",
+                duration: 2.0
+            ) {
                 vt_session_poll(session)
-                Thread.sleep(forTimeInterval: 0.1)
+                return direct.acceptedCount == 0
             }
             try TestRunner.assertEqual(
                 direct.acceptedCount, 0,

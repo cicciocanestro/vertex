@@ -294,6 +294,21 @@ enum ModelsTests {
             try TestRunner.assertEqual(withPeers.peers[0].uploadRate, 65536)
             try TestRunner.assertEqual(withPeers.peers[0].flags, "DUPE")
             try TestRunner.assertEqual(withPeers.peers[0].source, "DHT")
+
+            let clampedFilesJSON = """
+                {
+                    "files": [
+                        {"index": -5, "path": "clamped.bin", "size": -42, "progress": 2.5, "priority": 99}
+                    ],
+                    "trackers": [],
+                    "metadata": true
+                }
+                """
+            let clampedDetail = try JSONDecoder().decode(TorrentDetail.self, from: Data(clampedFilesJSON.utf8))
+            try TestRunner.assertEqual(clampedDetail.files[0].index, 0)
+            try TestRunner.assertEqual(clampedDetail.files[0].size, 0)
+            try TestRunner.assertEqual(clampedDetail.files[0].progress, 1.0)
+            try TestRunner.assertEqual(clampedDetail.files[0].priority, 7)
         }
 
         TestRunner.run("TorrentFilter: logica di filtraggio") {
@@ -403,6 +418,20 @@ enum ModelsTests {
 
             let bySpeed = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .speed)
             try TestRunner.assertEqual(bySpeed.first?.id, "B")
+
+            // Upload-only seeders must rank by combined throughput (downloadRate + uploadRate),
+            // and ties must break deterministically by id.
+            let seederOnly = Torrent.test(id: "S", name: "Seeder", downloadRate: 0, uploadRate: 1_200)
+            let byCombinedSpeed = TorrentListPipeline.apply(
+                to: [tA, tB, seederOnly], filter: .all, search: "", sort: .speed
+            )
+            try TestRunner.assertEqual(byCombinedSpeed.map(\.id), ["S", "B", "A"])
+
+            let tie1 = Torrent.test(id: "id-1", name: "Same", size: 500, downloadRate: 100, added: 10)
+            let tie2 = Torrent.test(id: "id-2", name: "Same", size: 500, downloadRate: 100, added: 10)
+            let tieForward = TorrentListPipeline.apply(to: [tie2, tie1], filter: .all, search: "", sort: .speed)
+            let tieReverse = TorrentListPipeline.apply(to: [tie1, tie2], filter: .all, search: "", sort: .speed)
+            try TestRunner.assertEqual(tieForward.map(\.id), tieReverse.map(\.id))
 
             let byRecent = TorrentListPipeline.apply(to: [tA, tB], filter: .all, search: "", sort: .recent)
             try TestRunner.assertEqual(byRecent.first?.id, "B")

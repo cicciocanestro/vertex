@@ -20,15 +20,30 @@ package struct SessionOperationOutcome: Sendable {
 /// the actor itself, and the heavy work (resume directory, Keychain validation,
 /// JSON decoding) happens off the main actor.
 #if DEBUG
-    /// Sendable carrier for the test pointer: an `OpaquePointer` is not Sendable,
-    /// and Swift 6.1 rejects reading one across isolation even with
-    /// `nonisolated(unsafe)`. The box is safe because the bridge serializes every
-    /// entry point with its own mutex.
+    /// Lock-protected carrier for the test pointer: an `OpaquePointer` is not
+    /// Sendable, and `destroy()` / `create()` swap the underlying C++ session
+    /// during PEX restarts and shutdown. Clearing the pointer under `lock` before
+    /// `vt_session_destroy` prevents any concurrent `pollNowForTesting()` call
+    /// from touching a freed `vt_session`.
     package final class TestSessionBox: @unchecked Sendable {
-        package let value: OpaquePointer?
+        private let lock = NSLock()
+        private var pointer: OpaquePointer?
 
         package init(_ value: OpaquePointer?) {
-            self.value = value
+            self.pointer = value
+        }
+
+        package func set(_ value: OpaquePointer?) {
+            lock.lock()
+            pointer = value
+            lock.unlock()
+        }
+
+        package func withPointer<R>(_ body: (OpaquePointer) -> R) -> R? {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let pointer else { return nil }
+            return body(pointer)
         }
     }
 #endif
@@ -67,10 +82,16 @@ package actor SessionController {
 
     package var isActive: Bool { pointer != nil }
 
-    /// Validates the preferences, builds the configuration and starts libtorrent
-    /// on the actor's executor (never on the main thread).
-    package func create(configuration override: SessionConfiguration?) async -> SessionCreationOutcome {
-        TorrentEngine.validateAllPreferences()
+    /// Validates the preferences (on cold startup, when `validatePreferences` is
+    /// true and no explicit override was supplied), builds the configuration and
+    /// starts libtorrent on the actor's executor (never on the main thread).
+    package func create(
+        configuration override: SessionConfiguration?,
+        validatePreferences: Bool = true
+    ) async -> SessionCreationOutcome {
+        if validatePreferences && override == nil {
+            TorrentEngine.validateAllPreferences()
+        }
         let configuration = override ?? TorrentEngine.currentConfiguration()
         let creation = Self.makeSession(configuration)
         guard let created = creation.pointer else {
@@ -84,15 +105,24 @@ package actor SessionController {
         // A previous session must never leak: create is only called on a
         // controller whose previous session was destroyed (or never existed).
         if let pointer {
+            #if DEBUG
+                testPointerBox.set(nil)
+            #endif
             vt_session_destroy(pointer)
         }
         pointer = created
+        #if DEBUG
+            testPointerBox.set(created)
+        #endif
         Log.session.notice("session created")
         return SessionCreationOutcome(started: true, configuration: configuration, error: nil)
     }
 
     package func destroy() {
         if let pointer {
+            #if DEBUG
+                testPointerBox.set(nil)
+            #endif
             vt_session_destroy(pointer)
             self.pointer = nil
             Log.session.notice("session destroyed")
@@ -113,7 +143,7 @@ package actor SessionController {
         _ operation: @Sendable (OpaquePointer) -> Int32
     ) -> SessionOperationOutcome {
         guard let pointer else {
-            return SessionOperationOutcome(code: -1, error: "Motore non disponibile")
+            return SessionOperationOutcome(code: -1, error: "Motore non disponibile.")
         }
         let code = operation(pointer)
         let error = code != 0 ? Self.readLastError(pointer) : ""

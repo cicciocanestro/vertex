@@ -16,6 +16,8 @@ REPORT="${VERTEX_TEST_REPORT:-$ROOT/dist/test-results.xml}"
 COVERAGE_DIR="${VERTEX_COVERAGE_DIR:-$ROOT/dist/coverage}"
 mkdir -p "$(dirname "$REPORT")" "$COVERAGE_DIR"
 
+"$ROOT/Scripts/build-deps.sh"
+
 echo "→ Compilazione della suite con coverage…"
 WARNING_FLAGS=()
 if [[ "${VERTEX_WARNINGS_AS_ERRORS:-0}" == "1" ]]; then
@@ -60,8 +62,8 @@ if [ -f "$PROFILE" ]; then
             printf 'Report:    %s\n' "$REPORT"
             printf 'Coverage:  %s\n' "$COVERAGE_DIR/coverage.txt"
 
-            # Regression gate: the total line coverage may not fall below the
-            # recorded floor. Raise VERTEX_MIN_COVERAGE as coverage improves.
+            # Regression gate: the total region coverage ($4 of TOTAL) may not
+            # fall below the recorded floor. Raise VERTEX_MIN_COVERAGE as it grows.
             total="$(awk '/^TOTAL/ {gsub("%", "", $4); print $4}' "$COVERAGE_DIR/coverage.txt")"
             minimum="${VERTEX_MIN_COVERAGE:-63}"
             if [ -n "$total" ] && ! awk -v t="$total" -v m="$minimum" \

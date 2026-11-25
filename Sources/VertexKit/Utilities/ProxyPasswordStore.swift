@@ -84,7 +84,7 @@ package enum ProxyPasswordStore {
         ioQueue.sync {
             if toFile {
                 guard writeFile(value) else { return }
-                Keychain.deleteProxyPassword()
+                _ = Keychain.deleteProxyPassword()
             } else {
                 guard value.isEmpty || Keychain.setProxyPassword(value) else { return }
                 removeFile()
@@ -92,7 +92,7 @@ package enum ProxyPasswordStore {
         }
     }
 
-    package static func removeFile() {
+    private static func removeFile() {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
@@ -161,11 +161,12 @@ package enum ProxyPasswordStore {
             )
             // `createDirectory` ignores attributes when the folder already
             // exists: older installs have ~/Library/Application Support/Vertex
-            // at 0755. Enforce the documented mode explicitly.
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o700],
-                ofItemAtPath: folder.path
-            )
+            // at 0755. Enforce 0700 through a no-follow directory descriptor so
+            // a symlink cannot redirect chmod to another path.
+            let dirFD = folder.path.withCString { open($0, O_RDONLY | O_DIRECTORY | O_NOFOLLOW) }
+            guard dirFD >= 0 else { return false }
+            _ = fchmod(dirFD, 0o700)
+            close(dirFD)
             // Created with 0600 from the start: the password is never on disk
             // with the umask-derived mode, not even for an instant.
             let descriptor = open(temporary.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)

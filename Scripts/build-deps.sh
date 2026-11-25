@@ -151,7 +151,9 @@ fetch() {
         echo "→ Download $file"
         local part="${path}.part"
         rm -f "$part"
-        if ! curl --fail --location --retry 3 --connect-timeout 20 --output "$part" "$url"; then
+        if ! curl --fail --location \
+            --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --retry 3 --connect-timeout 20 --output "$part" "$url"; then
             rm -f "$part"
             exit 1
         fi

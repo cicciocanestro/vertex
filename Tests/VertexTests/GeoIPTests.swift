@@ -152,6 +152,67 @@ enum GeoIPTests {
                 "Un indirizzo fuori range non deve produrre un codice"
             )
         }
+
+        TestRunner.run("GeoIP: payload corrotti, header gigante e varint in overflow") {
+            // Header claiming UInt32.max (~4 GiB) must be rejected before allocating.
+            var hugeHeader = Data()
+            var maxExpected = UInt32.max.littleEndian
+            withUnsafeBytes(of: &maxExpected) { hugeHeader.append(contentsOf: $0) }
+            hugeHeader.append(contentsOf: [0x78, 0x9C, 0x03, 0x00])
+            try TestRunner.assertNil(GeoIPTable(compressed: hugeHeader))
+            try TestRunner.assertNil(GeoIPv6Table(compressed: hugeHeader))
+
+            // Country count > 256 must be rejected cleanly.
+            var tooManyCountries: [UInt8] = [0x2C, 0x01]  // 300 in little-endian
+            tooManyCountries += [UInt8](repeating: 0x41, count: 600)
+            try TestRunner.assertNil(compressPayload(tooManyCountries).flatMap(GeoIPTable.init(compressed:)))
+            try TestRunner.assertNil(compressPayload(tooManyCountries).flatMap(GeoIPv6Table.init(compressed:)))
+
+            // Overflowing 64-bit / 128-bit range lengths clamp cleanly without trapping,
+            // while overflowing start addresses are rejected with nil.
+            var clampedEndV4: [UInt8] = [1, 0] + Array("IT".utf8)
+            clampedEndV4 += [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]  // start = UInt32.max
+            clampedEndV4 += [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01]  // length = UInt64.max
+            clampedEndV4 += [0]
+            try TestRunner.assertNotNil(compressPayload(clampedEndV4).flatMap(GeoIPTable.init(compressed:)))
+
+            var overflowStartV4 = clampedEndV4
+            overflowStartV4 += [1, 0, 0]  // second entry delta = 1 -> nextStart > UInt32.max
+            try TestRunner.assertNil(compressPayload(overflowStartV4).flatMap(GeoIPTable.init(compressed:)))
+
+            var clampedEndV6: [UInt8] = [1, 0] + Array("IT".utf8)
+            clampedEndV6 += [UInt8](repeating: 0xFF, count: 18) + [0x03]  // start = UInt128.max
+            clampedEndV6 += [1]  // length = 1 -> end clamps to UInt128.max without trapping
+            clampedEndV6 += [0]
+            try TestRunner.assertNotNil(compressPayload(clampedEndV6).flatMap(GeoIPv6Table.init(compressed:)))
+
+            var overflowStartV6 = clampedEndV6
+            overflowStartV6 += [1, 0, 0]  // second entry delta = 1 -> start overflows 128 bits
+            try TestRunner.assertNil(compressPayload(overflowStartV6).flatMap(GeoIPv6Table.init(compressed:)))
+        }
+    }
+
+    private static func compressPayload(_ payload: [UInt8]) -> Data? {
+        let capacity = payload.count * 2 + 64
+        var buffer = [UInt8](repeating: 0, count: capacity)
+        let written = payload.withUnsafeBytes { source in
+            buffer.withUnsafeMutableBytes { destination in
+                compression_encode_buffer(
+                    destination.bindMemory(to: UInt8.self).baseAddress!,
+                    capacity,
+                    source.bindMemory(to: UInt8.self).baseAddress!,
+                    payload.count,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
+            }
+        }
+        guard written > 0 else { return nil }
+        var data = Data()
+        var size = UInt32(payload.count).littleEndian
+        withUnsafeBytes(of: &size) { data.append(contentsOf: $0) }
+        data.append(contentsOf: buffer.prefix(written))
+        return data
     }
 
     /// Builds the compact format in memory: one country, one range [0, 1].

@@ -107,9 +107,10 @@ shasum -a 256 -c Vertex-*.dmg.sha256
 - **SOCKS5 proxy with fail-closed leak prevention**: route trackers and peers through an
   anonymous proxy (such as Tor on `127.0.0.1:9050` or a VPN SOCKS5 proxy) with optional
   authentication (password stored in the macOS Keychain). Automatically enables strict
-  `anonymous_mode`, disables UPnP/NAT-PMP to
-  prevent local IP leaks, halts traffic immediately if the proxy is unreachable, and drops
-  the connections already open when the proxy is enabled or changed.
+  `anonymous_mode`, disables DHT and UPnP/NAT-PMP to
+  prevent local IP and bootstrap DNS leaks, halts traffic immediately if the proxy or a bound
+  tunnel interface is unreachable, and drops the connections already open when the proxy or
+  bound address is enabled or changed.
 - **Network diagnostics**: a status checklist plus effective port, local IP, proxy status, mapping state and TCP reachability.
 - **First-run onboarding**: the empty library shows three steps (add, folder, proxy) and a settings shortcut.
 - Italian or English interface based on the system language.
@@ -325,9 +326,9 @@ The script verifies signature, dependencies, `minos` and architecture before cre
 DMG and after mounting it.
 
 Publishing is handled by CI: pushes to `main` produce a build artifact, while only `v*`
-tags create a GitHub Release. The tag must match `Info.plist`; published assets are not
-overwritten. The current DMG is arm64-only; a universal release requires dependencies for
-both architectures.
+tags create a GitHub Release. The tag must match `Info.plist`; re-running the release workflow
+updates the tag's assets idempotently (`--clobber`). The current DMG is arm64-only; a universal
+release requires dependencies for both architectures.
 
 ### Architecture
 
@@ -373,7 +374,7 @@ both architectures.
 LCOV). CI uploads both, treats every compiler warning as an error, enforces a coverage
 floor, runs the suite under ThreadSanitizer and AddressSanitizer, and fuzzes the JSON
 escaping and UTF-8 validation used by the snapshot on every non-tag build. The suite
-(110 tests) covers formatters, snapshot JSON decoding, models, preferences,
+(115 tests) covers formatters, snapshot JSON decoding, models, preferences,
 the offline GeoIP tables (IPv4 and IPv6), the C++ bridge lifecycle, malformed magnet input, the engine (add,
 detail, priorities, pause/resume, PEX restart, shutdown), keyboard navigation, drag-and-drop,
 the adaptive polling policy, network reachability with a fake HTTP loader and command
@@ -394,6 +395,7 @@ DEBUG builds provide demo data, window capture and a sample actionable toast
 - macOS 15.0+ on Apple Silicon (arm64); Intel requires a universal build with dependencies
   for both architectures.
 - Self-signed, not notarized signature: expect a Gatekeeper confirmation on another Mac.
+  Developer ID signing and notarization are already supported (see above).
 - Italian or English interface based on the system language; no other translations.
 - Deliberately minimal: no RSS, built-in torrent search or scheduler.
 - The DMG is specific to the build Mac's architecture (arm64 on Apple Silicon).
@@ -411,11 +413,12 @@ Changes between versions are documented in [`CHANGELOG.md`](CHANGELOG.md).
 
 Vertex is distributed under the **MIT License**: see [`LICENSE`](LICENSE).
 
-Bundled libraries keep their own licenses:
+Bundled libraries and datasets keep their own licenses:
 
 - **libtorrent-rasterbar** — BSD 3-Clause
 - **OpenSSL** — Apache License 2.0
 - **Boost** (headers only at build time) — Boost Software License 1.0
+- **DB-IP "IP to Country Lite"** — Creative Commons Attribution 4.0 (CC BY 4.0)
 
 Full texts are in [`Resources/Licenses/`](Resources/Licenses) and
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). They are also included in the bundle

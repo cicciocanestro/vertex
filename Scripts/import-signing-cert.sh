@@ -23,16 +23,19 @@ if ! command -v security >/dev/null 2>&1; then
     exit 1
 fi
 
+umask 077
 WORK="${RUNNER_TEMP:-$(mktemp -d "${TMPDIR:-/tmp}/vertex-signing.XXXXXX")}"
 mkdir -p "$WORK"
+chmod 700 "$WORK"
 KEYCHAIN="$WORK/vertex-signing.keychain-db"
 KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
 P12="$WORK/vertex-signing.p12"
 
-# Only clean up on failure: on success the keychain must stay available for the
-# build step. CI removes it afterwards with cleanup-signing-cert.sh.
+# Always wipe the decoded PKCS#12 file; on failure also remove the keychain.
+# On success the keychain stays until cleanup-signing-cert.sh removes it.
 IMPORTED=0
 cleanup_keychain() {
+    rm -f "$P12"
     if [ "$IMPORTED" -ne 1 ]; then
         security delete-keychain "$KEYCHAIN" >/dev/null 2>&1 || true
     fi
@@ -53,13 +56,22 @@ security set-key-partition-list \
     -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 
 # Add the keychain to the user search list; codesign looks there.
-EXISTING="$(security list-keychains -d user | sed 's/^ *//; s/"//g')"
-# shellcheck disable=SC2086
-security list-keychains -d user -s "$KEYCHAIN" $EXISTING
+EXISTING_KEYCHAINS=()
+while IFS= read -r kc_line; do
+    kc_clean="$(printf '%s' "$kc_line" | sed 's/^ *//; s/"//g')"
+    [ -n "$kc_clean" ] && EXISTING_KEYCHAINS+=("$kc_clean")
+done < <(security list-keychains -d user)
+security list-keychains -d user -s "$KEYCHAIN" "${EXISTING_KEYCHAINS[@]}"
 
 rm -f "$P12"
 
 IDENTITY="${VERTEX_SIGN_IDENTITY:-Vertex Self-Signed}"
+case "$IDENTITY$KEYCHAIN" in
+    *$'\n'*|*$'\r'*)
+        echo "✗ Caratteri di ritorno a capo non validi nell'identità o nel percorso keychain" >&2
+        exit 1
+        ;;
+esac
 if ! security find-identity -p codesigning "$KEYCHAIN" 2>/dev/null | grep -qF "$IDENTITY"; then
     echo "✗ Identità '$IDENTITY' non trovata nel keychain importato" >&2
     security find-identity -p codesigning "$KEYCHAIN" >&2 || true
@@ -70,8 +82,8 @@ echo "✓ Certificato pronto: $IDENTITY"
 IMPORTED=1
 if [ -n "${GITHUB_ENV:-}" ]; then
     {
-        echo "VERTEX_SIGN_IDENTITY=$IDENTITY"
-        echo "VERTEX_SIGNING_EXPECTED=1"
-        echo "VERTEX_SIGNING_KEYCHAIN=$KEYCHAIN"
+        printf 'VERTEX_SIGN_IDENTITY=%s\n' "$IDENTITY"
+        printf 'VERTEX_SIGNING_EXPECTED=1\n'
+        printf 'VERTEX_SIGNING_KEYCHAIN=%s\n' "$KEYCHAIN"
     } >> "$GITHUB_ENV"
 fi
