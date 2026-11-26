@@ -43,7 +43,7 @@ final class PortReachabilityTester: ObservableObject {
             state = .failed(L("Porta non valida"))
             return
         }
-        guard !UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) else {
+        guard !Preferences.userDefaults.bool(forKey: PrefKey.proxyEnabled) else {
             state = .failed(L("Test non disponibile con proxy SOCKS5 attivo"))
             return
         }
@@ -58,6 +58,7 @@ final class PortReachabilityTester: ObservableObject {
     func cancel() {
         task?.cancel()
         task = nil
+        state = .idle
     }
 
     func reset() {
@@ -74,6 +75,7 @@ final class PortReachabilityTester: ObservableObject {
             publicIP = ip
 
             let check = try await startExternalCheck(ip: ip, port: port)
+            guard !Task.isCancelled else { return }
             let expectedNodes = Set(check.nodes.keys)
             guard !expectedNodes.isEmpty else {
                 throw TestError(L("Il servizio di test non ha restituito nodi."))
@@ -92,6 +94,7 @@ final class PortReachabilityTester: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 let result = try await fetchCheckResult(requestID: check.requestID)
+                guard !Task.isCancelled else { return }
                 var completed = 0
                 var open = 0
 

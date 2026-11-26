@@ -638,6 +638,14 @@ enum CTorrentBridgeTests {
         TestRunner.run("Bridge: guardie su priorità file, rimozione uppercase e bind+proxy fail-closed") {
             try bridgeSecurityAndBoundsGuards()
         }
+
+        TestRunner.run("Bridge: vt_fail_close_proxy, vt_session_create_configured_ex e validazioni confine C") {
+            try failCloseProxyAndBoundaryValidations()
+        }
+
+        TestRunner.run("Bridge: esclusione di tutti i file, invalidazione immediata cache e rimozione/riaggiunta") {
+            try allSkippedCacheInvalidationAndReadd()
+        }
     }
 
     /// Decodes the session snapshot through the same model the UI uses, so the
@@ -910,8 +918,11 @@ enum CTorrentBridgeTests {
                 }
             }
             if rc != 0 {
+                let errPtr = vt_last_error(session)
+                let errMsg = errPtr.map { String(cString: $0) } ?? ""
+                if let errPtr { vt_free_string(errPtr) }
                 throw TestFailure(
-                    message: "add magnet \(index) fallita: \(String(cString: vt_last_error(session)))",
+                    message: "add magnet \(index) fallita: \(errMsg)",
                     file: #file,
                     line: #line
                 )
@@ -1052,5 +1063,285 @@ enum CTorrentBridgeTests {
         guard let pointer else { return nil }
         defer { vt_free_string(pointer) }
         return String(cString: pointer)
+    }
+
+    private static func failCloseProxyAndBoundaryValidations() throws {
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+        let download = try workspace.directory("downloads")
+        let resume = try workspace.directory("resume")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: resume.path)
+        let port = Int32(try TestsSupport.freeTCPPort())
+
+        // Pre-existing read-only download directory must be rejected at session creation.
+        let readonlyDownload = try workspace.directory("readonly-downloads")
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readonlyDownload.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readonlyDownload.path)
+        }
+        var roError: UnsafeMutablePointer<CChar>?
+        let roSession = readonlyDownload.path.withCString { dlPath in
+            resume.path.withCString { resPath in
+                vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, &roError)
+            }
+        }
+        if let roError { vt_free_string(roError) }
+        if let roSession { vt_session_destroy(roSession) }
+        try TestRunner.assertNil(roSession, "Una cartella download non scrivibile deve essere rifiutata")
+
+        // Out-of-domain proxy_type or out-of-range proxy_port at creation must fail closed instead of starting clearnet/:1080.
+        var badProxyTypeError: UnsafeMutablePointer<CChar>?
+        let badProxySession = download.path.withCString { dlPath in
+            resume.path.withCString { resPath in
+                "127.0.0.1".withCString { host in
+                    vt_session_create_configured_ex(
+                        dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil,
+                        2, host, 1080, nil, nil, 1, "1.17.14", &badProxyTypeError
+                    )
+                }
+            }
+        }
+        if let badProxyTypeError { vt_free_string(badProxyTypeError) }
+        if let badProxySession { vt_session_destroy(badProxySession) }
+        try TestRunner.assertNil(badProxySession, "proxy_type fuori dominio deve fallire in creazione")
+
+        var badProxyPortError: UnsafeMutablePointer<CChar>?
+        let badPortSession = download.path.withCString { dlPath in
+            resume.path.withCString { resPath in
+                "127.0.0.1".withCString { host in
+                    vt_session_create_configured_ex(
+                        dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil,
+                        1, host, 70_000, nil, nil, 1, "1.17.14", &badProxyPortError
+                    )
+                }
+            }
+        }
+        let badPortMessage = badProxyPortError.map { ptr -> String in
+            defer { vt_free_string(ptr) }
+            return String(cString: ptr)
+        }
+        if let badPortSession { vt_session_destroy(badPortSession) }
+        try TestRunner.assertNil(badPortSession, "proxy_port fuori range deve fallire in creazione")
+        try TestRunner.assertEqual(badPortMessage, "Porta proxy fuori intervallo (1–65535).")
+
+        // Create session via vt_session_create_configured_ex with max_active = 1 and check 0700 on resume_dir.
+        let created = download.path.withCString { dlPath in
+            resume.path.withCString { resPath in
+                vt_session_create_configured_ex(
+                    dlPath, resPath, port, 0, 0, 1, 0, 0, 0, nil,
+                    0, nil, 0, nil, nil, 1, "1.17.14", nil
+                )
+            }
+        }
+        let session = try TestRunner.assertNotNil(created)
+        defer { vt_session_destroy(session) }
+
+        let resumePerms =
+            (try FileManager.default.attributesOfItem(atPath: resume.path)[.posixPermissions] as? NSNumber)?.intValue
+            ?? 0
+        try TestRunner.assertEqual(resumePerms & 0o777, 0o700, "resume_dir deve essere forzata a permessi 0700")
+
+        // vt_fail_close_proxy halts listening, sets proxy error, resists vt_clear_proxy_error,
+        // and recovers once valid proxy settings or proxy_type = 0 are applied.
+        "Host proxy non valido".withCString { reason in
+            vt_fail_close_proxy(session, reason)
+        }
+        let failClosedSnap = try Self.decodeSnapshot(session)
+        try TestRunner.assertTrue(failClosedSnap.proxy.enabled, "Il proxy deve risultare abilitato in fail-close")
+        try TestRunner.assertEqual(failClosedSnap.proxy.error, "Host proxy non valido")
+        try TestRunner.assertFalse(failClosedSnap.listening, "La sessione in fail-close non deve ascoltare")
+
+        vt_clear_proxy_error(session)
+        let afterClearAttempt = try Self.decodeSnapshot(session)
+        try TestRunner.assertEqual(
+            afterClearAttempt.proxy.error,
+            "Host proxy non valido",
+            "vt_clear_proxy_error non deve cancellare l'errore finché la guardia fail-close è attiva"
+        )
+
+        // Invalid proxy_type, whitespace-only hostname, and out-of-range ports must stay fail-closed.
+        try TestRunner.assertEqual(vt_apply_proxy_settings(session, 99, "127.0.0.1", 1080, nil, nil), -1)
+        if let err = vt_last_error(session) { vt_free_string(err) }
+        try TestRunner.assertEqual(vt_apply_proxy_settings(session, 1, "   ", 1080, nil, nil), -1)
+        if let err = vt_last_error(session) {
+            defer { vt_free_string(err) }
+            try TestRunner.assertEqual(String(cString: err), "Host proxy non valido")
+        }
+        for invalidPort: Int32 in [0, -1, 70_000] {
+            try TestRunner.assertEqual(vt_apply_proxy_settings(session, 1, "127.0.0.1", invalidPort, nil, nil), -1)
+            if let err = vt_last_error(session) {
+                defer { vt_free_string(err) }
+                try TestRunner.assertEqual(String(cString: err), "Porta proxy fuori intervallo (1–65535).")
+            }
+        }
+
+        // Trimmed hostname with valid port is accepted and clears fail-closed state
+        // (libtorrent may asynchronously report ECONNREFUSED/EPERM on 127.0.0.1:1080,
+        // so verify that the fail-closed configuration error itself is gone).
+        try TestRunner.assertEqual(vt_apply_proxy_settings(session, 1, "  127.0.0.1  ", 1080, "user", "pass"), 0)
+        let validProxySnap = try Self.decodeSnapshot(session)
+        try TestRunner.assertEqual(validProxySnap.proxy.hostname, "127.0.0.1")
+        try TestRunner.assertEqual(validProxySnap.proxy.port, 1080)
+        try TestRunner.assertTrue(validProxySnap.proxy.auth)
+        try TestRunner.assertFalse(validProxySnap.proxy.error == "Host proxy non valido")
+        try TestRunner.assertFalse(validProxySnap.proxy.error == "Porta proxy fuori intervallo (1–65535).")
+
+        // Transitioning from an active proxy endpoint to vt_fail_close_proxy must clear stale
+        // hostname/port/auth metadata so the TCP health probe stops hitting the old endpoint.
+        "Porta proxy fuori intervallo (1–65535).".withCString { reason in
+            vt_fail_close_proxy(session, reason)
+        }
+        let clearedEndpointSnap = try Self.decodeSnapshot(session)
+        try TestRunner.assertTrue(clearedEndpointSnap.proxy.enabled)
+        try TestRunner.assertEqual(clearedEndpointSnap.proxy.hostname, "")
+        try TestRunner.assertEqual(clearedEndpointSnap.proxy.port, 0)
+        try TestRunner.assertFalse(clearedEndpointSnap.proxy.auth)
+        try TestRunner.assertEqual(clearedEndpointSnap.proxy.error, "Porta proxy fuori intervallo (1–65535).")
+
+        // Disabling proxy restores clearnet cleanly.
+        try TestRunner.assertEqual(vt_apply_proxy_settings(session, 0, nil, 0, nil, nil), 0)
+        try TestsSupport.waitFor("ripristino ascolto dopo uscita da proxy", timeout: 5) {
+            let snap = try Self.decodeSnapshot(session)
+            return !snap.proxy.enabled && snap.listening
+        }
+
+        // Unspecified ("0.0.0.0", "::") and IPv6 link-local ("fe80::1") bind addresses must be rejected.
+        for invalidBind in ["0.0.0.0", "::", "[::]", "fe80::1", "[fe80::1]"] {
+            let rc = invalidBind.withCString { bindPtr in
+                vt_apply_settings_ex(session, port, 0, 0, 0, 0, 0, bindPtr)
+            }
+            try TestRunner.assertEqual(rc, -1, "bind_address non valido accettato: \(invalidBind)")
+            if let err = vt_last_error(session) { vt_free_string(err) }
+        }
+
+        // vt_set_default_save_path rejects whitespace-only input.
+        try TestRunner.assertEqual(vt_set_default_save_path(session, "   "), -1)
+        if let err = vt_last_error(session) { vt_free_string(err) }
+    }
+
+    private static func allSkippedCacheInvalidationAndReadd() throws {
+        let workspace = try IntegrationWorkspace()
+        defer { workspace.cleanup() }
+        let download = try workspace.directory("downloads")
+        let resume = try workspace.directory("resume")
+        let port = Int32(try TestsSupport.freeTCPPort())
+
+        func openSession() throws -> OpaquePointer {
+            let ptr = download.path.withCString { dlPath in
+                resume.path.withCString { resPath in
+                    vt_session_create_full(dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil, nil)
+                }
+            }
+            return try TestRunner.assertNotNil(ptr)
+        }
+
+        let first = try openSession()
+        // Add v1 fixture paused, warm the snapshot cache, then verify single-poll updates (B-2).
+        let addedV1 = IntegrationFixture.v1.torrentURL.path.withCString { pathPtr in
+            download.path.withCString { dlPtr in
+                vt_add_torrent_file(first, pathPtr, dlPtr, 1, 0)
+            }
+        }
+        try TestRunner.assertEqual(addedV1, 0)
+        let initialSnap = try Self.decodeSnapshot(first)
+        let v1ID = try TestRunner.assertNotNil(initialSnap.torrents.first?.id)
+        try TestRunner.assertTrue(initialSnap.torrents.first?.paused == true)
+
+        try TestRunner.assertEqual(v1ID.withCString { vt_control(first, $0, "sequential_on") }, 0)
+        let seqSnap = try Self.decodeSnapshot(first)
+        try TestRunner.assertTrue(
+            seqSnap.torrents.first?.sequential == true,
+            "L'invalidazione di status_cache deve riflettere sequential_on al primo snapshot"
+        )
+
+        // M-1: setting all file priorities to 0 (Skip) on an incomplete torrent must NOT report finished/100%.
+        try TestRunner.assertEqual(v1ID.withCString { vt_set_all_file_priorities(first, $0, 0) }, 0)
+        try TestsSupport.waitFor("priorità 0 applicate su tutti i file") {
+            guard let ptr = v1ID.withCString({ vt_detail_json(first, $0) }) else { return false }
+            defer { vt_free_string(ptr) }
+            let detail = try JSONDecoder().decode(TorrentDetail.self, from: Data(String(cString: ptr).utf8))
+            return !detail.files.isEmpty && detail.files.allSatisfy { $0.priority == 0 }
+        }
+        let skippedSnap = try Self.decodeSnapshot(first)
+        let skippedTorrent = try TestRunner.assertNotNil(skippedSnap.torrents.first { $0.id == v1ID })
+        try TestRunner.assertFalse(
+            skippedTorrent.finished,
+            "Un torrent incompleto con tutti i file su Skip non deve risultare completato"
+        )
+        try TestRunner.assertFalse(skippedTorrent.seeding)
+        try TestRunner.assertEqual(skippedTorrent.progress, 0.0)
+        try TestRunner.assertEqual(skippedTorrent.eta, -1)
+
+        // B-7: vt_set_trackers must reject malformed schemes/hosts and accept valid URLs.
+        for badURL in [
+            "://missing-scheme/announce", "1bad://tracker.example/announce", "http:///announce", "http://:80/a",
+        ] {
+            let rc = v1ID.withCString { idPtr in
+                badURL.withCString { urlPtr in vt_set_trackers(first, idPtr, urlPtr) }
+            }
+            try TestRunner.assertEqual(rc, -1, "URL tracker malformato accettato: \(badURL)")
+            if let err = vt_last_error(first) { vt_free_string(err) }
+        }
+        let validTracker = "https://[::1]:8443/announce"
+        try TestRunner.assertEqual(
+            v1ID.withCString { idPtr in
+                validTracker.withCString { urlPtr in vt_set_trackers(first, idPtr, urlPtr) }
+            },
+            0
+        )
+
+        // B-7 & A-8: add v2 fixture, verify uppercase hex lookup, remove and re-add in same session,
+        // and verify .resume is persisted across destroy (even if a symlink stood at <id>.resume).
+        let addedV2 = IntegrationFixture.v2.torrentURL.path.withCString { pathPtr in
+            download.path.withCString { dlPtr in
+                vt_add_torrent_file(first, pathPtr, dlPtr, 1, 0)
+            }
+        }
+        try TestRunner.assertEqual(addedV2, 0)
+        let bothSnap = try Self.decodeSnapshot(first)
+        let v2ID = try TestRunner.assertNotNil(bothSnap.torrents.first { $0.id != v1ID }?.id)
+
+        try TestRunner.assertEqual(
+            v2ID.uppercased().withCString { vt_control(first, $0, "remove") },
+            0,
+            "find_handle deve risolvere anche ID uppercase di torrent v2"
+        )
+        let readdedV2 = IntegrationFixture.v2.torrentURL.path.withCString { pathPtr in
+            download.path.withCString { dlPtr in
+                vt_add_torrent_file(first, pathPtr, dlPtr, 1, 0)
+            }
+        }
+        try TestRunner.assertEqual(readdedV2, 0)
+
+        // B-1: place a symlink at <v1ID>.resume after flushing resume state, then destroy:
+        // vt_session_destroy must use symlink_status, see that no regular .resume exists, and write a real 0600 file.
+        let dummyTarget = workspace.root.appendingPathComponent("dummy-target")
+        try Data("placeholder".utf8).write(to: dummyTarget)
+        let v1ResumeURL = resume.appendingPathComponent("\(v1ID).resume")
+        try? FileManager.default.removeItem(at: v1ResumeURL)
+        try FileManager.default.createSymbolicLink(at: v1ResumeURL, withDestinationURL: dummyTarget)
+
+        vt_session_destroy(first)
+
+        let v2ResumeURL = resume.appendingPathComponent("\(v2ID).resume")
+        try TestRunner.assertTrue(
+            FileManager.default.fileExists(atPath: v2ResumeURL.path),
+            "Il .resume di un torrent rimosso e riaggiunto nella stessa sessione deve essere salvato"
+        )
+        let v1Attrs = try FileManager.default.attributesOfItem(atPath: v1ResumeURL.path)
+        try TestRunner.assertEqual(
+            v1Attrs[.type] as? FileAttributeType,
+            .typeRegular,
+            "vt_session_destroy deve sostituire un symlink .resume con un file regolare"
+        )
+
+        let reopened = try openSession()
+        defer { vt_session_destroy(reopened) }
+        let reopenedSnap = try Self.decodeSnapshot(reopened)
+        try TestRunner.assertEqual(
+            reopenedSnap.torrents.count,
+            2,
+            "Entrambi i torrent devono essere ricaricati al riavvio"
+        )
     }
 }

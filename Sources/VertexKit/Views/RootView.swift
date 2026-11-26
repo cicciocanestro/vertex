@@ -54,9 +54,10 @@ package struct RootView: View {
             // process' UserDefaults when the view is installed: writing here is what
             // makes the DEBUG initializer drive the persisted state. The test runner
             // has its own suite, so the app preferences are never touched.
-            UserDefaults.standard.set(filter.rawValue, forKey: PrefKey.uiFilter)
-            UserDefaults.standard.set(sort.rawValue, forKey: PrefKey.uiSort)
-            UserDefaults.standard.set(sortAscending, forKey: PrefKey.uiSortAscending)
+            let defaults = Preferences.userDefaults
+            defaults.set(filter.rawValue, forKey: PrefKey.uiFilter)
+            defaults.set(sort.rawValue, forKey: PrefKey.uiSort)
+            defaults.set(sortAscending, forKey: PrefKey.uiSortAscending)
             _search = StateObject(wrappedValue: UIState(search))
             _activeModal = StateObject(wrappedValue: UIState(modal))
             _dropTargeted = StateObject(wrappedValue: UIState(dropTargeted))
@@ -141,6 +142,7 @@ package struct RootView: View {
                     initialMode: addMode,
                     onClose: { activeModal.value = nil }
                 )
+                .defaultAppStorage(Preferences.userDefaults)
             }
             .modifier(RootEventHandlers(actions: rootActions))
             .onDrop(of: [.fileURL, .text], isTargeted: $dropTargeted.value) { providers in
@@ -306,7 +308,7 @@ package struct RootView: View {
         return HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
                 .font(Typography.captionMediumText)
-                .foregroundStyle(Theme.mint)
+                .foregroundStyle(palette.mintText)
 
             Text(LF("%ld selezionati", batch.count))
                 .font(Typography.smallSemiboldText)
@@ -373,6 +375,7 @@ package struct RootView: View {
             onClose: { select(nil) },
             onDeleteWithFiles: { requestDeletion([$0]) }
         )
+        .id(torrent.id)
         .frame(width: inspectorWidthValue)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
@@ -480,7 +483,9 @@ package struct RootView: View {
                 return false
             },
             set: { presented in
-                if !presented { activeModal.value = nil }
+                if !presented, case .add = activeModal.value {
+                    activeModal.value = nil
+                }
             }
         )
     }
@@ -491,6 +496,17 @@ package struct RootView: View {
     }
 
     private func openAddSheet() {
+        guard !hasModalOverlay else { return }
+        guard
+            RootActionFactory.canPresentAdd(
+                modalOpen: hasModalOverlay,
+                isReady: engine.isReady,
+                isRestartingSession: engine.isRestartingSession
+            )
+        else {
+            engine.showToast(L("Motore non disponibile."), kind: .error)
+            return
+        }
         activeModal.value = .add(.magnet)
     }
 
@@ -513,7 +529,12 @@ package struct RootView: View {
                 isModalOpen: { hasModalOverlay },
                 selectedTorrent: { selectedTorrent },
                 selectedTorrents: { engine.selectedTorrents },
-                setModal: { activeModal.value = $0 },
+                setModal: { nextModal in
+                    if case .add = nextModal, hasModalOverlay {
+                        return
+                    }
+                    activeModal.value = nextModal
+                },
                 focusSearch: { searchFocused = true },
                 toggleInspector: toggleInspector,
                 requestDeletion: requestDeletion,
@@ -561,6 +582,10 @@ package struct RootView: View {
 
     private func pasteMagnet() {
         guard !hasModalOverlay else { return }
+        guard engine.isReady, !engine.isRestartingSession else {
+            engine.showToast(L("Motore non disponibile."), kind: .error)
+            return
+        }
         guard
             let magnet = RootActionFactory.magnetToAdd(
                 from: NSPasteboard.general.string(forType: .string)
@@ -602,7 +627,8 @@ package struct RootView: View {
         guard
             RootActionFactory.acceptsDrop(
                 modalOpen: hasModalOverlay,
-                isReady: engine.isReady
+                isReady: engine.isReady,
+                isRestartingSession: engine.isRestartingSession
             )
         else { return false }
 
@@ -656,6 +682,7 @@ private struct InspectorResizeHandle: View {
                     Rectangle()
                         .fill(Theme.mint.opacity(hover.value ? 0.5 : 0))
                         .frame(width: hover.value ? 2 : 0)
+                        .allowsHitTesting(false)
                 )
         }
         .frame(width: 7)

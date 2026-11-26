@@ -27,8 +27,14 @@ fi
 
 LOG="$(mktemp -t vertex-launch)"
 FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/vertex-launch-home.XXXXXX")"
+DEFAULTS_SUITE="app.vertex.torrent.check-launch.$$"
 PID=""
+CLEANED_UP=0
 cleanup() {
+    if [ "$CLEANED_UP" -eq 1 ]; then
+        return 0
+    fi
+    CLEANED_UP=1
     if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
         kill "$PID" 2>/dev/null || true
         for _ in $(seq 1 8); do
@@ -38,13 +44,20 @@ cleanup() {
         kill -9 "$PID" 2>/dev/null || true
         wait "$PID" 2>/dev/null || true
     fi
+    defaults delete "$DEFAULTS_SUITE" >/dev/null 2>&1 || true
     rm -rf "$LOG" "$FAKE_HOME"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
-# Isolate HOME and disable Keychain/notifications so running the smoke test
-# locally never touches the user's real resume folder or login Keychain.
+# Isolate data/download directories, UserDefaults suite and Keychain/notifications
+# so running the smoke test locally never touches the user's real resume folder,
+# Downloads folder, preferences or login Keychain (macOS FileManager ignores $HOME).
 HOME="$FAKE_HOME" \
+VERTEX_DATA_DIR="$FAKE_HOME/Application Support/Vertex" \
+VERTEX_DOWNLOADS_DIR="$FAKE_HOME/Downloads" \
+VERTEX_DEFAULTS_SUITE="$DEFAULTS_SUITE" \
 VERTEX_KEYCHAIN_DISABLED=1 \
 VERTEX_NOTIFICATIONS_DISABLED=1 \
 "$BIN" >"$LOG" 2>&1 &

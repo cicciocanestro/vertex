@@ -18,13 +18,18 @@ The same format is used for IPv6 (`country-v6.bin.z`): start deltas and range
 lengths are varints over 128-bit unsigned values instead of 32-bit ones.
 """
 
+import csv
 import ipaddress
 import struct
 import sys
 import zlib
 
+MAX_DECOMPRESSED_BYTES = 16 * 1024 * 1024
+
 
 def varint(value):
+    if value < 0:
+        raise ValueError(f"varint requires a non-negative integer, got {value}")
     out = bytearray()
     while True:
         byte = value & 0x7F
@@ -40,22 +45,24 @@ def ipv4(text):
     parts = text.split(".")
     if len(parts) != 4:
         raise ValueError(f"not an IPv4 address: {text}")
-    return (
-        (int(parts[0]) << 24)
-        | (int(parts[1]) << 16)
-        | (int(parts[2]) << 8)
-        | int(parts[3])
-    )
+    octets = [int(part) for part in parts]
+    if any(octet < 0 or octet > 255 for octet in octets):
+        raise ValueError(f"IPv4 octet out of range: {text}")
+    return (octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]
 
 
 def encode(source, destination, version="v4"):
     rows = []
-    with open(source, "r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
+    with open(source, "r", encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle)
+        for line_num, fields in enumerate(reader, start=1):
+            if not fields or (len(fields) == 1 and not fields[0].strip()):
                 continue
-            start, end, code = line.split(",")
+            if len(fields) != 3:
+                raise ValueError(f"line {line_num}: expected 3 CSV columns, got {len(fields)}")
+            start = fields[0].strip()
+            end = fields[1].strip()
+            code = fields[2].strip().upper()
             is_v6 = ":" in start
             if version == "v6":
                 if not is_v6:
@@ -67,28 +74,46 @@ def encode(source, destination, version="v4"):
                     continue
                 first = ipv4(start)
                 last = ipv4(end)
-            if len(code) != 2:
-                raise ValueError(f"unexpected country code: {code}")
+            if last < first:
+                raise ValueError(f"line {line_num}: invalid IP range (end < start): {start}..{end}")
+            if len(code) != 2 or not code.isascii() or not code.isalpha():
+                raise ValueError(f"line {line_num}: unexpected country code: {code!r}")
             rows.append((first, last, code))
 
-    rows.sort(key=lambda row: row[0])
+    if not rows:
+        raise SystemExit(f"no {version} rows found in {source}")
+
+    rows.sort(key=lambda row: (row[0], row[1]))
     codes = sorted({row[2] for row in rows})
-    if len(codes) > 255:
-        raise SystemExit("more than 255 country codes")
+    if len(codes) > 256:
+        raise SystemExit(f"more than 256 country codes ({len(codes)})")
 
     index = {code: position for position, code in enumerate(codes)}
     payload = bytearray(struct.pack("<H", len(codes)))
     for code in codes:
         payload += code.encode("ascii")
 
-    previous = 0
-    for start, end, code in rows:
-        if start < previous:
+    previous_start = 0
+    previous_end = -1
+    for row_index, (start, end, code) in enumerate(rows):
+        if end < start:
+            raise SystemExit(f"row {row_index}: end ({end}) < start ({start})")
+        if row_index > 0 and start < previous_start:
             raise SystemExit("rows are not sorted")
-        payload += varint(start - previous)
-        previous = start
+        if row_index > 0 and start <= previous_end:
+            raise SystemExit(
+                f"row {row_index}: overlapping IP ranges ({start}..{end} overlaps ..{previous_end})"
+            )
+        payload += varint(start - previous_start)
+        previous_start = start
+        previous_end = end
         payload += varint(end - start)
         payload.append(index[code])
+
+    if len(payload) > MAX_DECOMPRESSED_BYTES:
+        raise SystemExit(
+            f"decompressed payload ({len(payload)} bytes) exceeds {MAX_DECOMPRESSED_BYTES} byte limit"
+        )
 
     compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
     compressed = compressor.compress(bytes(payload)) + compressor.flush()

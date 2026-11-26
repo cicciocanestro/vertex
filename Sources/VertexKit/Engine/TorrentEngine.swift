@@ -70,7 +70,14 @@ package final class TorrentEngine: ObservableObject {
     var sessionGeneration = 0
     var configurationOverride: SessionConfiguration?
     var lastAppliedConfiguration: SessionConfiguration?
+    var lastAppliedProxyFailCloseReason: String?
     var proxyCheckTick = 0
+
+    var defaultDestinationFallback: String {
+        configurationOverride?.downloadPath
+            ?? lastAppliedConfiguration?.downloadPath
+            ?? Preferences.rawDownloadPath
+    }
     var proxyProbeGeneration = 0
     var proxyHealthError: String?
     var isProxyProbeInFlight = false
@@ -95,7 +102,7 @@ package final class TorrentEngine: ObservableObject {
     /// Injected so tests can observe completion events without touching
     /// `UNUserNotificationCenter`.
     var completionNotification: ([String]) -> Void = { names in
-        guard UserDefaults.standard.bool(forKey: PrefKey.notificationsEnabled) else { return }
+        guard Preferences.userDefaults.bool(forKey: PrefKey.notificationsEnabled) else { return }
         SystemNotifications.postDownloadCompleted(names: names)
     }
 
@@ -136,10 +143,11 @@ package final class TorrentEngine: ObservableObject {
         isStarting = false
 
         if isShuttingDown {
-            Task { [weak self] in
-                guard let self else { return }
-                await self.sessionController.destroy()
-                self.completeShutdown()
+            let controller = sessionController
+            let engine = self
+            Task {
+                await controller.destroy()
+                engine.completeShutdown()
             }
             return
         }
@@ -163,7 +171,8 @@ package final class TorrentEngine: ObservableObject {
         isReady = true
         startupError = nil
         lastAppliedConfiguration = outcome.configuration
-        cachedRawDownloadPath = UserDefaults.standard.string(forKey: PrefKey.downloadPath)
+        lastAppliedProxyFailCloseReason = nil
+        cachedRawDownloadPath = Preferences.userDefaults.string(forKey: PrefKey.downloadPath)
         cachedResolvedDownloadPath = outcome.configuration.downloadPath
         startPolling()
         drainPendingOpenURLs()
@@ -234,11 +243,15 @@ package final class TorrentEngine: ObservableObject {
         isRestartingSession = true
         sessionGeneration += 1
         proxyProbeGeneration += 1
+        isProxyProbeInFlight = false
+        proxyHealthError = nil
+        proxyCheckTick = 9
         isPollInFlight = false
         isApplyingSettings = false
         needsSettingsReapply = false
         hasSession = false
         lastAppliedConfiguration = nil
+        lastAppliedProxyFailCloseReason = nil
         isReady = false
         hasLoadedSnapshot = false
         unfinishedIDs.removeAll()
@@ -296,10 +309,11 @@ package final class TorrentEngine: ObservableObject {
         if isShuttingDown {
             // A shutdown arrived while the restart was in flight: it returned
             // early, so the completion must be delivered here.
-            Task { [weak self] in
-                guard let self else { return }
-                await self.sessionController.destroy()
-                self.completeShutdown()
+            let controller = sessionController
+            let engine = self
+            Task {
+                await controller.destroy()
+                engine.completeShutdown()
             }
             return
         }
@@ -307,7 +321,7 @@ package final class TorrentEngine: ObservableObject {
         if outcome.started {
             if restoredPreviousPex {
                 // Put the preference back: the new PEX value could not start.
-                UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
+                Preferences.userDefaults.set(oldPex, forKey: PrefKey.pexEnabled)
             }
             hasSession = true
             sessionPexEnabled = outcome.configuration.pex
@@ -318,6 +332,10 @@ package final class TorrentEngine: ObservableObject {
             // the restart was in progress, instead of rebinding the listening
             // port and remapping UPnP on every PEX toggle.
             lastAppliedConfiguration = outcome.configuration
+            lastAppliedProxyFailCloseReason = nil
+            if selectedID != nil {
+                forceDetailRefresh = true
+            }
             startPolling()
             poll()
             applySettings()
@@ -338,10 +356,11 @@ package final class TorrentEngine: ObservableObject {
         // Both attempts failed: put the preference back and surface a retry view.
         let failureMessage = outcome.error ?? primaryError
         Log.engine.error("session restart failed: \(failureMessage ?? "unknown", privacy: .private)")
-        UserDefaults.standard.set(oldPex, forKey: PrefKey.pexEnabled)
+        Preferences.userDefaults.set(oldPex, forKey: PrefKey.pexEnabled)
         sessionPexEnabled = oldPex
         hasSession = false
         lastAppliedConfiguration = nil
+        lastAppliedProxyFailCloseReason = nil
         isReady = false
         pendingOpenURLs.removeAll()
         // Without this the empty library is indistinguishable from a dead
@@ -378,6 +397,8 @@ package final class TorrentEngine: ObservableObject {
         isShuttingDown = true
         sessionGeneration += 1
         proxyProbeGeneration += 1
+        isProxyProbeInFlight = false
+        proxyHealthError = nil
         isPollInFlight = false
         isApplyingSettings = false
         needsSettingsReapply = false
@@ -397,11 +418,13 @@ package final class TorrentEngine: ObservableObject {
 
         hasSession = false
         lastAppliedConfiguration = nil
+        lastAppliedProxyFailCloseReason = nil
         isReady = false
-        Task { [weak self] in
-            guard let self else { return }
-            await self.sessionController.destroy()
-            self.completeShutdown()
+        let controller = sessionController
+        let engine = self
+        Task {
+            await controller.destroy()
+            engine.completeShutdown()
         }
     }
 
@@ -427,7 +450,7 @@ package final class TorrentEngine: ObservableObject {
             !isWarmingProxyPassword,
             !isShuttingDown,
             hasSession,
-            UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled)
+            Preferences.userDefaults.bool(forKey: PrefKey.proxyEnabled)
         else {
             return
         }

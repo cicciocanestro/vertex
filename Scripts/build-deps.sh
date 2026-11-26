@@ -8,7 +8,9 @@ set -euo pipefail
 # every path, so the distributed app does not depend on Homebrew or on this
 # build directory.
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 # shellcheck source=Scripts/deps.env
@@ -18,14 +20,22 @@ source "$ROOT/Scripts/toolchain.env"
 # shellcheck source=Scripts/lib/macho.sh
 source "$ROOT/Scripts/lib/macho.sh"
 
-PREFIX="${VERTEX_DEPS_PREFIX:-$ROOT/.build/vertex-deps}"
+resolve_from_root() {
+    case "$1" in
+        /*) printf '%s\n' "$1" ;;
+        *) printf '%s/%s\n' "$ROOT" "$1" ;;
+    esac
+}
+
+PREFIX="$(resolve_from_root "${VERTEX_DEPS_PREFIX:-$ROOT/.build/vertex-deps}")"
+export VERTEX_DEPS_PREFIX="$PREFIX"
 # A rebuild must not discard a working dependency tree: the previous prefix is
 # moved aside (an O(1) rename on the same volume) and restored if the build
 # fails. The path itself never changes, because the dylib install names are
 # baked with it.
 BACKUP_PREFIX="${PREFIX}.backup"
-SRC="${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}"
-DOWNLOADS="${VERTEX_DEPS_DOWNLOADS:-$ROOT/.build/vertex-deps-downloads}"
+SRC="$(resolve_from_root "${VERTEX_DEPS_SRC:-$ROOT/.build/vertex-deps-src}")"
+DOWNLOADS="$(resolve_from_root "${VERTEX_DEPS_DOWNLOADS:-$ROOT/.build/vertex-deps-downloads}")"
 TARGET="$VERTEX_DEPS_TARGET"
 ARCH="$VERTEX_DEPS_ARCH"
 case "$ARCH" in
@@ -73,7 +83,7 @@ toolchain_fingerprint() {
 }
 TOOLCHAIN_HASH="$(toolchain_fingerprint | shasum -a 256 | awk '{print $1}')"
 LOCK_HASH="$(shasum -a 256 "$ROOT/Scripts/deps.env" | awk '{print $1}')"
-SCRIPT_HASH="$(shasum -a 256 "$0" | awk '{print $1}')"
+SCRIPT_HASH="$(shasum -a 256 "$SCRIPT_PATH" | awk '{print $1}')"
 
 if [ "$FORCE" -eq 0 ] && [ -f "$STAMP" ]; then
     CURRENT_STAMP="$(cat "$STAMP")"

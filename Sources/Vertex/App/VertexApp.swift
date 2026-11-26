@@ -13,6 +13,7 @@ struct VertexApp: App {
     var body: some Scene {
         Window("Vertex", id: "main") {
             RootView()
+                .defaultAppStorage(Preferences.userDefaults)
                 .frame(
                     minWidth: WindowMetrics.minimumWidth,
                     minHeight: WindowMetrics.minimumHeight
@@ -93,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            for window in sender.windows {
+            for window in sender.windows where window.canBecomeMain {
                 window.makeKeyAndOrderFront(nil)
             }
         }

@@ -41,10 +41,11 @@ extension TorrentEngine {
             return message
         }
         let generation = sessionGeneration
+        let fallbackDestination = defaultDestinationFallback
 
         Task { [weak self] in
             let prepared = await Task.detached(priority: .userInitiated) {
-                Self.preparedDestination(destination)
+                Self.preparedDestination(destination, fallbackDownloadPath: fallbackDestination)
             }.value
             guard let self else { return }
             guard !self.isShuttingDown, self.sessionGeneration == generation else {
@@ -122,10 +123,11 @@ extension TorrentEngine {
             return message
         }
         let generation = sessionGeneration
+        let fallbackDestination = defaultDestinationFallback
 
         Task { [weak self] in
             let prepared = await Task.detached(priority: .userInitiated) {
-                Self.preparedDestination(destination)
+                Self.preparedDestination(destination, fallbackDownloadPath: fallbackDestination)
             }.value
             guard let self else { return }
             guard !self.isShuttingDown, self.sessionGeneration == generation else {
@@ -602,10 +604,11 @@ extension TorrentEngine {
         let torrentID = torrent.id
         let currentSavePath = torrent.savePath
         let generation = sessionGeneration
+        let fallbackDestination = defaultDestinationFallback
 
         Task { [weak self] in
             let prepared = await Task.detached(priority: .userInitiated) {
-                Self.preparedDestination(destination)
+                Self.preparedDestination(destination, fallbackDownloadPath: fallbackDestination)
             }.value
             guard let self else { return }
             guard !self.isShuttingDown, self.sessionGeneration == generation else {

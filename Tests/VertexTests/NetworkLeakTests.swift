@@ -8,8 +8,11 @@ import Foundation
 final class LocalTCPListener: @unchecked Sendable {
     private let listenFD: Int32
     private let lock = NSLock()
+    private let exitSemaphore = DispatchSemaphore(value: 0)
     private var accepted = 0
+    private var started = false
     private var stopping = false
+    private var closed = false
     private var handler: ((Int32) -> Void)?
     private(set) var port: Int = 0
 
@@ -56,6 +59,11 @@ final class LocalTCPListener: @unchecked Sendable {
 
     func start(handler: @escaping (Int32) -> Void) {
         lock.lock()
+        guard !started, !stopping else {
+            lock.unlock()
+            return
+        }
+        started = true
         self.handler = handler
         lock.unlock()
         let thread = Thread { [weak self] in
@@ -73,14 +81,47 @@ final class LocalTCPListener: @unchecked Sendable {
 
     func stop() {
         lock.lock()
+        if closed {
+            lock.unlock()
+            return
+        }
         stopping = true
+        closed = true
+        let wasStarted = started
         lock.unlock()
-        shutdown(listenFD, SHUT_RDWR)
+
+        _ = shutdown(listenFD, SHUT_RDWR)
+        if wasStarted {
+            exitSemaphore.wait()
+        }
         close(listenFD)
     }
 
     private func acceptLoop() {
+        defer { exitSemaphore.signal() }
         while true {
+            lock.lock()
+            let shouldStop = stopping
+            lock.unlock()
+            if shouldStop { return }
+
+            var pfd = pollfd(fd: listenFD, events: Int16(POLLIN), revents: 0)
+            let pollRes = Darwin.poll(&pfd, 1, 50)
+            if pollRes <= 0 {
+                lock.lock()
+                let done = stopping
+                lock.unlock()
+                if done { return }
+                continue
+            }
+
+            lock.lock()
+            if stopping {
+                lock.unlock()
+                return
+            }
+            lock.unlock()
+
             let client = accept(listenFD, nil, nil)
             if client < 0 {
                 lock.lock()

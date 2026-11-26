@@ -1,6 +1,85 @@
 import AppKit
 import SwiftUI
 
+package enum TorrentRowKeyboardNavigation {
+    package static func targetIndex(
+        visibleIDs: [String],
+        selectedIDs: Set<String>,
+        selectedID: String?,
+        navigationHeadID: String?,
+        delta: Int,
+        shift: Bool
+    ) -> Int? {
+        guard !visibleIDs.isEmpty, delta != 0 else { return nil }
+
+        if selectedIDs.isEmpty {
+            return TorrentListNavigation.nextIndex(
+                current: nil,
+                count: visibleIDs.count,
+                delta: delta
+            )
+        }
+
+        let validHead = navigationHeadID.flatMap { selectedIDs.contains($0) ? $0 : nil }
+        let cursorID =
+            (shift ? validHead : nil)
+            ?? selectedID
+            ?? validHead
+            ?? visibleIDs.first { selectedIDs.contains($0) }
+
+        let current = cursorID.flatMap { visibleIDs.firstIndex(of: $0) }
+        guard
+            let next = TorrentListNavigation.nextIndex(
+                current: current,
+                count: visibleIDs.count,
+                delta: delta
+            )
+        else {
+            return nil
+        }
+
+        let targetID = visibleIDs[next]
+        if let current, current == next {
+            if !shift && (selectedIDs.count > 1 || !selectedIDs.contains(targetID)) {
+                return next
+            }
+            return nil
+        }
+        return next
+    }
+}
+
+package enum TorrentRowClickAction: Equatable {
+    case select(command: Bool, shift: Bool)
+    case reveal
+}
+
+package enum TorrentRowClickBehavior {
+    package static func resolve(
+        clickCount: Int,
+        command: Bool,
+        shift: Bool,
+        now: TimeInterval,
+        lastPlainClickTime: TimeInterval,
+        doubleClickInterval: TimeInterval
+    ) -> (action: TorrentRowClickAction, nextLastPlainClickTime: TimeInterval) {
+        if command || shift {
+            return (.select(command: command, shift: shift), 0)
+        }
+        let isSystemDoubleClick = clickCount == 2
+        let isTimedDoubleClick =
+            !isSystemDoubleClick
+            && clickCount == 1
+            && lastPlainClickTime > 0
+            && (now - lastPlainClickTime) <= doubleClickInterval
+        if isSystemDoubleClick || isTimedDoubleClick {
+            return (.reveal, 0)
+        }
+        let recordedTime = clickCount == 1 ? now : 0
+        return (.select(command: false, shift: false), recordedTime)
+    }
+}
+
 struct TorrentListView: View {
     let engine: TorrentEngine
     let torrents: [Torrent]
@@ -64,6 +143,11 @@ struct TorrentListView: View {
                 onSelectAll()
                 listFocused = true
             }
+            .onChange(of: selectedIDs) { _, updated in
+                if updated.isEmpty {
+                    navigationHeadID.value = nil
+                }
+            }
         }
     }
 
@@ -73,22 +157,18 @@ struct TorrentListView: View {
     private func move(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
         guard direction == .up || direction == .down, !torrents.isEmpty else { return }
         let shift = (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift)
-        let cursorID =
-            (shift ? navigationHeadID.value : nil)
-            ?? engine.selectedID
-            ?? navigationHeadID.value
-            ?? selectedIDs.first
-        let current = torrents.firstIndex { $0.id == cursorID }
         guard
-            let next = TorrentListNavigation.nextIndex(
-                current: current,
-                count: torrents.count,
-                delta: direction == .up ? -1 : 1
+            let next = TorrentRowKeyboardNavigation.targetIndex(
+                visibleIDs: torrents.map(\.id),
+                selectedIDs: selectedIDs,
+                selectedID: engine.selectedID,
+                navigationHeadID: navigationHeadID.value,
+                delta: direction == .up ? -1 : 1,
+                shift: shift
             )
         else {
             return
         }
-        if let current, current == next { return }
 
         let target = torrents[next]
         navigationHeadID.value = target.id
@@ -115,6 +195,7 @@ struct TorrentRow: View {
     /// The extra columns only make sense when the row is wide enough; the
     /// row measures itself so opening the inspector hides them automatically.
     @StateObject private var wide = UIState(false)
+    @StateObject private var lastPlainClickTime = UIState<TimeInterval>(0)
 
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -318,12 +399,24 @@ struct TorrentRow: View {
             y: selected ? 4 : 2
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .onTapGesture(count: 2) {
-            engine.reveal(torrent)
-        }
         .onTapGesture {
-            let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
-            onSelect(flags.contains(.command), flags.contains(.shift))
+            let event = NSApp.currentEvent
+            let flags = event?.modifierFlags ?? NSEvent.modifierFlags
+            let resolution = TorrentRowClickBehavior.resolve(
+                clickCount: event?.clickCount ?? 1,
+                command: flags.contains(.command),
+                shift: flags.contains(.shift),
+                now: event?.timestamp ?? ProcessInfo.processInfo.systemUptime,
+                lastPlainClickTime: lastPlainClickTime.value,
+                doubleClickInterval: NSEvent.doubleClickInterval
+            )
+            lastPlainClickTime.value = resolution.nextLastPlainClickTime
+            switch resolution.action {
+            case .select(let command, let shift):
+                onSelect(command, shift)
+            case .reveal:
+                engine.reveal(torrent)
+            }
         }
         .onHover { value in
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {

@@ -36,10 +36,17 @@ DMG_NAME="${VERTEX_APP_NAME}-${VERSION}-macOS${VERTEX_MIN_MACOS}-${VERTEX_ARCH}.
 SHA_FILE="${DMG_NAME}.sha256"
 
 TMP_DIR="$(mktemp -d /tmp/vertex-tap-update.XXXXXX)"
+CLEANED_UP=0
 cleanup() {
+    if [ "$CLEANED_UP" -eq 1 ]; then
+        return 0
+    fi
+    CLEANED_UP=1
     rm -rf "${TMP_DIR:?}"
 }
 trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 echo "→ Recupero checksum canonico per ${TAG} (${DMG_NAME})…"
 if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -f "dist/${SHA_FILE}" ]; then
@@ -71,6 +78,21 @@ else
     gh repo clone "$TAP_REPO" "$TAP_CLONE"
 fi
 
+if [ -n "${VERTEX_HOMEBREW_MACOS:-}" ]; then
+    MACOS_SYMBOL="${VERTEX_HOMEBREW_MACOS#:}"
+else
+    case "$VERTEX_MIN_MACOS" in
+        13|13.*) MACOS_SYMBOL="ventura" ;;
+        14|14.*) MACOS_SYMBOL="sonoma" ;;
+        15|15.*) MACOS_SYMBOL="sequoia" ;;
+        16|16.*|26|26.*) MACOS_SYMBOL="tahoe" ;;
+        *)
+            echo "⚠ VERTEX_MIN_MACOS='${VERTEX_MIN_MACOS}' non mappato: fallback esplicito su :sequoia (imposta VERTEX_HOMEBREW_MACOS per sovrascrivere)" >&2
+            MACOS_SYMBOL="sequoia"
+            ;;
+    esac
+fi
+
 mkdir -p "$TAP_CLONE/Casks"
 cat > "$TAP_CLONE/Casks/vertex.rb" <<RUBY
 cask "vertex" do
@@ -88,7 +110,7 @@ cask "vertex" do
   end
 
   depends_on arch: :${VERTEX_ARCH}
-  depends_on macos: :sequoia
+  depends_on macos: :${MACOS_SYMBOL}
 
   app "Vertex.app"
 
@@ -113,8 +135,10 @@ fi
 git -C "$TAP_CLONE" add Casks/vertex.rb
 git -C "$TAP_CLONE" commit -m "vertex ${VERSION}"
 if [ "${#GIT_AUTH_ENV[@]}" -gt 0 ]; then
+    env "${GIT_AUTH_ENV[@]}" git -C "$TAP_CLONE" pull --rebase origin main
     env "${GIT_AUTH_ENV[@]}" git -C "$TAP_CLONE" push origin main
 else
+    git -C "$TAP_CLONE" pull --rebase origin main
     git -C "$TAP_CLONE" push origin main
 fi
 

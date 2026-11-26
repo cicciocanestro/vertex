@@ -145,6 +145,7 @@ struct EmptyStateView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(palette.stroke, lineWidth: 1)
+                .allowsHitTesting(false)
         )
     }
 }
@@ -162,7 +163,7 @@ struct EngineUnavailableView: View {
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(Typography.iconHero)
-                .foregroundStyle(Theme.coral)
+                .foregroundStyle(palette.coralText)
 
             Text(L("Motore BitTorrent non disponibile"))
                 .font(Typography.heroText)
@@ -244,6 +245,7 @@ struct DropOverlay: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
+        let palette = Palette(scheme: scheme)
         ZStack {
             (scheme == .dark ? Color.black.opacity(0.5) : Color.white.opacity(0.4))
                 .ignoresSafeArea()
@@ -251,7 +253,7 @@ struct DropOverlay: View {
             VStack(spacing: 12) {
                 Image(systemName: "arrow.down.doc.fill")
                     .font(Typography.iconDrop)
-                    .foregroundStyle(Theme.mint)
+                    .foregroundStyle(palette.mintText)
 
                 Text(L("Rilascia per aggiungere"))
                     .font(Typography.modalTitleText)

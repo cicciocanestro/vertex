@@ -36,8 +36,9 @@ extension SettingsSheet {
             let resolved = Preferences.resolvedDownloadPath(current)
             guard resolved != current else { return }
             await MainActor.run {
-                if UserDefaults.standard.string(forKey: PrefKey.downloadPath) == current {
-                    UserDefaults.standard.set(resolved, forKey: PrefKey.downloadPath)
+                let defaults = Preferences.userDefaults
+                if defaults.string(forKey: PrefKey.downloadPath) == current {
+                    defaults.set(resolved, forKey: PrefKey.downloadPath)
                 }
             }
         }
@@ -128,6 +129,7 @@ extension SettingsSheet {
         let password = proxyPasswordValue
         let dirty = proxyPasswordDirty
         let taskState = proxyPasswordSaveTask
+        let inFile = proxyPasswordInFile
         let engine = engine
         taskState.value = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 600_000_000)
@@ -143,7 +145,9 @@ extension SettingsSheet {
             engine.applySettingsNow()
             if !saved {
                 engine.showToast(
-                    L("Impossibile salvare la password nel Portachiavi"),
+                    inFile
+                        ? L("Impossibile salvare la password nel file locale")
+                        : L("Impossibile salvare la password nel Portachiavi"),
                     kind: .error
                 )
             }
@@ -159,6 +163,7 @@ extension SettingsSheet {
         guard proxyPasswordDirty.value else { return }
         proxyPasswordDirty.value = false
         let value = proxyPasswordValue.value
+        let inFile = proxyPasswordInFile
         Preferences.updateCachedProxyPassword(value)
         let engine = engine
         Task { @MainActor in
@@ -167,7 +172,9 @@ extension SettingsSheet {
             }.value
             if !saved {
                 engine.showToast(
-                    L("Impossibile salvare la password nel Portachiavi"),
+                    inFile
+                        ? L("Impossibile salvare la password nel file locale")
+                        : L("Impossibile salvare la password nel Portachiavi"),
                     kind: .error
                 )
             }
@@ -189,6 +196,8 @@ extension SettingsSheet {
                     subtitle: "0 significa illimitato",
                     value: $downloadLimitKB,
                     suffix: "KB/s",
+                    isInvalid: !Preferences.isValidLimitKB(downloadLimitKB),
+                    invalidDetail: L("Inserisci 0 o un valore positivo entro il massimo consentito."),
                     palette: palette
                 )
                 Hairline(palette: palette).padding(.leading, 28)
@@ -198,6 +207,8 @@ extension SettingsSheet {
                     subtitle: "0 significa illimitato",
                     value: $uploadLimitKB,
                     suffix: "KB/s",
+                    isInvalid: !Preferences.isValidLimitKB(uploadLimitKB),
+                    invalidDetail: L("Inserisci 0 o un valore positivo entro il massimo consentito."),
                     palette: palette
                 )
                 Hairline(palette: palette).padding(.leading, 28)
@@ -207,6 +218,8 @@ extension SettingsSheet {
                     subtitle: "Usata per le connessioni in ingresso",
                     value: $listenPort,
                     suffix: "TCP/UDP",
+                    isInvalid: !Preferences.isValidPort(listenPort),
+                    invalidDetail: L("Inserisci un valore tra 1 e 65535."),
                     palette: palette
                 )
                 Hairline(palette: palette).padding(.leading, 28)
@@ -216,6 +229,8 @@ extension SettingsSheet {
                     subtitle: "Gli altri restano in coda",
                     value: $maxActiveTorrents,
                     suffix: L("0 = tutti"),
+                    isInvalid: !Preferences.isValidActiveLimit(maxActiveTorrents),
+                    invalidDetail: L("Inserisci 0 (illimitato) o un valore tra 1 e 1000."),
                     palette: palette
                 )
             }
@@ -308,9 +323,25 @@ extension SettingsSheet {
             }
 
             if proxyEnabled {
+                if let issue = SettingsFieldValidation.proxyIssueMessage(
+                    host: proxyHost,
+                    port: proxyPort,
+                    proxyEnabled: proxyEnabled
+                ) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(Typography.captionTinyText)
+                        Text(issue)
+                            .font(Typography.captionTinyNarrowText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(palette.coralText)
+                    .padding(.horizontal, 4)
+                }
+
                 Text(
                     L(
-                        "Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."
+                        "Tutte le connessioni verso tracker e peer passano dal proxy SOCKS5. DHT, UPnP e NAT-PMP vengono disabilitati per prevenire leak dell'IP locale."
                     )
                 )
                 .font(Typography.captionTinyNarrowText)
@@ -342,6 +373,8 @@ extension SettingsSheet {
                     subtitle: "Mette in pausa quando il rapporto raggiunge il limite",
                     value: $seedRatioLimit,
                     suffix: L("0 = mai"),
+                    isInvalid: !Preferences.isValidSeedRatio(seedRatioLimit),
+                    invalidDetail: L("Inserisci 0 (illimitato) o un valore positivo fino a 100."),
                     palette: palette
                 )
                 Hairline(palette: palette).padding(.leading, 28)
@@ -394,6 +427,17 @@ extension SettingsSheet {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(SettingsSection.allCases) { item in
                 let selected = selectedSection.value == item
+                let hasIssue = SettingsFieldValidation.hasSectionIssue(
+                    item,
+                    downloadLimitKB: downloadLimitKB,
+                    uploadLimitKB: uploadLimitKB,
+                    listenPort: listenPort,
+                    maxActiveTorrents: maxActiveTorrents,
+                    seedRatioLimit: seedRatioLimit,
+                    proxyEnabled: proxyEnabled,
+                    proxyHost: proxyHost,
+                    proxyPort: proxyPort
+                )
                 Button {
                     withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
                         selectedSection.value = item
@@ -407,6 +451,11 @@ extension SettingsSheet {
                             .font(Typography.sidebarItemText(selected: selected))
                             .lineLimit(1)
                         Spacer(minLength: 0)
+                        if hasIssue {
+                            Circle()
+                                .fill(Theme.coral)
+                                .frame(width: 6, height: 6)
+                        }
                     }
                     .foregroundStyle(selected ? palette.text : palette.secondary)
                     .padding(.horizontal, 9)

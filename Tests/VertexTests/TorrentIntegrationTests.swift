@@ -67,6 +67,19 @@ enum TorrentIntegrationTests {
         }
     }
 
+    private static func waitForFilesWritten(
+        _ fixture: IntegrationFixture,
+        in directory: URL,
+        paths: [String]? = nil
+    ) throws {
+        let targetPaths = paths ?? fixture.files.map(\.path)
+        try TestsSupport.waitFor("file scritti su disco", timeout: 15) {
+            targetPaths.allSatisfy {
+                fixture.isFullyWritten(in: directory, path: $0)
+            }
+        }
+    }
+
     private static func transfer(_ fixture: IntegrationFixture) throws {
         let workspace = try IntegrationWorkspace()
         defer { workspace.cleanup() }
@@ -154,6 +167,7 @@ enum TorrentIntegrationTests {
         defer { leech.session.close() }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory)
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
 
         let downloadDirectory = leech.session.downloadDirectory
@@ -207,6 +221,7 @@ enum TorrentIntegrationTests {
         defer { leech.session.close() }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory)
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
 
         let downloadDirectory = leech.session.downloadDirectory
@@ -268,6 +283,7 @@ enum TorrentIntegrationTests {
         defer { leech.session.close() }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory, paths: ["data.bin"])
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
 
         // Con il secondo file escluso (16 KiB saltati), la dimensione 'wanted'
@@ -308,6 +324,7 @@ enum TorrentIntegrationTests {
         defer { leech.session.close() }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory)
         let dataURL = leech.session.downloadDirectory
             .appendingPathComponent(fixture.rootName, isDirectory: true)
             .appendingPathComponent("data.bin")
@@ -332,6 +349,7 @@ enum TorrentIntegrationTests {
         let readded = try leech.session.waitForTorrent(fixture.rootName)
         try leech.session.addPeer(torrentID: readded.id, port: seed.port)
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory)
 
         try leech.session.control(torrentID: readded.id, action: "remove_files")
         try TestsSupport.waitFor("rimozione con delete_files") {
@@ -422,6 +440,7 @@ enum TorrentIntegrationTests {
         }
 
         for fixture in fixtures {
+            try waitForFilesWritten(fixture, in: downloadRoot)
             for file in fixture.files {
                 try fixture.assertDownloaded(in: downloadRoot, path: file.path)
             }
@@ -632,6 +651,7 @@ enum TorrentIntegrationTests {
         }
 
         try IntegrationSwarm.waitForCompletion(leech.session, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: leech.session.downloadDirectory)
         try fixture.assertDownloaded(in: leech.session.downloadDirectory, path: "data.bin")
 
         // Moving to a folder that already has a file with the same name must fail
@@ -834,6 +854,7 @@ enum TorrentIntegrationTests {
         )
         try leech.addPeer(torrentID: torrent.id, port: seed.port)
         try IntegrationSwarm.waitForCompletion(leech, name: fixture.rootName)
+        try waitForFilesWritten(fixture, in: downloadRoot)
         for file in fixture.files {
             try fixture.assertDownloaded(in: downloadRoot, path: file.path)
         }

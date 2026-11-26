@@ -38,6 +38,18 @@ struct InspectorView: View {
     @Environment(\.colorScheme) private var scheme
     @StateObject private var tab = UIState<DetailTab>(.files)
     @StateObject private var newTracker = UIState("")
+    @StateObject private var pendingAddedTrackers = UIState<[String]>([])
+    @StateObject private var pendingRemovedTrackers = UIState<Set<String>>([])
+    @StateObject private var isUpdatingTrackers = UIState(false)
+    @StateObject private var trackerUnlockTask = UIState<Task<Void, Never>?>(nil)
+
+    /// Detail matching `self.torrent`, or `nil` while the async load is in flight.
+    private var currentDetail: TorrentDetail? {
+        if let selectedID = engine.selectedID, selectedID != torrent.id {
+            return nil
+        }
+        return engine.detail
+    }
 
     init(
         engine: TorrentEngine,
@@ -94,6 +106,16 @@ struct InspectorView: View {
         }
         .frame(maxHeight: .infinity)
         .background(palette.panel)
+        .onChange(of: torrent.id) { _, _ in
+            resetTrackerEditState()
+        }
+        .onChange(of: engine.detail) { _, _ in
+            clearPendingTrackerMutation()
+        }
+        .onDisappear {
+            trackerUnlockTask.value?.cancel()
+            trackerUnlockTask.value = nil
+        }
     }
 
     private func overview(_ palette: Palette) -> some View {
@@ -351,7 +373,7 @@ struct InspectorView: View {
             font: Typography.smallMediumText
         ) { option, _ in
             Text(option.label)
-            let count = InspectorBadge.count(for: option, detail: engine.detail)
+            let count = badgeCount(for: option)
             if count > 0 {
                 Text(verbatim: "\(count)")
                     .font(Typography.microRoundedSemiboldText)
@@ -360,6 +382,14 @@ struct InspectorView: View {
                     .background(Capsule().fill(Color.primary.opacity(0.07)))
             }
         }
+    }
+
+    private func badgeCount(for tab: DetailTab) -> Int {
+        guard let detail = currentDetail else { return 0 }
+        if tab == .trackers {
+            return effectiveTrackerURLs(from: detail).count
+        }
+        return InspectorBadge.count(for: tab, detail: detail)
     }
 
     @ViewBuilder
@@ -376,26 +406,33 @@ struct InspectorView: View {
 
     @ViewBuilder
     private func filesContent(_ palette: Palette) -> some View {
-        if !(engine.detail?.metadata ?? torrent.hasMetadata) {
+        if !torrent.hasMetadata && !(currentDetail?.metadata ?? false) {
             waiting(palette, text: "In attesa dei metadati…")
-        } else if let files = engine.detail?.files, !files.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                if files.count > 1 {
-                    filesToolbar(files: files, palette: palette)
-                }
+        } else if let detail = currentDetail {
+            if !detail.metadata {
+                waiting(palette, text: "In attesa dei metadati…")
+            } else if !detail.files.isEmpty {
+                let files = detail.files
+                VStack(alignment: .leading, spacing: 6) {
+                    if files.count > 1 {
+                        filesToolbar(files: files, palette: palette)
+                    }
 
-                LazyVStack(spacing: 0) {
-                    ForEach(files) { file in
-                        fileRow(file, palette)
-                        if file.id != files.last?.id {
-                            Hairline(palette: palette)
-                                .padding(.leading, 22)
+                    LazyVStack(spacing: 0) {
+                        ForEach(files) { file in
+                            fileRow(file, palette)
+                            if file.id != files.last?.id {
+                                Hairline(palette: palette)
+                                    .padding(.leading, 22)
+                            }
                         }
                     }
                 }
+            } else {
+                waiting(palette, text: "Nessun file disponibile")
             }
         } else {
-            waiting(palette, text: "Nessun file disponibile")
+            loadingDetail(palette)
         }
     }
 
@@ -520,25 +557,41 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
             trackerEditor(palette)
 
-            if let trackers = engine.detail?.trackers, !trackers.isEmpty {
-                LazyVStack(spacing: 0) {
-                    ForEach(trackers) { tracker in
-                        trackerRow(tracker, palette)
-                        if tracker.id != trackers.last?.id {
-                            Hairline(palette: palette)
+            if let detail = currentDetail {
+                let visibleTrackers = detail.trackers.filter {
+                    !pendingRemovedTrackers.value.contains($0.url.lowercased())
+                }
+                let addedURLs = pendingAddedTrackers.value
+                if !visibleTrackers.isEmpty || !addedURLs.isEmpty {
+                    LazyVStack(spacing: 0) {
+                        ForEach(visibleTrackers) { tracker in
+                            trackerRow(tracker, palette)
+                            if tracker.id != visibleTrackers.last?.id || !addedURLs.isEmpty {
+                                Hairline(palette: palette)
+                            }
+                        }
+                        ForEach(addedURLs, id: \.self) { url in
+                            pendingTrackerRow(url, palette)
+                            if url != addedURLs.last {
+                                Hairline(palette: palette)
+                            }
                         }
                     }
+                } else {
+                    waiting(palette, text: "Nessun tracker disponibile")
                 }
             } else {
-                waiting(palette, text: "Nessun tracker disponibile")
+                loadingDetail(palette)
             }
         }
     }
 
     /// Tracker editor. The list is replaced as a whole (see
-    /// `TorrentEngine.setTrackers`), so both actions below send the full list.
+    /// `TorrentEngine.setTrackers`), so both actions below send the full list
+    /// only once `currentDetail` is loaded and no tracker update is in flight.
     private func trackerEditor(_ palette: Palette) -> some View {
-        HStack(spacing: 6) {
+        let isEditable = currentDetail != nil && !isUpdatingTrackers.value
+        return HStack(spacing: 6) {
             TextField(L("Aggiungi tracker (URL)"), text: $newTracker.value)
                 .textFieldStyle(.plain)
                 .font(Typography.captionMonoText)
@@ -555,6 +608,7 @@ struct InspectorView: View {
                         .stroke(palette.stroke, lineWidth: 1)
                         .allowsHitTesting(false)
                 )
+                .disabled(!isEditable)
                 .onSubmit { commitTracker() }
 
             Button(L("Aggiungi")) {
@@ -569,23 +623,71 @@ struct InspectorView: View {
         TrackerInput.trimmed(newTracker.value)
     }
 
+    private func effectiveTrackerURLs(from detail: TorrentDetail) -> [String] {
+        let kept = detail.trackers.map(\.url).filter {
+            !pendingRemovedTrackers.value.contains($0.lowercased())
+        }
+        return kept + pendingAddedTrackers.value
+    }
+
     private var canAddTracker: Bool {
-        TrackerInput.canAdd(
+        guard let detail = currentDetail, !isUpdatingTrackers.value else { return false }
+        return TrackerInput.canAdd(
             newTracker.value,
-            existing: engine.detail?.trackers.map(\.url) ?? []
+            existing: effectiveTrackerURLs(from: detail)
         )
     }
 
     private func commitTracker() {
-        guard canAddTracker else { return }
-        let urls = (engine.detail?.trackers.map(\.url) ?? []) + [trimmedNewTracker]
+        guard let detail = currentDetail, !isUpdatingTrackers.value else { return }
+        let candidate = trimmedNewTracker
+        let existing = effectiveTrackerURLs(from: detail)
+        guard TrackerInput.canAdd(candidate, existing: existing) else { return }
+        let urls = existing + [candidate]
+        pendingAddedTrackers.value.append(candidate)
+        beginTrackerMutation()
         engine.setTrackers(urls, torrentID: torrent.id)
         newTracker.value = ""
     }
 
     private func removeTracker(_ url: String) {
-        let urls = engine.detail?.trackers.map(\.url).filter { $0 != url } ?? []
+        guard let detail = currentDetail, !isUpdatingTrackers.value else { return }
+        let lower = url.lowercased()
+        let urls = effectiveTrackerURLs(from: detail).filter { $0.lowercased() != lower }
+        pendingRemovedTrackers.value.insert(lower)
+        pendingAddedTrackers.value.removeAll { $0.lowercased() == lower }
+        beginTrackerMutation()
         engine.setTrackers(urls, torrentID: torrent.id)
+    }
+
+    private func beginTrackerMutation() {
+        isUpdatingTrackers.value = true
+        trackerUnlockTask.value?.cancel()
+        let unlockTaskState = trackerUnlockTask
+        let updatingState = isUpdatingTrackers
+        let addedState = pendingAddedTrackers
+        let removedState = pendingRemovedTrackers
+        unlockTaskState.value = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            unlockTaskState.value = nil
+            updatingState.value = false
+            addedState.value = []
+            removedState.value = []
+        }
+    }
+
+    private func clearPendingTrackerMutation() {
+        trackerUnlockTask.value?.cancel()
+        trackerUnlockTask.value = nil
+        isUpdatingTrackers.value = false
+        pendingAddedTrackers.value = []
+        pendingRemovedTrackers.value = []
+    }
+
+    private func resetTrackerEditState() {
+        newTracker.value = ""
+        clearPendingTrackerMutation()
     }
 
     private func trackerRow(_ tracker: TorrentTracker, _ palette: Palette) -> some View {
@@ -629,23 +731,53 @@ struct InspectorView: View {
             IconButton(icon: "xmark", help: "Rimuovi tracker", size: 20) {
                 removeTracker(tracker.url)
             }
+            .disabled(isUpdatingTrackers.value)
+        }
+        .padding(.vertical, 7)
+    }
+
+    private func pendingTrackerRow(_ url: String, _ palette: Palette) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Theme.amber)
+                .frame(width: 5, height: 5)
+                .padding(.top, 4)
+
+            Text(url)
+                .font(Typography.captionMonoMediumText)
+                .foregroundStyle(palette.secondary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .layoutPriority(1)
+
+            Spacer(minLength: 4)
+
+            IconButton(icon: "xmark", help: "Rimuovi tracker", size: 20) {
+                removeTracker(url)
+            }
+            .disabled(isUpdatingTrackers.value)
         }
         .padding(.vertical, 7)
     }
 
     @ViewBuilder
     private func peersContent(_ palette: Palette) -> some View {
-        if let peers = engine.detail?.peers, !peers.isEmpty {
-            LazyVStack(spacing: 0) {
-                ForEach(peers) { peer in
-                    peerRow(peer, palette)
-                    if peer.id != peers.last?.id {
-                        Hairline(palette: palette)
+        if let detail = currentDetail {
+            let peers = detail.peers
+            if !peers.isEmpty {
+                LazyVStack(spacing: 0) {
+                    ForEach(peers) { peer in
+                        peerRow(peer, palette)
+                        if peer.id != peers.last?.id {
+                            Hairline(palette: palette)
+                        }
                     }
                 }
+            } else {
+                waiting(palette, text: "Nessun peer connesso")
             }
         } else {
-            waiting(palette, text: "Nessun peer connesso")
+            loadingDetail(palette)
         }
     }
 
@@ -728,6 +860,18 @@ struct InspectorView: View {
             Image(systemName: "hourglass")
                 .font(Typography.captionMediumText)
             Text(L(text))
+                .font(Typography.smallText)
+        }
+        .foregroundStyle(palette.tertiary)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.vertical, 18)
+    }
+
+    private func loadingDetail(_ palette: Palette) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text(L("In attesa"))
                 .font(Typography.smallText)
         }
         .foregroundStyle(palette.tertiary)

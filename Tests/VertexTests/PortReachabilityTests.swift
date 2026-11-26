@@ -48,6 +48,9 @@
             TestRunner.run("PortReachability: validazione IP pubblico e parentesi IPv6") {
                 try publicIPValidationAndIPv6Bracketing()
             }
+            TestRunner.run("PortReachability: cancel riporta a idle e ignora risposte in volo") {
+                try cancelResetsAndGuardsResult()
+            }
         }
 
         // MARK: - Cases
@@ -270,7 +273,7 @@
         }
 
         private static func blockedWithProxyAndInvalidPort() throws {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
             defer {
                 if let savedProxy {
@@ -305,7 +308,7 @@
         }
 
         private static func publicIPValidationAndIPv6Bracketing() throws {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
             defaults.set(false, forKey: PrefKey.proxyEnabled)
             defer {
@@ -348,6 +351,64 @@
                 checkURL.contains("%5B2001:db8::1%5D:6881") || checkURL.contains("[2001:db8::1]:6881"),
                 "L'indirizzo IPv6 deve essere racchiuso tra parentesi quadre: \(checkURL)"
             )
+        }
+
+        private static func cancelResetsAndGuardsResult() throws {
+            let defaults = Preferences.userDefaults
+            let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            defer {
+                if let savedProxy {
+                    defaults.set(savedProxy, forKey: PrefKey.proxyEnabled)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.proxyEnabled)
+                }
+            }
+
+            let box = onMain { TesterBox() }
+            let tester = onMain {
+                PortReachabilityTester(
+                    load: { request in
+                        let url = request.url ?? URL(string: "https://stub.invalid")!
+                        let body: Data
+                        if url.host == "api.ipify.org" {
+                            body = Data(#"{"ip":"203.0.113.5"}"#.utf8)
+                        } else if url.path == "/check-tcp" {
+                            body = Data(#"{"ok":1,"request_id":"req-cancel","nodes":{"node-1":{}}}"#.utf8)
+                        } else {
+                            // Cancel right as fetchCheckResult receives a valid 200 payload without throwing:
+                            // the post-fetch !Task.isCancelled guard must keep state at .idle.
+                            box.tester?.cancel()
+                            body = Data(#"{"node-1":[{"time":0.05}]}"#.utf8)
+                        }
+                        let response = HTTPURLResponse(
+                            url: url,
+                            statusCode: 200,
+                            httpVersion: "HTTP/1.1",
+                            headerFields: ["Content-Type": "application/json"]
+                        )!
+                        return (body, response)
+                    },
+                    pollInterval: 1_000_000
+                )
+            }
+            onMain { box.tester = tester }
+            defer { onMain { tester.reset() } }
+
+            onMain { tester.start(port: 6881) }
+            try TestRunner.assertEqual(onMain { tester.state }, .running)
+
+            try TestsSupport.waitFor("annullamento durante fetchCheckResult", timeout: 5) {
+                onMain {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                    return tester.state == .idle
+                }
+            }
+            // Keep pumping briefly to ensure the resumed task never overwrites .idle with .open.
+            onMain {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            }
+            try TestRunner.assertEqual(onMain { tester.state }, .idle)
         }
 
         // MARK: - Helpers
@@ -451,5 +512,10 @@
 
     private enum StubError: Error {
         case invalidResponse
+    }
+
+    @MainActor
+    private final class TesterBox {
+        weak var tester: PortReachabilityTester?
     }
 #endif

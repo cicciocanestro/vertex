@@ -31,7 +31,7 @@ struct SettingsSheet: View {
     /// is edited locally and written after a short debounce (or on close) so a
     /// keystroke does not hit the keychain.
     @StateObject var proxyPasswordValue = UIState(
-        UserDefaults.standard.bool(forKey: PrefKey.proxyEnabled) ? Preferences.proxyPassword : ""
+        Preferences.userDefaults.bool(forKey: PrefKey.proxyEnabled) ? Preferences.proxyPassword : ""
     )
     @StateObject var proxyPasswordDirty = UIState(false)
     @StateObject var suppressNextPasswordSave = UIState(false)

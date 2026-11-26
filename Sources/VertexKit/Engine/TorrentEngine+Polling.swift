@@ -29,7 +29,7 @@ extension TorrentEngine {
         if let applied = lastAppliedConfiguration {
             return Preferences.clampedSeedRatio(applied.seedRatioLimit)
         }
-        return Preferences.clampedSeedRatio(UserDefaults.standard.double(forKey: PrefKey.seedRatioLimit))
+        return Preferences.clampedSeedRatio(Preferences.userDefaults.double(forKey: PrefKey.seedRatioLimit))
     }
 
     func startPolling() {
@@ -92,7 +92,10 @@ extension TorrentEngine {
         // Perform an active TCP health-check probe on the configured proxy:
         // - every ~8 seconds (every 10 polls) when healthy, to avoid connection spam on local daemons (Tor/SOCKS5)
         // - or every ~2.4 seconds (every 3 polls) if there is an active error, to quickly detect recovery.
-        if snapshot.stats.proxy.enabled && !snapshot.stats.proxy.hostname.isEmpty && snapshot.stats.proxy.port > 0 {
+        if snapshot.stats.proxy.enabled
+            && !snapshot.stats.proxy.hostname.isEmpty
+            && (1...65535).contains(snapshot.stats.proxy.port)
+        {
             proxyCheckTick += 1
             let checkInterval = proxyHealthError != nil ? 3 : 10
             if !isProxyProbeInFlight && (proxyCheckTick % checkInterval == 0) {
@@ -110,11 +113,11 @@ extension TorrentEngine {
                     )
                     DispatchQueue.main.async {
                         guard let self else { return }
-                        self.isProxyProbeInFlight = false
                         guard self.sessionGeneration == generation,
                             self.proxyProbeGeneration == probeGen,
                             !self.isShuttingDown
                         else { return }
+                        self.isProxyProbeInFlight = false
                         // Ensure the probed target still matches the currently active proxy configuration
                         let currentProxy = self.pollState.stats.proxy
                         guard currentProxy.enabled, currentProxy.hostname == host, currentProxy.port == port else {
@@ -124,14 +127,16 @@ extension TorrentEngine {
                         let hadHealthError = self.proxyHealthError != nil
                         if self.proxyHealthError != newError {
                             self.proxyHealthError = newError
-                            if let newError {
+                            if let newError, !Self.isProxyProtocolOrAuthError(currentProxy.error) {
                                 self.pollState.stats.proxy.error = newError
                             }
                         }
+                        // Plain TCP reachability only proves the daemon is listening: never
+                        // wipe a SOCKS5 authentication, protocol or configuration error.
                         if isReachable,
                             self.hasSession,
-                            hadHealthError
-                                || (!currentProxy.error.isEmpty && !Self.isProxyAuthError(currentProxy.error))
+                            !Self.isProxyProtocolOrAuthError(currentProxy.error),
+                            hadHealthError || !currentProxy.error.isEmpty
                         {
                             self.pollState.stats.proxy.error = ""
                             Task {
@@ -152,11 +157,24 @@ extension TorrentEngine {
         apply(snapshot)
     }
 
-    nonisolated private static func isProxyAuthError(_ raw: String) -> Bool {
-        let lower = raw.lowercased()
-        return lower.contains("authentication")
+    nonisolated static func isProxyProtocolOrAuthError(_ raw: String) -> Bool {
+        let lower = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !lower.isEmpty else { return false }
+        return lower.hasPrefix("socks ")
+            || lower.contains("authentication")
             || lower.contains("username required")
+            || lower.contains("unsupported version")
+            || lower.contains("command not supported")
+            || lower.contains("general failure")
+            || lower.contains("identd")
+            || lower.contains("permission")
+            || lower.contains("not permitted")
+            || lower.contains("address family")
             || lower.contains("autenticazione socks5")
+            || lower.contains("protocollo socks5")
+            || lower.contains("errore generale")
+            || lower.contains("host proxy non valido")
+            || lower.contains("porta proxy")
     }
 
     nonisolated static func probeTCPConnection(
@@ -294,11 +312,18 @@ extension TorrentEngine {
             snapshot.alertErrors.isEmpty
             ? (snapshot.alertError.isEmpty ? [] : [snapshot.alertError])
             : snapshot.alertErrors
+        var unseenAlerts: [String] = []
         for raw in alertMessages {
             let message = localizedError(raw)
-            if !hasRecentErrorToast(message) {
-                showToast(message, kind: .error)
+            if !hasRecentErrorToast(message), !unseenAlerts.contains(message) {
+                unseenAlerts.append(message)
+                recordErrorToast(message)
             }
+        }
+        if let firstAlert = unseenAlerts.first {
+            let extraDetails = unseenAlerts.dropFirst()
+            let combinedDetail = extraDetails.isEmpty ? nil : extraDetails.joined(separator: "\n")
+            showToast(firstAlert, kind: .error, detail: combinedDetail)
         }
 
         // A storage move finishes asynchronously: the save path changes only
@@ -329,7 +354,11 @@ extension TorrentEngine {
 
         // Notify only for torrents we have seen actively unfinished (not while verifying),
         // so resumed torrents settling after launch don't trigger a false "completed" toast.
-        let finished = Set(snapshot.torrents.filter { $0.finished }.map(\.id))
+        // Also ignore 0-byte / all-files-skipped states (`size <= 0` or `downloaded <= 0`).
+        let finished = Set(
+            snapshot.torrents.filter {
+                $0.finished && $0.size > 0 && $0.downloaded > 0
+            }.map(\.id))
         // stateCode 1 = checking files, 7 = checking resume data. `phase` can't be used here
         // because it reports .paused before .checking.
         let unfinished = Set(
@@ -418,7 +447,9 @@ extension TorrentEngine {
         var next = pollState
         next.torrents = snapshot.torrents
         next.stats = snapshot.stats
-        if let proxyHealthError {
+        if !snapshot.stats.proxy.error.isEmpty, Self.isProxyProtocolOrAuthError(snapshot.stats.proxy.error) {
+            next.stats.proxy.error = snapshot.stats.proxy.error
+        } else if let proxyHealthError {
             next.stats.proxy.error = proxyHealthError
         } else if !snapshot.stats.proxy.error.isEmpty {
             next.stats.proxy.error = snapshot.stats.proxy.error

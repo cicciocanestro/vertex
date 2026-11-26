@@ -20,6 +20,16 @@ Resources/AppIcon.iconset/
 # Command Code workspace data
 .commandcode/
 
+# Signing keys and certificates (never commit)
+*.p12
+*.p12.base64
+*.pem
+*.key
+
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+
 # Local agent handoff
 HANDOFF.txt
 

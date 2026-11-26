@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
+#include <unistd.h>
 
 namespace {
 
@@ -23,6 +25,41 @@ namespace {
 bool is_hex_digit(unsigned char c) noexcept
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+struct ScopedTempFallback
+{
+    std::string root;
+    std::string fallback;
+
+    ScopedTempFallback()
+    {
+        char tmpl[] = "/tmp/vertex-fuzz.XXXXXX";
+        if (char* created = ::mkdtemp(tmpl))
+        {
+            root = created;
+            fallback = root + "/downloads";
+        }
+        else
+        {
+            fallback = "/tmp/vertex-fuzz-fallback";
+        }
+    }
+
+    ~ScopedTempFallback()
+    {
+        if (!root.empty())
+        {
+            std::error_code ec;
+            std::filesystem::remove_all(root, ec);
+        }
+    }
+};
+
+std::string const& fuzz_fallback_path()
+{
+    static ScopedTempFallback const instance;
+    return instance.fallback;
 }
 
 } // namespace
@@ -99,7 +136,7 @@ extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size
     // callers pass C strings, so the fuzz input is cut at the first NUL: an
     // embedded NUL is outside the function's contract.
     std::string const pathInput = input.substr(0, input.find('\0'));
-    std::string const fallback = "/tmp/vertex-fuzz";
+    std::string const& fallback = fuzz_fallback_path();
     std::string const normalized = vertex::normalized_save_path(pathInput, fallback);
     if (normalized.empty())
         fail("path normalization returned an empty string");
@@ -107,6 +144,9 @@ extern "C" int LLVMFuzzerTestOneInput(std::uint8_t const* data, std::size_t size
         fail("NUL byte in normalized path");
     if (pathInput.empty() && normalized != fallback)
         fail("empty request did not use the fallback");
+
+    // Exercise tracker URL validation against arbitrary inputs too.
+    (void)vertex::is_valid_tracker_url_syntax(pathInput);
 
     return 0;
 }

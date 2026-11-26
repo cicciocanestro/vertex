@@ -229,10 +229,12 @@ struct LogoMark: View {
                         )
                     )
                     .padding(size * 0.29)
+                    .allowsHitTesting(false)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: size * 0.29, style: .continuous)
                     .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
+                    .allowsHitTesting(false)
             )
             .shadow(color: Theme.mint.opacity(0.28), radius: size * 0.4, x: 0, y: size * 0.12)
             .frame(width: size, height: size)

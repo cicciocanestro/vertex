@@ -171,9 +171,9 @@ rewrite_dependencies() {
                 base="$(basename "$dependency")"
                 install_name_tool -change "$dependency" "${prefix}/${base}" "$file"
                 ;;
-            @rpath/*)
+            @rpath/*|@loader_path/*)
                 base="$(basename "$dependency")"
-                if [ -f "${FRAMEWORKS}/${base}" ]; then
+                if [ -f "${FRAMEWORKS}/${base}" ] && [ "$dependency" != "${prefix}/${base}" ]; then
                     install_name_tool -change "$dependency" "${prefix}/${base}" "$file"
                 fi
                 ;;

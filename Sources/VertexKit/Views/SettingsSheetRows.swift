@@ -7,21 +7,23 @@ extension SettingsSheet {
         subtitle: String,
         value: Binding<Int>,
         suffix: String,
+        isInvalid: Bool = false,
+        invalidDetail: String? = nil,
         palette: Palette
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(Typography.bodyMediumText)
-                .foregroundStyle(palette.secondary)
+                .foregroundStyle(isInvalid ? palette.coralText : palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
-                Text(L(subtitle))
+                Text(isInvalid ? (invalidDetail ?? L(subtitle)) : L(subtitle))
                     .font(Typography.microText)
-                    .foregroundStyle(palette.tertiary)
+                    .foregroundStyle(isInvalid ? palette.coralText : palette.tertiary)
             }
             .layoutPriority(1)
 
@@ -51,7 +53,7 @@ extension SettingsSheet {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(palette.stroke, lineWidth: 1)
+                    .stroke(isInvalid ? Theme.coral.opacity(0.65) : palette.stroke, lineWidth: 1)
                     .allowsHitTesting(false)
             )
         }
@@ -64,21 +66,23 @@ extension SettingsSheet {
         subtitle: String,
         value: Binding<Double>,
         suffix: String,
+        isInvalid: Bool = false,
+        invalidDetail: String? = nil,
         palette: Palette
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(Typography.bodyMediumText)
-                .foregroundStyle(palette.secondary)
+                .foregroundStyle(isInvalid ? palette.coralText : palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(L(title))
                     .font(Typography.bodyLargeMediumText)
                     .foregroundStyle(palette.text)
-                Text(L(subtitle))
+                Text(isInvalid ? (invalidDetail ?? L(subtitle)) : L(subtitle))
                     .font(Typography.microText)
-                    .foregroundStyle(palette.tertiary)
+                    .foregroundStyle(isInvalid ? palette.coralText : palette.tertiary)
             }
             .layoutPriority(1)
 
@@ -108,7 +112,7 @@ extension SettingsSheet {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(palette.stroke, lineWidth: 1)
+                    .stroke(isInvalid ? Theme.coral.opacity(0.65) : palette.stroke, lineWidth: 1)
                     .allowsHitTesting(false)
             )
         }
@@ -236,10 +240,12 @@ extension SettingsSheet {
     }
 
     func proxyHostRow(_ palette: Palette) -> some View {
-        HStack(spacing: 10) {
+        let hostInvalid = !SettingsFieldValidation.isProxyHostValid(proxyHost, proxyEnabled: proxyEnabled)
+        let portInvalid = !SettingsFieldValidation.isProxyPortValid(proxyPort, proxyEnabled: proxyEnabled)
+        return HStack(spacing: 10) {
             Image(systemName: "server.rack")
                 .font(Typography.bodyMediumText)
-                .foregroundStyle(palette.secondary)
+                .foregroundStyle((hostInvalid || portInvalid) ? palette.coralText : palette.secondary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -268,7 +274,7 @@ extension SettingsSheet {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(palette.stroke, lineWidth: 1)
+                        .stroke(hostInvalid ? Theme.coral.opacity(0.65) : palette.stroke, lineWidth: 1)
                         .allowsHitTesting(false)
                 )
 
@@ -290,7 +296,7 @@ extension SettingsSheet {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(palette.stroke, lineWidth: 1)
+                        .stroke(portInvalid ? Theme.coral.opacity(0.65) : palette.stroke, lineWidth: 1)
                         .allowsHitTesting(false)
                 )
         }

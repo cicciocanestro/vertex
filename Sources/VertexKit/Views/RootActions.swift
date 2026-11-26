@@ -29,6 +29,12 @@ enum RootActionFactory {
                 dependencies.chooseFile()
             },
             onAddMagnet: {
+                guard engine.isReady, !engine.isRestartingSession else {
+                    if !dependencies.isModalOpen() {
+                        engine.showToast(L("Motore non disponibile."), kind: .error)
+                    }
+                    return
+                }
                 dependencies.setModal(.add(.magnet))
             },
             onPasteMagnet: dependencies.pasteMagnet,
@@ -103,8 +109,20 @@ enum RootActionFactory {
         return L("I file scaricati restano sul disco se scegli di rimuovere solo dalla lista.")
     }
 
-    static func acceptsDrop(modalOpen: Bool, isReady: Bool) -> Bool {
-        !modalOpen && isReady
+    static func acceptsDrop(
+        modalOpen: Bool,
+        isReady: Bool,
+        isRestartingSession: Bool = false
+    ) -> Bool {
+        !modalOpen && isReady && !isRestartingSession
+    }
+
+    static func canPresentAdd(
+        modalOpen: Bool,
+        isReady: Bool,
+        isRestartingSession: Bool = false
+    ) -> Bool {
+        !modalOpen && isReady && !isRestartingSession
     }
 
     static func toastBottomPadding(multiSelection: Bool) -> CGFloat {

@@ -37,7 +37,22 @@ package enum PrefKey {
 }
 
 package enum Preferences {
+    package static var userDefaults: UserDefaults {
+        if let suite = ProcessInfo.processInfo.environment["VERTEX_DEFAULTS_SUITE"],
+            !suite.isEmpty,
+            let custom = UserDefaults(suiteName: suite)
+        {
+            return custom
+        }
+        return .standard
+    }
+
     package static var suggestedDownloadPath: String {
+        if let override = ProcessInfo.processInfo.environment["VERTEX_DOWNLOADS_DIR"],
+            !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true).path
+        }
         if let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first {
             return downloads.appendingPathComponent("Vertex", isDirectory: true).path
         }
@@ -47,19 +62,19 @@ package enum Preferences {
     }
 
     package static func registerDefaults() {
-        UserDefaults.standard.register(defaults: PrefDefault.dictionary)
+        userDefaults.register(defaults: PrefDefault.dictionary)
     }
 
-    package static func resolvedDownloadPath(_ raw: String?) -> String {
-        let fallback = suggestedDownloadPath
+    package static func resolvedDownloadPath(_ raw: String?, fallback: String? = nil) -> String {
+        let fallbackPath = fallback ?? suggestedDownloadPath
         let requested = raw ?? ""
         let pointer = requested.withCString { requestedPointer in
-            fallback.withCString { fallbackPointer in
+            fallbackPath.withCString { fallbackPointer in
                 vt_normalize_save_path(requestedPointer, fallbackPointer)
             }
         }
         guard let pointer else {
-            return requested.isEmpty ? fallback : requested
+            return requested.isEmpty ? fallbackPath : requested
         }
         defer { vt_free_string(pointer) }
         return String(cString: pointer)
@@ -152,29 +167,38 @@ package enum Preferences {
     }
 
     package static var downloadPath: String {
-        resolvedDownloadPath(UserDefaults.standard.string(forKey: PrefKey.downloadPath))
+        resolvedDownloadPath(userDefaults.string(forKey: PrefKey.downloadPath))
     }
 
     /// The download path exactly as stored, without normalizing it. Reading a
     /// view's initial value must not touch the filesystem: `resolvedDownloadPath`
     /// calls into the bridge, which stats the path.
     package static var rawDownloadPath: String {
-        UserDefaults.standard.string(forKey: PrefKey.downloadPath) ?? PrefDefault.downloadPath
+        userDefaults.string(forKey: PrefKey.downloadPath) ?? PrefDefault.downloadPath
     }
 
     package static var startPaused: Bool {
-        UserDefaults.standard.bool(forKey: PrefKey.startPaused)
+        userDefaults.bool(forKey: PrefKey.startPaused)
     }
 
     package static var sequentialDefault: Bool {
-        UserDefaults.standard.bool(forKey: PrefKey.sequentialDefault)
+        userDefaults.bool(forKey: PrefKey.sequentialDefault)
     }
 
-    package static var resumeDirectory: URL {
+    package static var appSupportDirectory: URL {
+        if let override = ProcessInfo.processInfo.environment["VERTEX_DATA_DIR"],
+            !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
         let base =
             FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("Vertex/resume", isDirectory: true)
+        return base.appendingPathComponent("Vertex", isDirectory: true)
+    }
+
+    package static var resumeDirectory: URL {
+        appSupportDirectory.appendingPathComponent("resume", isDirectory: true)
     }
 
     /// Cached SOCKS5 password. Reading the Keychain can block, and with an
@@ -199,7 +223,7 @@ package enum Preferences {
         if let cached {
             return cached
         }
-        return UserDefaults.standard.string(forKey: PrefKey.proxyPassword) ?? ""
+        return userDefaults.string(forKey: PrefKey.proxyPassword) ?? ""
     }
 
     /// Reads the Keychain item once, migrating the legacy plaintext password.
@@ -212,38 +236,43 @@ package enum Preferences {
         proxyPasswordLock.unlock()
         if alreadyLoaded { return }
 
-        let defaults = UserDefaults.standard
-        let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
+        ProxyPasswordStore.withIOQueue {
+            proxyPasswordLock.lock()
+            let loadedInsideQueue = proxyPasswordLoaded
+            proxyPasswordLock.unlock()
+            if loadedInsideQueue { return }
 
-        let resolved: String?
-        switch ProxyPasswordStore.read() {
-        case .success(let value):
-            resolved = value
-        case .failure:
-            // Locked keychain, denied prompt or a different signature: do not
-            // cache "no password" forever. The cache stays cold, `proxyPassword`
-            // keeps the legacy fallback and the engine retries later.
-            return
-        }
+            let defaults = userDefaults
+            let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
 
-        var value = resolved
-        if value == nil, !legacy.isEmpty {
-            // One-time migration through ProxyPasswordStore (serialized on
-            // ioQueue and honoring proxyPasswordInFile). A failed write must
-            // not lose the value, so the plaintext stays until persisted.
-            guard ProxyPasswordStore.write(legacy) else { return }
-            value = legacy
-        }
-        if value != nil, !legacy.isEmpty {
-            defaults.removeObject(forKey: PrefKey.proxyPassword)
-        }
+            let resolved: String?
+            switch ProxyPasswordStore.readUnlocked() {
+            case .success(let value):
+                resolved = value
+            case .failure:
+                // Locked keychain, denied prompt or a different signature: do not
+                // cache "no password" forever. The cache stays cold, `proxyPassword`
+                // keeps the legacy fallback and the engine retries later.
+                return
+            }
 
-        proxyPasswordLock.lock()
-        if !proxyPasswordLoaded {
+            var value = resolved
+            if value == nil, !legacy.isEmpty {
+                // One-time migration through ProxyPasswordStore (serialized on
+                // ioQueue and honoring proxyPasswordInFile). A failed write must
+                // not lose the value, so the plaintext stays until persisted.
+                guard ProxyPasswordStore.writeUnlocked(legacy) else { return }
+                value = legacy
+            }
+            if value != nil, !legacy.isEmpty {
+                defaults.removeObject(forKey: PrefKey.proxyPassword)
+            }
+
+            proxyPasswordLock.lock()
             cachedProxyPassword = value ?? ""
             proxyPasswordLoaded = true
+            proxyPasswordLock.unlock()
         }
-        proxyPasswordLock.unlock()
     }
 
     /// Updates only the in-memory proxy password cache so an immediate settings
@@ -255,6 +284,23 @@ package enum Preferences {
         proxyPasswordLoaded = true
         proxyPasswordLock.unlock()
     }
+
+    static func commitCachedProxyPasswordFromIOQueue(_ value: String) {
+        userDefaults.removeObject(forKey: PrefKey.proxyPassword)
+        proxyPasswordLock.lock()
+        cachedProxyPassword = value
+        proxyPasswordLoaded = true
+        proxyPasswordLock.unlock()
+    }
+
+    #if DEBUG
+        package static func resetProxyPasswordCacheForTesting() {
+            proxyPasswordLock.lock()
+            cachedProxyPassword = nil
+            proxyPasswordLoaded = false
+            proxyPasswordLock.unlock()
+        }
+    #endif
 
     /// Whether the Keychain read for the proxy password has completed.
     package static var isProxyPasswordCacheLoaded: Bool {
@@ -272,22 +318,21 @@ package enum Preferences {
 
     @discardableResult
     package static func setProxyPassword(_ value: String) -> Bool {
-        let saved = ProxyPasswordStore.write(value)
-        if saved {
-            // Clearing or replacing the password must not leave the legacy
-            // plaintext value behind: proxyPassword would fall back to it.
-            UserDefaults.standard.removeObject(forKey: PrefKey.proxyPassword)
-            proxyPasswordLock.lock()
-            cachedProxyPassword = value
-            proxyPasswordLoaded = true
-            proxyPasswordLock.unlock()
+        ProxyPasswordStore.withIOQueue {
+            let saved = ProxyPasswordStore.writeUnlocked(value)
+            if saved {
+                // Clearing or replacing the password must not leave the legacy
+                // plaintext value behind: proxyPassword would fall back to it.
+                commitCachedProxyPasswordFromIOQueue(value)
+            }
+            return saved
         }
-        return saved
     }
 
     /// Moves the cached password to the selected backend after the user changes
     /// the storage preference. Runs off the main thread (Keychain/file I/O).
-    package static func migrateProxyPasswordStorage(toFile: Bool, value: String) {
+    @discardableResult
+    package static func migrateProxyPasswordStorage(toFile: Bool, value: String) -> Bool {
         ProxyPasswordStore.migratePassword(value, toFile: toFile)
     }
 }
@@ -296,7 +341,7 @@ package enum Preferences {
 /// them to `UserDefaults`, and the views use the same constants as the initial
 /// value of their `@AppStorage` properties.
 package enum PrefDefault {
-    package static let downloadPath: String = Preferences.suggestedDownloadPath
+    package static var downloadPath: String { Preferences.suggestedDownloadPath }
     package static let downloadLimitKB = 0
     package static let uploadLimitKB = 0
     package static let listenPort = 6881
@@ -423,7 +468,7 @@ extension TorrentEngine {
     /// wrong type or falls outside the expected range, reset it to the default
     /// so a corrupted plist or a migration bug cannot silently break the engine.
     nonisolated package static func validateAllPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = Preferences.userDefaults
 
         // port
         let rawPort = defaults.integer(forKey: PrefKey.listenPort)
@@ -477,18 +522,26 @@ extension TorrentEngine {
             defaults.set(PrefDefault.uiDensity, forKey: PrefKey.uiDensity)
         }
 
-        // proxy port
+        let proxyEnabled = defaults.bool(forKey: PrefKey.proxyEnabled)
+
+        // proxy port: preserve an out-of-range port when proxyEnabled == true so
+        // startup rejects the misconfigured proxy fail-closed instead of routing to :1080.
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
-        let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
-        if Int(proxyPort) != rawProxyPort {
-            defaults.set(Int(proxyPort), forKey: PrefKey.proxyPort)
+        if !Preferences.isValidPort(rawProxyPort) && !proxyEnabled {
+            defaults.set(PrefDefault.proxyPort, forKey: PrefKey.proxyPort)
         }
 
-        // proxy host
+        // proxy host: preserve empty host when proxyEnabled == true so startup
+        // rejects the misconfigured proxy fail-closed instead of routing to 127.0.0.1.
         if let rawHost = defaults.string(forKey: PrefKey.proxyHost) {
             let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty || trimmed != rawHost {
-                defaults.set(trimmed.isEmpty ? PrefDefault.proxyHost : trimmed, forKey: PrefKey.proxyHost)
+            if trimmed.isEmpty {
+                let replacement = proxyEnabled ? "" : PrefDefault.proxyHost
+                if rawHost != replacement {
+                    defaults.set(replacement, forKey: PrefKey.proxyHost)
+                }
+            } else if trimmed != rawHost {
+                defaults.set(trimmed, forKey: PrefKey.proxyHost)
             }
         }
 
@@ -511,10 +564,17 @@ extension TorrentEngine {
     package nonisolated static func currentConfiguration(
         resolvedDownloadPathOverride: String? = nil
     ) -> SessionConfiguration {
-        let defaults = UserDefaults.standard
+        let defaults = Preferences.userDefaults
         let proxyEnabled = defaults.bool(forKey: PrefKey.proxyEnabled)
         let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
-        let proxyPort = Preferences.isValidPort(rawProxyPort) ? Int32(rawProxyPort) : Int32(PrefDefault.proxyPort)
+        let proxyPort: Int32
+        if Preferences.isValidPort(rawProxyPort) {
+            proxyPort = Int32(rawProxyPort)
+        } else if proxyEnabled {
+            proxyPort = Int32(clamping: rawProxyPort)
+        } else {
+            proxyPort = Int32(PrefDefault.proxyPort)
+        }
         let rawHost = defaults.string(forKey: PrefKey.proxyHost)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         // Never substitute 127.0.0.1 when the proxy is enabled and the host was
         // cleared: fail-closed requires rejecting an empty proxy host explicitly.

@@ -598,11 +598,33 @@
 
                 onMain {
                     let t1Done = Torrent.test(
-                        id: "m1", name: "Multi1.iso", stateCode: 5, progress: 1.0, finished: true, seeding: true)
+                        id: "m1", name: "Multi1.iso", stateCode: 5, progress: 1.0,
+                        size: 1024, downloaded: 1024, finished: true, seeding: true)
                     let t2 = Torrent.test(id: "m2", name: "Multi2.iso", stateCode: 3, progress: 0.6, finished: false)
-                    engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [t1Done, t2]))
+                    let t3Zero = Torrent.test(
+                        id: "m3", name: "Zero.iso", stateCode: 3, progress: 0, size: 0, downloaded: 0, finished: false)
+                    engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [t1Done, t2, t3Zero]))
                 }
                 try TestRunner.assertEqual(onMain { notified.value }, ["Multi1.iso"])
+
+                // M-1: 0-byte or 0-downloaded (all files skipped) torrents must never fire completion notifications.
+                onMain {
+                    notified.value = nil
+                    let t1Done = Torrent.test(
+                        id: "m1", name: "Multi1.iso", stateCode: 5, progress: 1.0,
+                        size: 1024, downloaded: 1024, finished: true, seeding: true)
+                    let t2Skipped = Torrent.test(
+                        id: "m2", name: "Multi2.iso", stateCode: 4, progress: 1.0,
+                        size: 1024, downloaded: 0, finished: true)
+                    let t3ZeroDone = Torrent.test(
+                        id: "m3", name: "Zero.iso", stateCode: 4, progress: 1.0,
+                        size: 0, downloaded: 0, finished: true)
+                    engine.applySnapshotForTesting(VertexSnapshot.test(torrents: [t1Done, t2Skipped, t3ZeroDone]))
+                }
+                try TestRunner.assertNil(
+                    onMain { notified.value },
+                    "Un torrent con size <= 0 o downloaded <= 0 non deve emettere notifica di completamento"
+                )
             }
 
             TestRunner.run("Engine: una richiesta durante lo shutdown risponde sempre") {
@@ -716,6 +738,133 @@
                     },
                     "Il magnet ricevuto durante il riavvio PEX deve essere accodato e aggiunto"
                 )
+                let drained = onMain {
+                    engine.torrents.first { $0.id == "1111222233334444555566667777888899990000" }
+                }
+                try TestRunner.assertEqual(
+                    drained?.savePath,
+                    configuration.downloadPath,
+                    "openExternalURLs senza destination esplicita deve rispettare configurationOverride.downloadPath"
+                )
+            }
+
+            TestRunner.run("Engine: validazione indipendente campi, fail-closed proxy, sonda SOCKS5 e alert multipli") {
+                try TestRunner.assertTrue(TorrentEngine.isProxyProtocolOrAuthError("SOCKS authentication error"))
+                try TestRunner.assertTrue(TorrentEngine.isProxyProtocolOrAuthError("SOCKS unsupported version"))
+                try TestRunner.assertTrue(TorrentEngine.isProxyProtocolOrAuthError("SOCKS general failure"))
+                try TestRunner.assertTrue(TorrentEngine.isProxyProtocolOrAuthError("Host proxy non valido"))
+                try TestRunner.assertTrue(
+                    TorrentEngine.isProxyProtocolOrAuthError("Porta proxy fuori intervallo (1–65535).")
+                )
+                try TestRunner.assertFalse(TorrentEngine.isProxyProtocolOrAuthError(""))
+                try TestRunner.assertFalse(TorrentEngine.isProxyProtocolOrAuthError("Connection refused"))
+
+                let workspace = try IntegrationWorkspace()
+                let suiteName = "app.vertex.engine-c1.\(UUID().uuidString)"
+                let dataDir = try workspace.directory("c1-data")
+                let downloadsDir = try workspace.directory("c1-downloads")
+                let prevSuite = getenv("VERTEX_DEFAULTS_SUITE").map { String(cString: $0) }
+                let prevData = getenv("VERTEX_DATA_DIR").map { String(cString: $0) }
+                let prevDownloads = getenv("VERTEX_DOWNLOADS_DIR").map { String(cString: $0) }
+                suiteName.withCString { _ = setenv("VERTEX_DEFAULTS_SUITE", $0, 1) }
+                dataDir.path.withCString { _ = setenv("VERTEX_DATA_DIR", $0, 1) }
+                downloadsDir.path.withCString { _ = setenv("VERTEX_DOWNLOADS_DIR", $0, 1) }
+                defer {
+                    if let prevSuite {
+                        prevSuite.withCString { _ = setenv("VERTEX_DEFAULTS_SUITE", $0, 1) }
+                    } else {
+                        unsetenv("VERTEX_DEFAULTS_SUITE")
+                    }
+                    if let prevData {
+                        prevData.withCString { _ = setenv("VERTEX_DATA_DIR", $0, 1) }
+                    } else {
+                        unsetenv("VERTEX_DATA_DIR")
+                    }
+                    if let prevDownloads {
+                        prevDownloads.withCString { _ = setenv("VERTEX_DOWNLOADS_DIR", $0, 1) }
+                    } else {
+                        unsetenv("VERTEX_DOWNLOADS_DIR")
+                    }
+                    UserDefaults().removePersistentDomain(forName: suiteName)
+                    workspace.cleanup()
+                }
+
+                let (engine, configuration) = try makeEngineWithConfiguration(in: workspace, name: "c1")
+                defer { shutdown(engine) }
+
+                try TestRunner.assertEqual(
+                    onMain { engine.localizedError("Invalid cross-device link") },
+                    L("Errore di lettura o scrittura sul disco.")
+                )
+
+                // B-3: multiple alert_errors in a single poll must all reach the toast without loss.
+                let multiAlertJSON = """
+                    {
+                        "download_rate": 0, "upload_rate": 0, "active": 0, "paused_count": 0,
+                        "dht_nodes": 0, "alert_error": "Permission denied",
+                        "alert_errors": ["No space left on device", "Permission denied"],
+                        "listen_actual_port": 6881, "listening": true, "bind_address": "",
+                        "listen_error": "",
+                        "portmap": {
+                            "tcp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                            "udp": {"mapped": false, "external_port": 0, "transport": "", "error": ""},
+                            "error": ""
+                        },
+                        "port": 6881, "torrents": []
+                    }
+                    """
+                let multiAlertSnapshot = try JSONDecoder().decode(
+                    VertexSnapshot.self, from: Data(multiAlertJSON.utf8)
+                )
+                onMain { engine.applySnapshotForTesting(multiAlertSnapshot) }
+                try TestRunner.assertEqual(onMain { engine.toast?.text ?? "" }, L("Spazio su disco insufficiente."))
+                try TestRunner.assertEqual(onMain { engine.toast?.detail ?? "" }, L("Permesso negato."))
+
+                // C-1: an invalid listenPort in UserDefaults must fall back to the previous port
+                // without blocking a valid bindAddress update in the same applySettings() pass.
+                let defaults = Preferences.userDefaults
+                defaults.set(configuration.downloadPath, forKey: PrefKey.downloadPath)
+                defaults.set(configuration.pex, forKey: PrefKey.pexEnabled)
+                defaults.set(0, forKey: PrefKey.listenPort)
+                defaults.set("203.0.113.9", forKey: PrefKey.bindAddress)
+                defaults.set(false, forKey: PrefKey.proxyEnabled)
+                onMain {
+                    engine.configurationOverride = nil
+                    engine.applySettings()
+                }
+                try TestRunner.assertEqual(onMain { engine.toast?.text ?? "" }, L("Porta non valida"))
+                try waitFor(engine) {
+                    onMain {
+                        !engine.isApplyingSettings
+                            && engine.stats.bindAddress == "203.0.113.9"
+                            && !engine.stats.isListening
+                    }
+                }
+
+                // C-1: proxyEnabled with an empty host or out-of-range port must invoke vt_fail_close_proxy.
+                defaults.set(Int(configuration.port), forKey: PrefKey.listenPort)
+                defaults.set("", forKey: PrefKey.bindAddress)
+                defaults.set(true, forKey: PrefKey.proxyEnabled)
+                defaults.set("   ", forKey: PrefKey.proxyHost)
+                defaults.set(1080, forKey: PrefKey.proxyPort)
+                onMain { engine.applySettings() }
+                try TestRunner.assertEqual(onMain { engine.toast?.text ?? "" }, L("Host proxy non valido"))
+                try waitFor(engine) {
+                    onMain { !engine.isApplyingSettings && engine.stats.proxy.hasError }
+                }
+
+                defaults.set("127.0.0.1", forKey: PrefKey.proxyHost)
+                defaults.set(70_000, forKey: PrefKey.proxyPort)
+                onMain { engine.applySettings() }
+                try TestRunner.assertEqual(onMain { engine.toast?.text ?? "" }, L("Porta proxy non valida"))
+                try waitFor(engine) {
+                    onMain {
+                        !engine.isApplyingSettings
+                            && engine.stats.proxy.hasError
+                            && engine.stats.proxy.hostname.isEmpty
+                            && engine.stats.proxy.port == 0
+                    }
+                }
             }
         }
 

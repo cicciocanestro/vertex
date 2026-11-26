@@ -25,7 +25,17 @@ done
 failed=0
 
 TMP_RESP="$(mktemp "${TMPDIR:-/tmp}/vertex-osv.XXXXXX")"
-trap 'rm -f "${TMP_RESP:?}"' EXIT
+CLEANED_UP=0
+cleanup() {
+    if [ "$CLEANED_UP" -eq 1 ]; then
+        return 0
+    fi
+    CLEANED_UP=1
+    rm -f "${TMP_RESP:-}"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 query() {
     local label="$1" payload="$2"
@@ -44,6 +54,7 @@ query() {
     status=0
     summary=$(python3 - "$label" "${VERTEX_DEPS_VERBOSE:-0}" "$TMP_RESP" <<'PY'
 import json
+import math
 import sys
 
 label = sys.argv[1]
@@ -55,6 +66,62 @@ vulns = doc.get("vulns") or []
 if not vulns:
     print(f"· {label}: nessun avviso OSV")
     sys.exit(0)
+
+
+def cvss3_roundup(value):
+    int_input = int(round(value * 100000))
+    if (int_input % 10000) == 0:
+        return int_input / 100000.0
+    return (math.floor(int_input / 10000) + 1) / 10.0
+
+
+def cvss3_base_score(vector):
+    """Compute exact FIRST.org CVSS v3.0 / v3.1 Base Score, or None if invalid."""
+    if not (vector.startswith("CVSS:3.0/") or vector.startswith("CVSS:3.1/")):
+        return None
+    metrics = {}
+    for token in vector.split("/")[1:]:
+        if ":" not in token:
+            return None
+        key, val = token.split(":", 1)
+        metrics[key] = val
+
+    av_map = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.20}
+    ac_map = {"L": 0.77, "H": 0.44}
+    ui_map = {"N": 0.85, "R": 0.62}
+    cia_map = {"H": 0.56, "L": 0.22, "N": 0.0}
+    scope = metrics.get("S")
+    if scope not in ("U", "C"):
+        return None
+    pr_map = (
+        {"N": 0.85, "L": 0.62, "H": 0.27}
+        if scope == "U"
+        else {"N": 0.85, "L": 0.68, "H": 0.50}
+    )
+
+    try:
+        av = av_map[metrics["AV"]]
+        ac = ac_map[metrics["AC"]]
+        pr = pr_map[metrics["PR"]]
+        ui = ui_map[metrics["UI"]]
+        c = cia_map[metrics["C"]]
+        i = cia_map[metrics["I"]]
+        a = cia_map[metrics["A"]]
+    except KeyError:
+        return None
+
+    iss = 1.0 - ((1.0 - c) * (1.0 - i) * (1.0 - a))
+    if iss <= 0.0:
+        return 0.0
+    if scope == "U":
+        impact = 6.42 * iss
+    else:
+        impact = 7.52 * (iss - 0.029) - 3.25 * ((iss - 0.02) ** 15)
+    exploitability = 8.22 * av * ac * pr * ui
+    if scope == "U":
+        return cvss3_roundup(min(impact + exploitability, 10.0))
+    return cvss3_roundup(min(1.08 * (impact + exploitability), 10.0))
+
 
 def is_high_or_critical(v):
     labels = []
@@ -70,16 +137,25 @@ def is_high_or_critical(v):
     if any(s in ("HIGH", "CRITICAL") for s in labels):
         return True
     for item in v.get("severity") or []:
-        score_str = str(item.get("score") or "")
+        score_str = str(item.get("score") or "").strip()
         try:
             if float(score_str) >= 7.0:
                 return True
+            continue
         except ValueError:
             pass
-        # CVSS v3/v4 vector without precomputed numeric score: flag high impact
-        # on confidentiality/integrity/availability over network as high risk.
-        if score_str.startswith("CVSS:") and "/AV:N/" in score_str:
-            if any(h in score_str for h in ("/C:H", "/I:H", "/A:H", "/VC:H", "/VI:H", "/VA:H")):
+        v3_score = cvss3_base_score(score_str)
+        if v3_score is not None:
+            if v3_score >= 7.0:
+                return True
+            continue
+        # Conservative fallback for CVSS v4.0 (or unparsed CVSS vectors):
+        # treat any high impact on vulnerable/subsequent system as high risk.
+        if score_str.startswith("CVSS:"):
+            if any(
+                h in score_str
+                for h in ("/VC:H", "/VI:H", "/VA:H", "/SC:H", "/SI:H", "/SA:H", "/C:H", "/I:H", "/A:H")
+            ):
                 return True
     return False
 
@@ -104,6 +180,8 @@ PY
 echo "→ Controllo avvisi OSV per le dipendenze fissate…"
 query "openssl $OPENSSL_VERSION (OSS-Fuzz)" \
     "$(printf '{"package":{"name":"openssl","ecosystem":"OSS-Fuzz"},"version":"%s"}' "$OPENSSL_VERSION")"
+query "openssl openssl-$OPENSSL_VERSION (OSS-Fuzz tag)" \
+    "$(printf '{"package":{"name":"openssl","ecosystem":"OSS-Fuzz"},"version":"openssl-%s"}' "$OPENSSL_VERSION")"
 query "openssl openssl-$OPENSSL_VERSION (generic)" \
     "$(printf '{"package":{"purl":"pkg:generic/openssl"},"version":"openssl-%s"}' "$OPENSSL_VERSION")"
 query "libtorrent $LIBTORRENT_VERSION" \

@@ -69,6 +69,28 @@ vt_session* vt_session_create_configured(const char* download_dir,
                                          const char* app_version,
                                          char** error_message);
 
+/* Extended startup entry point that also applies `max_active` (<= 0 means
+   unlimited) in the initial settings_pack BEFORE resume files are loaded, so
+   queued torrents cannot spike above the active limit during startup. */
+vt_session* vt_session_create_configured_ex(const char* download_dir,
+                                            const char* resume_dir,
+                                            int listen_port,
+                                            int download_limit_bytes,
+                                            int upload_limit_bytes,
+                                            int enable_dht,
+                                            int enable_pex,
+                                            int enable_lsd,
+                                            int enable_upnp,
+                                            const char* bind_address,
+                                            int proxy_type,
+                                            const char* proxy_host,
+                                            int proxy_port,
+                                            const char* proxy_user,
+                                            const char* proxy_password,
+                                            int max_active,
+                                            const char* app_version,
+                                            char** error_message);
+
 /* Saves resume data and destroys the session. It can wait up to ~3 seconds:
    callers must invoke it off the main/UI thread. */
 void vt_session_destroy(vt_session* session);
@@ -152,6 +174,12 @@ int vt_apply_proxy_settings(vt_session* session,
 
 /* Clears any active proxy error recorded in the session. */
 void vt_clear_proxy_error(vt_session* session);
+
+/* Enforces fail-closed state when a proxy is requested with invalid settings:
+   disables DHT and UPnP/NAT-PMP, drops existing peer connections, pauses the
+   session, and records `error_reason` until a valid proxy configuration (or
+   proxy_type = 0) is applied via vt_apply_proxy_settings. */
+void vt_fail_close_proxy(vt_session* session, const char* error_reason);
 
 /* Updates the fallback folder used when a torrent is added without an explicit
    save path. The folder is created if needed. Returns 0 on success. */

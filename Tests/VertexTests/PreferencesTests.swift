@@ -158,7 +158,7 @@ enum PreferencesTests {
             // LOW #9: validateAllPreferences() resets a corrupted plist to defaults.
             // Snapshot and restore the affected keys so the test does not leak into
             // the real user defaults.
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             // Every key the validation may touch, including the ones it only
             // clamps indirectly: a partial backup leaked values into the real
             // preference domain of the test binary (and skipped maxActiveTorrents,
@@ -229,18 +229,99 @@ enum PreferencesTests {
                 "/tmp"
             )
 
-            // Empty proxyHost: startup validation resets to PrefDefault.proxyHost, while
-            // runtime currentConfiguration preserves "" when proxyEnabled == true (fail-closed).
+            // Empty proxyHost / out-of-range proxyPort: when proxyEnabled == true, both runtime
+            // currentConfiguration and startup validateAllPreferences() preserve the invalid values
+            // so startup enters fail-closed instead of routing to 127.0.0.1:1080. When
+            // proxyEnabled == false, startup validation resets them to PrefDefault.
             defaults.set(true, forKey: PrefKey.proxyEnabled)
             defaults.set("   ", forKey: PrefKey.proxyHost)
+            defaults.set(88888, forKey: PrefKey.proxyPort)
             let runtimeConfig = TorrentEngine.currentConfiguration(resolvedDownloadPathOverride: "/tmp")
             try TestRunner.assertEqual(
                 runtimeConfig.proxyHost,
                 "",
                 "Con proxyEnabled attivo non deve sostituire un host vuoto con 127.0.0.1"
             )
+            try TestRunner.assertEqual(
+                runtimeConfig.proxyPort,
+                88888,
+                "Con proxyEnabled attivo non deve sostituire una porta non valida con 1080"
+            )
+            TorrentEngine.validateAllPreferences()
+            try TestRunner.assertEqual(
+                defaults.string(forKey: PrefKey.proxyHost),
+                "",
+                "validateAllPreferences deve preservare host vuoto quando proxyEnabled è attivo"
+            )
+            try TestRunner.assertEqual(
+                defaults.integer(forKey: PrefKey.proxyPort),
+                88888,
+                "validateAllPreferences deve preservare porta fuori range quando proxyEnabled è attivo"
+            )
+
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            defaults.set("   ", forKey: PrefKey.proxyHost)
+            defaults.set(0, forKey: PrefKey.proxyPort)
             TorrentEngine.validateAllPreferences()
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), PrefDefault.proxyHost)
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), PrefDefault.proxyPort)
+        }
+
+        TestRunner.run("Isolamento ambiente: suite UserDefaults e cartelle dati/download") {
+            let workspace = try IntegrationWorkspace()
+            let suiteName = "app.vertex.tests.\(UUID().uuidString)"
+            let dataDir = try workspace.directory("isolated-data")
+            let downloadsDir = try workspace.directory("isolated-downloads")
+            let sentinelKey = "vertexIsolationProbe"
+            let standardBefore = UserDefaults.standard.object(forKey: sentinelKey)
+            let prevSuite = getenv("VERTEX_DEFAULTS_SUITE").map { String(cString: $0) }
+            let prevData = getenv("VERTEX_DATA_DIR").map { String(cString: $0) }
+            let prevDownloads = getenv("VERTEX_DOWNLOADS_DIR").map { String(cString: $0) }
+
+            suiteName.withCString { _ = setenv("VERTEX_DEFAULTS_SUITE", $0, 1) }
+            dataDir.path.withCString { _ = setenv("VERTEX_DATA_DIR", $0, 1) }
+            downloadsDir.path.withCString { _ = setenv("VERTEX_DOWNLOADS_DIR", $0, 1) }
+            defer {
+                if let prevSuite {
+                    prevSuite.withCString { _ = setenv("VERTEX_DEFAULTS_SUITE", $0, 1) }
+                } else {
+                    unsetenv("VERTEX_DEFAULTS_SUITE")
+                }
+                if let prevData {
+                    prevData.withCString { _ = setenv("VERTEX_DATA_DIR", $0, 1) }
+                } else {
+                    unsetenv("VERTEX_DATA_DIR")
+                }
+                if let prevDownloads {
+                    prevDownloads.withCString { _ = setenv("VERTEX_DOWNLOADS_DIR", $0, 1) }
+                } else {
+                    unsetenv("VERTEX_DOWNLOADS_DIR")
+                }
+                UserDefaults().removePersistentDomain(forName: suiteName)
+                if let standardBefore {
+                    UserDefaults.standard.set(standardBefore, forKey: sentinelKey)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: sentinelKey)
+                }
+                workspace.cleanup()
+            }
+
+            Preferences.userDefaults.set("isolated", forKey: sentinelKey)
+            try TestRunner.assertEqual(Preferences.userDefaults.string(forKey: sentinelKey), "isolated")
+            try TestRunner.assertFalse(
+                UserDefaults.standard.string(forKey: sentinelKey) == "isolated",
+                "La suite isolata non deve scrivere in UserDefaults.standard"
+            )
+            try TestRunner.assertEqual(Preferences.suggestedDownloadPath, downloadsDir.path)
+            try TestRunner.assertEqual(PrefDefault.downloadPath, downloadsDir.path)
+            try TestRunner.assertEqual(
+                Preferences.appSupportDirectory.standardizedFileURL.path,
+                dataDir.standardizedFileURL.path
+            )
+            try TestRunner.assertEqual(
+                Preferences.resumeDirectory.standardizedFileURL.path,
+                dataDir.appendingPathComponent("resume", isDirectory: true).standardizedFileURL.path
+            )
         }
     }
 }

@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -29,15 +29,17 @@ jobs:
 
       - name: Syntax check
         run: |
-          for script in build.sh Scripts/*.sh; do
+          for script in build.sh Scripts/*.sh Scripts/lib/*.sh; do
             echo "· bash -n $script"
             bash -n "$script"
           done
+          echo "· python3 -m py_compile Scripts/geoip-encode.py"
+          python3 -m py_compile Scripts/geoip-encode.py
 
       - name: ShellCheck
         # Errors only: the scripts are not lint-clean at warning level yet, and a
         # release must not be blocked by style findings.
-        run: shellcheck -S error build.sh Scripts/*.sh
+        run: shellcheck -S error build.sh Scripts/*.sh Scripts/lib/*.sh
 
   fuzz:
     name: Fuzz string escaping
@@ -171,7 +173,7 @@ jobs:
 
       - name: Lint scripts and property lists
         run: |
-          for script in build.sh Scripts/*.sh; do bash -n "$script"; done
+          for script in build.sh Scripts/*.sh Scripts/lib/*.sh; do bash -n "$script"; done
           plutil -lint Resources/Info.plist
           for strings in Resources/*.lproj/*.strings; do plutil -lint "$strings"; done
 
@@ -263,9 +265,10 @@ jobs:
         run: ./Scripts/check-launch.sh
 
       - name: Enforce signed release (opt-in)
-        # Set the repository variable VERTEX_REQUIRE_RELEASE_SIGNING=1 once a
-        # Developer ID certificate is available: from then on a tag cannot
-        # publish an ad-hoc build by accident.
+        # Set the repository variable VERTEX_REQUIRE_RELEASE_SIGNING=1 to ensure
+        # tagged releases are signed with the configured identity (self-signed or
+        # Developer ID) and never publish an ad-hoc build by accident.
+        # Developer ID + notarization are enforced separately via VERTEX_ENABLE_NOTARIZATION=1.
         if: startsWith(github.ref, 'refs/tags/v') && vars.VERTEX_REQUIRE_RELEASE_SIGNING == '1'
         env:
           VERTEX_SIGN_IDENTITY: ${{ secrets.VERTEX_SIGN_IDENTITY }}

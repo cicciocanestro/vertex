@@ -670,5 +670,116 @@ enum ModelsTests {
             try TestRunner.assertEqual(fallback.alertErrors, [])
             try TestRunner.assertEqual(fallback.alertError, "unico")
         }
+
+        TestRunner.run("Modelli: stateCode 4 senza finished, saturazione velocità, NaN e tracker multi-tier") {
+            let allSkipped = Torrent.test(id: "skip-all", name: "Skipped", stateCode: 4, finished: false)
+            try TestRunner.assertEqual(allSkipped.phase, .downloading)
+            try TestRunner.assertEqual(TorrentFilter.category(for: allSkipped), .downloading)
+            try TestRunner.assertFalse(TorrentFilter.completed.matches(allSkipped))
+
+            let allSkippedPaused = Torrent.test(
+                id: "skip-paused", name: "SkippedPaused", stateCode: 4, finished: false, paused: true
+            )
+            try TestRunner.assertEqual(allSkippedPaused.phase, .paused)
+            try TestRunner.assertEqual(TorrentFilter.category(for: allSkippedPaused), .paused)
+
+            let queuedCompleted = Torrent.test(
+                id: "queued-done", name: "QueuedDone", stateCode: 4,
+                finished: true, seeding: false, paused: true, autoManaged: true
+            )
+            try TestRunner.assertEqual(queuedCompleted.phase, .queued)
+            try TestRunner.assertEqual(TorrentFilter.category(for: queuedCompleted), .completed)
+
+            let extremeA = Torrent.test(
+                id: "ext-a", name: "ExtremeA", downloadRate: Int64.max, uploadRate: Int64.max
+            )
+            let extremeB = Torrent.test(
+                id: "ext-b", name: "ExtremeB", downloadRate: Int64.max - 1, uploadRate: Int64.max
+            )
+            let sortedExtreme = TorrentListPipeline.apply(
+                to: [extremeB, extremeA], filter: .all, search: "", sort: .speed
+            )
+            try TestRunner.assertEqual(sortedExtreme.map(\.id), ["ext-a", "ext-b"])
+
+            let nanTorrent = Torrent.test(id: "nan", name: "NaN", progress: .nan, ratio: .infinity)
+            try TestRunner.assertEqual(nanTorrent.progress, 0)
+            try TestRunner.assertEqual(nanTorrent.displayProgress, 0)
+            try TestRunner.assertEqual(nanTorrent.ratio, 0)
+
+            let nanFile = TorrentFile(index: 0, path: "f.bin", size: 10, progress: .nan, priority: 4)
+            try TestRunner.assertEqual(nanFile.progress, 0)
+
+            let infPeer = TorrentPeer(
+                endpoint: "1.2.3.4:1", client: "c", progress: .infinity,
+                downloadRate: -1, uploadRate: -1, flags: "", source: ""
+            )
+            try TestRunner.assertEqual(infPeer.progress, 0)
+
+            let tier0 = TorrentTracker(
+                url: "udp://tracker.example:6969/announce", verified: true, fails: 0,
+                message: "", peers: 1, seeds: 1, tier: 0
+            )
+            let tier1 = TorrentTracker(
+                url: "udp://tracker.example:6969/announce", verified: false, fails: 1,
+                message: "", peers: 0, seeds: 0, tier: 1
+            )
+            try TestRunner.assertFalse(tier0.id == tier1.id, "Tracker su tier diversi devono avere id distinti")
+
+            let dupTrackersJSON = """
+                {
+                    "files": [],
+                    "trackers": [
+                        {"url": "udp://dup.example:6969/announce", "verified": true, "fails": 0, "peers": 1, "seeds": 1},
+                        {"url": "udp://dup.example:6969/announce", "verified": false, "fails": 2, "peers": 0, "seeds": 0}
+                    ],
+                    "metadata": true
+                }
+                """
+            let dupDetail = try JSONDecoder().decode(TorrentDetail.self, from: Data(dupTrackersJSON.utf8))
+            try TestRunner.assertEqual(Set(dupDetail.trackers.map(\.id)).count, 2)
+        }
+
+        TestRunner.run("Formatters, TorrentInput e EXDEV: soglie arrotondamento e validazione URL tracker") {
+            let nearMegabyte = Fmt.bytes(999_950)
+            try TestRunner.assertTrue(
+                nearMegabyte == "1.0 MB" || nearMegabyte == "1,0 MB",
+                "999_950 byte deve arrotondare a 1.0 MB, ottenuto: \(nearMegabyte)"
+            )
+            try TestRunner.assertEqual(Fmt.bytes(99_960), "100 KB")
+
+            let p996 = Fmt.percent(0.996)
+            try TestRunner.assertTrue(
+                p996 == "99.6%" || p996 == "99,6%",
+                "0.996 deve formattare a 99.6%, ottenuto: \(p996)"
+            )
+            let p9999 = Fmt.percent(0.9999)
+            try TestRunner.assertTrue(
+                p9999 == "99.9%" || p9999 == "99,9%",
+                "Valori < 1.0 non devono mostrare 100%, ottenuto: \(p9999)"
+            )
+            try TestRunner.assertEqual(Fmt.percent(1.0), "100%")
+            try TestRunner.assertEqual(Fmt.percent(.nan), "0%")
+            let nanRatio = Fmt.ratio(.nan)
+            try TestRunner.assertTrue(nanRatio == "0.00" || nanRatio == "0,00")
+
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL(""))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("://foo"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("1http://tracker.example/announce"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http:///announce"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://:8080/announce"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://[]/announce"))
+            try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://tracker example/announce"))
+            try TestRunner.assertTrue(TorrentInput.isValidTrackerURL("udp://tracker.example:6969/announce"))
+            try TestRunner.assertTrue(TorrentInput.isValidTrackerURL("https://[::1]:8443/announce"))
+            try TestRunner.assertFalse(TrackerInput.canAdd("://foo", existing: []))
+            try TestRunner.assertFalse(TrackerInput.canAdd("http://", existing: []))
+            try TestRunner.assertTrue(TrackerInput.canAdd("udp://tracker.example:6969/announce", existing: []))
+
+            try TestRunner.assertEqual(
+                RuntimeErrorLocalizer.torrent("Invalid cross-device link"),
+                L("Errore di lettura o scrittura sul disco.")
+            )
+        }
     }
 }

@@ -61,19 +61,22 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
     /// includes metadata and verification, active upload (`uploadRate > 0`) owns
     /// "Seed", and finished idle/filtered torrents fall under `.completed`.
     package static func category(for torrent: Torrent) -> TorrentFilter {
-        // Paused unfinished torrents belong to .paused; finished torrents (even if paused or idle)
-        // are categorized according to their active state or under completed/paused.
-        if torrent.paused && !torrent.autoManaged {
-            return .paused
-        }
         switch torrent.phase {
-        case .downloading, .metadata, .checking: return .downloading
-        case .seeding: return .seeding
-        case .completed, .completedPaused: return .completed
-        case .paused: return .paused
+        case .downloading, .metadata, .checking:
+            return .downloading
+        case .seeding:
+            return .seeding
+        case .completed:
+            return .completed
+        case .paused, .completedPaused:
+            return .paused
         // A queued torrent is not stopped by the user: it waits for a slot in the
         // bucket it belongs to, so "In pausa" keeps meaning "paused by you".
-        case .queued: return torrent.finished ? .seeding : .downloading
+        case .queued:
+            if torrent.finished {
+                return torrent.seeding ? .seeding : .completed
+            }
+            return .downloading
         }
     }
 
@@ -92,8 +95,6 @@ package enum TorrentFilter: String, CaseIterable, Identifiable {
         case .all:
             return true
         case .completed:
-            // Mirrors the counting rule below, so the chip and the list always
-            // agree even for a torrent that reports state 4 without `finished`.
             return torrent.finished || Self.category(for: torrent) == .completed
         default:
             return Self.category(for: torrent) == self
@@ -295,8 +296,14 @@ package enum TorrentListPipeline {
             }
         case .speed:
             list.sort {
-                let lhsTotal = $0.downloadRate + $0.uploadRate
-                let rhsTotal = $1.downloadRate + $1.uploadRate
+                let lhsDown = UInt64(max($0.downloadRate, 0))
+                let lhsUp = UInt64(max($0.uploadRate, 0))
+                let rhsDown = UInt64(max($1.downloadRate, 0))
+                let rhsUp = UInt64(max($1.uploadRate, 0))
+                let (lhsSum, lhsOverflow) = lhsDown.addingReportingOverflow(lhsUp)
+                let (rhsSum, rhsOverflow) = rhsDown.addingReportingOverflow(rhsUp)
+                let lhsTotal = lhsOverflow ? UInt64.max : lhsSum
+                let rhsTotal = rhsOverflow ? UInt64.max : rhsSum
                 if lhsTotal != rhsTotal {
                     return ascending ? (lhsTotal < rhsTotal) : (lhsTotal > rhsTotal)
                 }

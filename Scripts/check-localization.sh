@@ -30,7 +30,9 @@ it_plist_path = os.path.join(root, "Resources/it.lproj/InfoPlist.strings")
 sources = os.path.join(root, "Sources")
 
 PAIR = re.compile(r'^\s*"((?:[^"\\]|\\.)*)"\s*=\s*"((?:[^"\\]|\\.)*)"\s*;', re.MULTILINE)
-SPECIFIERS = re.compile(r'%%|%(?:\d+\$)?l*[dDuUxXoOfeEgGcCsSpaAF@]')
+SPECIFIERS = re.compile(
+    r'%%|%(?:[0-9]+\$)?[-+ 0#]*[0-9*]*(?:\.[0-9*]+)?(?:hh|h|ll|l|q|z|t|j|L)?[@dDuUxXoOfeEgGcCsSpaAF]'
+)
 STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 # Patterns that always produce a localization lookup at runtime.
@@ -42,10 +44,10 @@ KEY_CALLS = re.compile(
     r'|statCell\(\s*"((?:[^"\\]|\\.)*)"'           # statCell("...", ...)
 )
 
-# Ternary expressions passed to L(...) or localized component parameters.
+# Ternary expressions passed to L(...), LF(...) or localized component parameters.
 TERNARY_CALLS = re.compile(
-    r'(?:\bL\(\s*|\b(?:title|subtitle|help):\s*)'
-    r'[^;\n{}]*\?\s*([^,\n]+)'
+    r'(?:\b(?:L|LF)\(\s*|\b(?:text|title|subtitle|help):\s*)'
+    r'[^;,{}()]*\?\s*("(?:[^"\\]|\\.)*"\s*:\s*"(?:[^"\\]|\\.)*")'
 )
 
 TITLE_KEY_BLOCK = re.compile(r'var\s+titleKey\s*:\s*String\s*\{([^}]*)\}', re.DOTALL)
@@ -202,7 +204,7 @@ for directory, _, files in os.walk(sources):
 # Check that every Italian C++ last_error is mapped in Swift localizedError
 for directory, _, files in os.walk(sources):
     for name in files:
-        if name.endswith(".cpp") or name.endswith(".h"):
+        if name.endswith((".cpp", ".h", ".hpp")):
             path = os.path.join(directory, name)
             text = strip_comments(open(path, encoding="utf-8").read())
             for lit in STRING_LITERAL.findall(text):

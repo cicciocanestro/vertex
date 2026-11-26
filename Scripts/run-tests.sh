@@ -35,8 +35,33 @@ PROFILE="$COVERAGE_DIR/default.profraw"
 rm -f "$PROFILE" "$COVERAGE_DIR/default.profdata" \
     "$COVERAGE_DIR/coverage.txt" "$COVERAGE_DIR/coverage.lcov"
 
+TEST_ISO_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vertex-tests.XXXXXX")"
+TEST_DEFAULTS_SUITE="${VERTEX_DEFAULTS_SUITE:-app.vertex.torrent.tests.$$}"
+OWN_DEFAULTS_SUITE=0
+if [ -z "${VERTEX_DEFAULTS_SUITE:-}" ]; then
+    OWN_DEFAULTS_SUITE=1
+fi
+CLEANED_UP=0
+cleanup() {
+    if [ "$CLEANED_UP" -eq 1 ]; then
+        return 0
+    fi
+    CLEANED_UP=1
+    if [ "$OWN_DEFAULTS_SUITE" -eq 1 ]; then
+        defaults delete "$TEST_DEFAULTS_SUITE" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$TEST_ISO_DIR"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
 set +e
 VERTEX_TEST_REPORT="$REPORT" \
+VERTEX_DATA_DIR="${VERTEX_DATA_DIR:-$TEST_ISO_DIR/data}" \
+VERTEX_DOWNLOADS_DIR="${VERTEX_DOWNLOADS_DIR:-$TEST_ISO_DIR/downloads}" \
+VERTEX_DEFAULTS_SUITE="$TEST_DEFAULTS_SUITE" \
+VERTEX_NOTIFICATIONS_DISABLED=1 \
 VERTEX_KEYCHAIN_DISABLED=1 \
 LLVM_PROFILE_FILE="$PROFILE" \
 "$BIN"
@@ -66,7 +91,11 @@ if [ -f "$PROFILE" ]; then
             # fall below the recorded floor. Raise VERTEX_MIN_COVERAGE as it grows.
             total="$(awk '/^TOTAL/ {gsub("%", "", $4); print $4}' "$COVERAGE_DIR/coverage.txt")"
             minimum="${VERTEX_MIN_COVERAGE:-63}"
-            if [ -n "$total" ] && ! awk -v t="$total" -v m="$minimum" \
+            if [ -z "$total" ]; then
+                echo "✗ Impossibile estrarre la percentuale TOTAL da $COVERAGE_DIR/coverage.txt" >&2
+                exit 1
+            fi
+            if ! awk -v t="$total" -v m="$minimum" \
                 'BEGIN { exit (t + 0 >= m + 0) ? 0 : 1 }'; then
                 echo "✗ Coverage ${total}% sotto il minimo ${minimum}%" >&2
                 exit 1

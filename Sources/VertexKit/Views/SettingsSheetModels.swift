@@ -25,7 +25,7 @@ enum AppearanceOption: String, CaseIterable, Identifiable {
 }
 
 /// Sections of the settings sheet.
-enum SettingsSection: String, CaseIterable, Identifiable {
+package enum SettingsSection: String, CaseIterable, Identifiable {
     case folders
     case performance
     case network
@@ -34,7 +34,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case appearance
     case info
 
-    var id: String { rawValue }
+    package var id: String { rawValue }
 
     /// Localization key, shared with the section header.
     var titleKey: String {
@@ -142,5 +142,59 @@ struct SettingsSheetChangeHandlers: ViewModifier {
                 scheduleSave()
             }
             .onChange(of: appearanceRaw) { AppAppearance.apply() }
+    }
+}
+
+package enum SettingsFieldValidation {
+    package static func isProxyHostValid(_ raw: String, proxyEnabled: Bool) -> Bool {
+        guard proxyEnabled else { return true }
+        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    package static func isProxyPortValid(_ port: Int, proxyEnabled: Bool) -> Bool {
+        guard proxyEnabled else { return true }
+        return Preferences.isValidPort(port)
+    }
+
+    package static func proxyIssueMessage(
+        host: String,
+        port: Int,
+        proxyEnabled: Bool
+    ) -> String? {
+        guard proxyEnabled else { return nil }
+        if !isProxyHostValid(host, proxyEnabled: true) {
+            return L("Host proxy non valido")
+        }
+        if !isProxyPortValid(port, proxyEnabled: true) {
+            return "\(L("Porta proxy non valida")) — \(L("Inserisci un valore tra 1 e 65535."))"
+        }
+        return nil
+    }
+
+    package static func hasSectionIssue(
+        _ section: SettingsSection,
+        downloadLimitKB: Int,
+        uploadLimitKB: Int,
+        listenPort: Int,
+        maxActiveTorrents: Int,
+        seedRatioLimit: Double,
+        proxyEnabled: Bool,
+        proxyHost: String,
+        proxyPort: Int
+    ) -> Bool {
+        switch section {
+        case .performance:
+            return !Preferences.isValidLimitKB(downloadLimitKB)
+                || !Preferences.isValidLimitKB(uploadLimitKB)
+                || !Preferences.isValidPort(listenPort)
+                || !Preferences.isValidActiveLimit(maxActiveTorrents)
+        case .proxy:
+            return !isProxyHostValid(proxyHost, proxyEnabled: proxyEnabled)
+                || !isProxyPortValid(proxyPort, proxyEnabled: proxyEnabled)
+        case .behavior:
+            return !Preferences.isValidSeedRatio(seedRatioLimit)
+        case .folders, .network, .appearance, .info:
+            return false
+        }
     }
 }

@@ -3,10 +3,21 @@ import Foundation
 import VertexKit
 
 enum ProxyPasswordStorageTests {
+    private static func restoreEnv(_ key: String, _ previous: String?) {
+        if let previous {
+            previous.withCString { _ = setenv(key, $0, 1) }
+        } else {
+            unsetenv(key)
+        }
+    }
+
     static func runAll() {
+        print("\n\u{001B}[1m[Suite: ProxyPasswordStorageTests]\u{001B}[0m")
+
         TestRunner.run("ProxyPassword: file 0600 selezionato dalla preferenza") {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+            let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
             let workspace = try IntegrationWorkspace()
             defer {
                 workspace.cleanup()
@@ -15,7 +26,7 @@ enum ProxyPasswordStorageTests {
                 } else {
                     defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
                 }
-                unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                restoreEnv("VERTEX_PROXY_PASSWORD_FILE", prevPasswordFile)
             }
 
             let file = workspace.root.appendingPathComponent("proxy-password")
@@ -48,8 +59,9 @@ enum ProxyPasswordStorageTests {
         }
 
         TestRunner.run("ProxyPassword: file esistente troppo permissivo riportato a 0600 alla lettura") {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+            let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
             let workspace = try IntegrationWorkspace()
             defer {
                 workspace.cleanup()
@@ -58,7 +70,7 @@ enum ProxyPasswordStorageTests {
                 } else {
                     defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
                 }
-                unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                restoreEnv("VERTEX_PROXY_PASSWORD_FILE", prevPasswordFile)
             }
 
             let file = workspace.root.appendingPathComponent("proxy-password")
@@ -87,8 +99,9 @@ enum ProxyPasswordStorageTests {
         }
 
         TestRunner.run("ProxyPassword: scrittura senza residui temporanei e con cartella 0700") {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+            let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
             let workspace = try IntegrationWorkspace()
             defer {
                 workspace.cleanup()
@@ -97,7 +110,7 @@ enum ProxyPasswordStorageTests {
                 } else {
                     defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
                 }
-                unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                restoreEnv("VERTEX_PROXY_PASSWORD_FILE", prevPasswordFile)
             }
 
             let folder = workspace.root.appendingPathComponent("existing-support")
@@ -131,8 +144,9 @@ enum ProxyPasswordStorageTests {
         }
 
         TestRunner.run("ProxyPassword: un symlink non viene letto né chmodato") {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+            let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
             let workspace = try IntegrationWorkspace()
             defer {
                 workspace.cleanup()
@@ -141,7 +155,7 @@ enum ProxyPasswordStorageTests {
                 } else {
                     defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
                 }
-                unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                restoreEnv("VERTEX_PROXY_PASSWORD_FILE", prevPasswordFile)
             }
 
             let target = workspace.root.appendingPathComponent("target.txt")
@@ -182,7 +196,7 @@ enum ProxyPasswordStorageTests {
         }
 
         TestRunner.run("ProxyPassword: Portachiavi disattivato nel runner") {
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
             defer {
                 if let previous {
@@ -203,5 +217,68 @@ enum ProxyPasswordStorageTests {
                 )
             }
         }
+
+        #if DEBUG
+            TestRunner.run("ProxyPassword: migrazione con cache fredda e isolamento VERTEX_DATA_DIR") {
+                let defaults = Preferences.userDefaults
+                let previous = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+                let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
+                let prevDataDir = getenv("VERTEX_DATA_DIR").map { String(cString: $0) }
+                let workspace = try IntegrationWorkspace()
+                defer {
+                    workspace.cleanup()
+                    if let previous {
+                        defaults.set(previous, forKey: PrefKey.proxyPasswordInFile)
+                    } else {
+                        defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
+                    }
+                    restoreEnv("VERTEX_PROXY_PASSWORD_FILE", prevPasswordFile)
+                    restoreEnv("VERTEX_DATA_DIR", prevDataDir)
+                }
+
+                let dataDir = try workspace.directory("isolated-support")
+                unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                dataDir.path.withCString { _ = setenv("VERTEX_DATA_DIR", $0, 1) }
+                defaults.set(true, forKey: PrefKey.proxyPasswordInFile)
+
+                let defaultFile = dataDir.appendingPathComponent("proxy-password")
+                try TestRunner.assertTrue(Preferences.setProxyPassword("keep-me"))
+                try TestRunner.assertTrue(
+                    FileManager.default.fileExists(atPath: defaultFile.path),
+                    "Senza VERTEX_PROXY_PASSWORD_FILE il file deve risiedere in VERTEX_DATA_DIR"
+                )
+                try TestRunner.assertEqual(Preferences.proxyPassword, "keep-me")
+
+                // Simulate cold cache before migrating file -> Keychain (Keychain is disabled in tests):
+                // the source file must be read inside ioQueue and preserved when Keychain write fails.
+                Preferences.resetProxyPasswordCacheForTesting()
+                try TestRunner.assertFalse(Preferences.isProxyPasswordCacheLoaded)
+                let migratedToKeychain = Preferences.migrateProxyPasswordStorage(toFile: false, value: "")
+                try TestRunner.assertFalse(
+                    migratedToKeychain,
+                    "La migrazione verso Portachiavi disattivato deve fallire"
+                )
+                try TestRunner.assertEqual(
+                    try String(contentsOf: defaultFile, encoding: .utf8),
+                    "keep-me",
+                    "Una migrazione fallita non deve cancellare il file sorgente"
+                )
+
+                // Simulate cold cache before migrating Keychain -> file when Keychain read fails:
+                // must abort without creating or overwriting the target file.
+                let targetFile = workspace.root.appendingPathComponent("should-not-exist")
+                targetFile.path.withCString { _ = setenv("VERTEX_PROXY_PASSWORD_FILE", $0, 1) }
+                Preferences.resetProxyPasswordCacheForTesting()
+                let migratedToFile = Preferences.migrateProxyPasswordStorage(toFile: true, value: "")
+                try TestRunner.assertFalse(
+                    migratedToFile,
+                    "La migrazione da Portachiavi illeggibile con cache fredda deve fallire"
+                )
+                try TestRunner.assertFalse(
+                    FileManager.default.fileExists(atPath: targetFile.path),
+                    "Nessun file deve essere scritto quando la sorgente fallisce"
+                )
+            }
+        #endif
     }
 }

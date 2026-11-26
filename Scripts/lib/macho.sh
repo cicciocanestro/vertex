@@ -3,11 +3,27 @@
 # build-deps.sh and verify-bundle.sh so the checks cannot drift apart.
 
 macho_dependencies() {
-    otool -L "$1" | tail -n +2 | awk '{print $1}'
+    otool -L "$1" | tail -n +2 | awk '
+        /\(compatibility version / {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            sub(/[[:space:]]+\(compatibility version [^)]*\)$/, "", line)
+            if (line != "") print line
+        }
+    '
 }
 
 macho_rpaths() {
-    otool -l "$1" | awk '/LC_RPATH/{found=1} found && /path/{print $2; found=0}'
+    otool -l "$1" | awk '
+        $1 == "cmd" && $2 == "LC_RPATH" { in_rpath = 1; next }
+        in_rpath && $1 == "path" {
+            line = $0
+            sub(/^[[:space:]]*path[[:space:]]+/, "", line)
+            sub(/[[:space:]]+\(offset [0-9]+\)$/, "", line)
+            if (line != "") print line
+            in_rpath = 0
+        }
+    '
 }
 
 macho_minos() {

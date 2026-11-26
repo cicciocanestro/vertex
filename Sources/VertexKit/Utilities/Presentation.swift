@@ -40,7 +40,7 @@ package enum TrackerInput {
     /// the list; the comparison is case-insensitive like libtorrent's.
     package static func canAdd(_ raw: String, existing: [String]) -> Bool {
         let candidate = trimmed(raw)
-        guard candidate.contains("://") else { return false }
+        guard TorrentInput.isValidTrackerURL(candidate) else { return false }
         return !existing.contains {
             $0.caseInsensitiveCompare(candidate) == .orderedSame
         }
@@ -180,12 +180,15 @@ package enum DiagnosticsChecklist {
                 ))
         }
 
-        if !dhtEnabled {
+        if let reason = DiagnosticsPresentation.dhtDisabledReason(
+            isProxyActive: stats.isProxyActive,
+            dhtEnabled: dhtEnabled
+        ) {
             checks.append(
                 DiagnosticCheck(
                     id: "dht",
                     title: L("DHT"),
-                    detail: L("DHT disattivato"),
+                    detail: reason,
                     status: .info
                 ))
         } else if stats.dhtNodes > 0 {
@@ -223,6 +226,21 @@ package enum DiagnosticsPresentation {
         }
         if !upnpEnabled {
             return L("Disattivato in Impostazioni → Rete.")
+        }
+        return nil
+    }
+
+    /// Why the DHT cannot run at all: either disabled by the SOCKS5 proxy to
+    /// prevent clearnet DNS/UDP leaks, or turned off in Settings.
+    package static func dhtDisabledReason(
+        isProxyActive: Bool,
+        dhtEnabled: Bool
+    ) -> String? {
+        if isProxyActive {
+            return L("Disattivato dal proxy SOCKS5 per prevenire leak.")
+        }
+        if !dhtEnabled {
+            return L("DHT disattivato")
         }
         return nil
     }

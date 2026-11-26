@@ -23,13 +23,16 @@
 #include <libtorrent/torrent_info.hpp>
 #include <libtorrent/write_resume_data.hpp>
 
+using vertex::is_valid_tracker_url_syntax;
 using vertex::is_valid_utf8;
 using vertex::json_escape;
 using vertex::normalized_save_path;
+using vertex::trim_ascii_whitespace;
 
 #include <algorithm>
 #include <arpa/inet.h>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <exception>
 #include <cstdlib>
@@ -47,6 +50,7 @@ using vertex::normalized_save_path;
 #include <set>
 #include <string_view>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <unordered_set>
 #include <sstream>
 #include <string>
@@ -134,6 +138,68 @@ std::string torrent_id(lt::torrent_status const& status)
     return to_hex(status.info_hashes.get_best());
 }
 
+struct unique_fd
+{
+    int fd = -1;
+    explicit unique_fd(int value = -1) noexcept : fd(value) {}
+    ~unique_fd() { reset(); }
+    unique_fd(unique_fd const&) = delete;
+    unique_fd& operator=(unique_fd const&) = delete;
+
+    void reset(int value = -1) noexcept
+    {
+        if (fd >= 0)
+            ::close(fd);
+        fd = value;
+    }
+
+    int get() const noexcept { return fd; }
+    explicit operator bool() const noexcept { return fd >= 0; }
+};
+
+double sanitize_unit_interval(double value) noexcept
+{
+    if (!std::isfinite(value))
+        return 0.0;
+    return (std::min)((std::max)(value, 0.0), 1.0);
+}
+
+bool ensure_private_resume_dir(std::string const& path, std::string* error_out = nullptr)
+{
+    std::error_code ec;
+    auto const sym_st = fs::symlink_status(path, ec);
+    if (!ec && fs::is_symlink(sym_st))
+    {
+        if (error_out)
+            *error_out = path + ": Symbolic link not allowed";
+        return false;
+    }
+    ec.clear();
+    fs::create_directories(path, ec);
+    if (ec)
+    {
+        if (error_out)
+            *error_out = path + ": " + ec.message();
+        return false;
+    }
+    unique_fd dir_fd(::open(path.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+    if (!dir_fd || ::fchmod(dir_fd.get(), 0700) != 0)
+    {
+        int const err = errno;
+        if (error_out)
+            *error_out = path + ": " + std::strerror(err);
+        return false;
+    }
+    if (::access(path.c_str(), W_OK | X_OK) != 0)
+    {
+        int const err = errno;
+        if (error_out)
+            *error_out = path + ": " + std::strerror(err);
+        return false;
+    }
+    return true;
+}
+
 bool is_usable_directory(std::string const& path)
 {
     namespace fs = std::filesystem;
@@ -162,27 +228,33 @@ std::string portmap_transport_string(lt::portmap_transport transport)
 
 // Validates and canonicalizes an optional bind_address. Empty means all
 // interfaces; bracketed IPv6 literals ("[::1]") are unwrapped so
-// listen_interfaces_setting never produces "[[::1]]:port", and device names
-// or malformed strings are rejected.
+// listen_interfaces_setting never produces "[[::1]]:port", and device names,
+// unspecified addresses ("0.0.0.0", "::"), IPv6 link-local (fe80::/10) or
+// malformed strings are rejected.
 bool normalize_bind_address_c(const char* raw, std::string& out)
 {
     out.clear();
     if (!raw || !*raw)
         return true;
 
-    std::string candidate(raw);
-    auto const first = candidate.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos)
+    std::string candidate = trim_ascii_whitespace(raw);
+    if (candidate.empty())
         return true;
-    auto const last = candidate.find_last_not_of(" \t\r\n");
-    candidate = candidate.substr(first, last - first + 1);
     if (candidate.size() >= 2 && candidate.front() == '[' && candidate.back() == ']')
         candidate = candidate.substr(1, candidate.size() - 2);
 
     lt::error_code ec;
     auto const parsed = lt::make_address(candidate, ec);
-    if (ec)
+    if (ec || parsed.is_unspecified())
         return false;
+    if (parsed.is_v6())
+    {
+        auto const v6 = parsed.to_v6();
+        auto const bytes = v6.to_bytes();
+        bool const is_link_local = (bytes[0] == 0xfe) && ((bytes[1] & 0xc0) == 0x80);
+        if (is_link_local || v6.scope_id() != 0)
+            return false;
+    }
     out = parsed.to_string();
     return true;
 }
@@ -313,6 +385,11 @@ struct vt_session
     // present on any UP local interface: libtorrent's use_proxy listener binds
     // 0.0.0.0, so the bridge pauses the session itself to stay fail-closed.
     bool bound_interface_down = false;
+    // True when vt_fail_close_proxy halted the session due to invalid proxy
+    // settings in the UI/engine until vt_apply_proxy_settings resolves them.
+    bool proxy_config_guard_paused = false;
+    // Tracks whether lt::session is currently paused by either fail-closed guard.
+    bool session_guard_paused = false;
     portmap_state tcp;
     portmap_state udp;
     // Error whose TCP/UDP protocol could not be determined from the alert.
@@ -341,6 +418,14 @@ struct vt_session
     // snapshot reads this cache instead of calling status() on every handle:
     // with a large library that per-handle query dominates the poll.
     std::unordered_map<std::string, lt::torrent_status> status_cache;
+    // Ids invalidated by synchronous bridge commands (pause/resume/sequential/
+    // priorities): prevents an earlier in-flight state_update_alert from
+    // repopulating status_cache with stale pre-command flags before
+    // vt_snapshot_json refreshes the handle directly.
+    std::unordered_set<std::string> invalidated_status_ids;
+    // Per-torrent disk I/O errors reported by file_error_alert (libtorrent sets
+    // upload_mode without populating torrent_status::errc on write failures).
+    std::unordered_map<std::string, std::string> disk_errors;
     // Serializes every public entry point: the bridge owns mutable state
     // (errors, portmap, config) and libtorrent calls are synchronous. A caller
     // may therefore use one session from several threads.
@@ -401,11 +486,18 @@ lt::torrent_handle find_handle(vt_session* session, std::string const& id)
         }
     }
 
+    std::string lower_id = id;
+    for (char& ch : lower_id)
+    {
+        if (ch >= 'A' && ch <= 'F')
+            ch = static_cast<char>(ch - 'A' + 'a');
+    }
+
     for (auto const& handle : session->session->get_torrents())
     {
         try
         {
-            if (handle.is_valid() && to_hex(handle.info_hashes().get_best()) == id)
+            if (handle.is_valid() && to_hex(handle.info_hashes().get_best()) == lower_id)
                 return handle;
         }
         catch (...)
@@ -454,6 +546,99 @@ void unmark_removed(vt_session* session, std::string const& id)
         session->removed_ids.end());
 }
 
+void unmark_removed_hashes(vt_session* session, lt::info_hash_t const& hashes)
+{
+    if (!session)
+        return;
+    auto const best_id = to_hex(hashes.get_best());
+    if (!best_id.empty())
+    {
+        unmark_removed(session, best_id);
+        session->disk_errors.erase(best_id);
+    }
+    if (hashes.has_v1())
+    {
+        auto const v1_id = to_hex(hashes.v1);
+        if (!v1_id.empty() && v1_id != best_id)
+        {
+            unmark_removed(session, v1_id);
+            session->disk_errors.erase(v1_id);
+        }
+    }
+}
+
+void clear_disk_errors_for_handle(vt_session* session,
+                                  lt::torrent_handle const& handle,
+                                  std::string const& raw_id = {})
+{
+    if (!session)
+        return;
+    if (!raw_id.empty())
+        session->disk_errors.erase(raw_id);
+    if (!handle.is_valid())
+        return;
+    try
+    {
+        auto const hashes = handle.info_hashes();
+        auto const best_id = to_hex(hashes.get_best());
+        if (!best_id.empty())
+            session->disk_errors.erase(best_id);
+        if (hashes.has_v1())
+        {
+            auto const v1_id = to_hex(hashes.v1);
+            if (!v1_id.empty())
+                session->disk_errors.erase(v1_id);
+        }
+    }
+    catch (...)
+    {
+    }
+}
+
+void invalidate_status_cache(vt_session* session,
+                             lt::torrent_handle const& handle,
+                             std::string const& raw_id = {})
+{
+    if (!session)
+        return;
+    if (!raw_id.empty())
+    {
+        std::string lowered = raw_id;
+        for (char& ch : lowered)
+        {
+            if (ch >= 'A' && ch <= 'F')
+                ch = static_cast<char>(ch - 'A' + 'a');
+        }
+        session->status_cache.erase(raw_id);
+        session->status_cache.erase(lowered);
+        session->invalidated_status_ids.insert(lowered);
+    }
+    if (!handle.is_valid())
+        return;
+    try
+    {
+        auto const hashes = handle.info_hashes();
+        auto const best_id = to_hex(hashes.get_best());
+        if (!best_id.empty())
+        {
+            session->status_cache.erase(best_id);
+            session->invalidated_status_ids.insert(best_id);
+        }
+        if (hashes.has_v1())
+        {
+            auto const v1_id = to_hex(hashes.v1);
+            if (!v1_id.empty())
+            {
+                session->status_cache.erase(v1_id);
+                session->invalidated_status_ids.insert(v1_id);
+            }
+        }
+    }
+    catch (...)
+    {
+    }
+}
+
 void drop_all_peer_connections(vt_session* session);
 
 // When both bind_address and SOCKS5 proxy are active, libtorrent 2.1's
@@ -461,22 +646,19 @@ void drop_all_peer_connections(vt_session* session);
 // listen_interfaces for HTTP tracker SOCKS5 connections and suppressing
 // listen_failed_alert when the VPN interface goes down. Enforce fail-closed
 // semantics explicitly by pausing the libtorrent session whenever the bound
-// local address is absent, and resuming when it returns.
+// local address is absent (or when proxy_config_guard_paused is active), and
+// resuming only when all fail-closed guards are clear.
 void enforce_bound_proxy_guard(vt_session* session)
 {
     if (!session || !session->session)
         return;
 
-    if (session->proxy_type == 1 && !session->bind_address.empty())
+    bool const proxy_guarded = (session->proxy_type == 1) || session->proxy_config_guard_paused;
+    if (proxy_guarded && !session->bind_address.empty())
     {
         if (!is_local_address_present(session->bind_address))
         {
-            if (!session->bound_interface_down)
-            {
-                session->bound_interface_down = true;
-                session->session->pause();
-                drop_all_peer_connections(session);
-            }
+            session->bound_interface_down = true;
             if (session->listen_error.empty())
                 session->listen_error = session->bind_address + ": address not available";
         }
@@ -484,7 +666,6 @@ void enforce_bound_proxy_guard(vt_session* session)
         {
             session->bound_interface_down = false;
             session->listen_error.clear();
-            session->session->resume();
         }
     }
     else if (session->bound_interface_down)
@@ -492,6 +673,21 @@ void enforce_bound_proxy_guard(vt_session* session)
         session->bound_interface_down = false;
         if (session->bind_address.empty())
             session->listen_error.clear();
+    }
+
+    bool const should_pause = session->bound_interface_down || session->proxy_config_guard_paused;
+    if (should_pause)
+    {
+        if (!session->session_guard_paused)
+        {
+            session->session_guard_paused = true;
+            session->session->pause();
+            drop_all_peer_connections(session);
+        }
+    }
+    else if (session->session_guard_paused)
+    {
+        session->session_guard_paused = false;
         session->session->resume();
     }
 }
@@ -518,28 +714,47 @@ void apply_link_settings(lt::settings_pack& settings,
     settings.set_bool(lt::settings_pack::enable_lsd, enable_lsd != 0);
 }
 
-// Returns false when proxy_type asks for a proxy but no hostname was supplied.
-// The caller must fail instead of applying a clearnet configuration: a silent
-// fallback would leave the UI showing an active proxy that is not in use.
+// Returns false when proxy_type is outside {0, 1}, asks for a proxy without
+// a non-empty hostname, or specifies a port outside 1..65535. The caller must
+// fail instead of applying a clearnet or default-port configuration: a silent
+// fallback would leave the UI showing an active proxy that is not in use (or
+// connect to a local service on :1080 that was never configured).
 bool configure_proxy_pack(vt_session* session,
                           lt::settings_pack& settings,
                           int proxy_type,
                           const char* hostname,
                           int port,
                           const char* username,
-                          const char* password)
+                          const char* password,
+                          const char** out_error = nullptr)
 {
-    if (proxy_type == 1)
+    if (proxy_type != 0 && proxy_type != 1)
     {
-        if (!hostname || !*hostname)
-            return false;
+        if (out_error)
+            *out_error = "Parametri non validi";
+        return false;
     }
 
     if (proxy_type == 1)
     {
+        std::string const trimmed_host = trim_ascii_whitespace(hostname ? hostname : "");
+        if (trimmed_host.empty())
+        {
+            if (out_error)
+                *out_error = "Host proxy non valido";
+            return false;
+        }
+        if (port <= 0 || port > 65535)
+        {
+            if (out_error)
+                *out_error = "Porta proxy fuori intervallo (1–65535).";
+            return false;
+        }
+
         session->proxy_type = 1;
-        session->proxy_host = hostname;
-        session->proxy_port = (port > 0 && port <= 65535) ? port : 1080;
+        session->proxy_config_guard_paused = false;
+        session->proxy_host = trimmed_host;
+        session->proxy_port = port;
         session->proxy_user = (username && *username) ? username : "";
         session->proxy_password = (password && *password) ? password : "";
         session->proxy_error.clear();
@@ -579,6 +794,7 @@ bool configure_proxy_pack(vt_session* session,
     else
     {
         session->proxy_type = 0;
+        session->proxy_config_guard_paused = false;
         session->proxy_auth = false;
         session->proxy_host.clear();
         session->proxy_port = 0;
@@ -698,15 +914,25 @@ int add_torrent_common(vt_session* session,
     if (sequential)
         params.flags |= lt::torrent_flags::sequential_download;
 
-    auto const added_id = to_hex(params.info_hashes.get_best());
+    auto const added_hashes = params.info_hashes;
     lt::error_code add_ec;
-    session->session->add_torrent(std::move(params), add_ec);
+    auto const added_handle = session->session->add_torrent(std::move(params), add_ec);
     if (add_ec)
     {
         session->last_error = add_ec.message();
         return -1;
     }
-    unmark_removed(session, added_id);
+    unmark_removed_hashes(session, added_hashes);
+    if (added_handle.is_valid())
+    {
+        try
+        {
+            unmark_removed_hashes(session, added_handle.info_hashes());
+        }
+        catch (...)
+        {
+        }
+    }
     return 0;
 }
 
@@ -719,6 +945,10 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
 
     try
     {
+        std::error_code sym_ec;
+        if (fs::is_symlink(fs::symlink_status(resume_dir, sym_ec)))
+            return false;
+
         auto buffer = lt::write_resume_data_buf(params);
         auto id = to_hex(params.info_hashes.get_best());
         if (id.empty())
@@ -733,40 +963,35 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
         // followed and resume files (which hold tracker URLs and names) are
         // private to the user.
         auto write_and_sync_file = [&]() -> bool {
-            int const fd = ::open(
+            unique_fd fd(::open(
                 tmp_path.c_str(),
                 O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-                0600);
-            if (fd < 0)
+                0600));
+            if (!fd)
                 return false;
-            ::fchmod(fd, 0600);
+            ::fchmod(fd.get(), 0600);
             char const* ptr = buffer.data();
             std::size_t remaining = buffer.size();
             while (remaining > 0)
             {
-                ssize_t const written = ::write(fd, ptr, remaining);
+                ssize_t const written = ::write(fd.get(), ptr, remaining);
                 if (written < 0)
                 {
                     if (errno == EINTR)
                         continue;
-                    ::close(fd);
                     return false;
                 }
                 ptr += written;
                 remaining -= static_cast<std::size_t>(written);
             }
-            bool const ok = ::fsync(fd) == 0;
-            ::close(fd);
-            return ok;
+            return ::fsync(fd.get()) == 0;
         };
 
         // The directory is created once with the session; recreate it only if
         // it disappeared, so the periodic save does not hit the filesystem.
         if (!write_and_sync_file())
         {
-            std::error_code dir_ec;
-            fs::create_directories(resume_dir, dir_ec);
-            if (dir_ec || !write_and_sync_file())
+            if (!ensure_private_resume_dir(resume_dir) || !write_and_sync_file())
             {
                 std::error_code remove_ec;
                 fs::remove(tmp_path, remove_ec);
@@ -795,12 +1020,13 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
             }
         }
 
-        // Persist the directory entry too, so the new name survives a crash.
-        int const dir_fd = ::open(resume_dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        if (dir_fd >= 0)
+        // Persist the directory entry too, so the new name survives a crash,
+        // and keep the directory forced to 0700 without following symlinks.
+        unique_fd dir_fd(::open(resume_dir.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+        if (dir_fd)
         {
-            ::fsync(dir_fd);
-            ::close(dir_fd);
+            ::fchmod(dir_fd.get(), 0700);
+            ::fsync(dir_fd.get());
         }
         return true;
     }
@@ -810,44 +1036,64 @@ bool write_resume_impl(std::string const& resume_dir, lt::add_torrent_params con
     }
 }
 
-void append_torrent_json(std::ostringstream& out, lt::torrent_status const& status)
+void append_torrent_json(std::ostringstream& out,
+                         lt::torrent_status const& status,
+                         std::string const& fallback_disk_error)
 {
     std::int64_t total_size = status.total;
     if (total_size <= 0)
         total_size = status.total_done;
 
-    std::int64_t wanted = status.total_wanted > 0 ? status.total_wanted : total_size;
     std::int64_t size = (status.has_metadata && status.total_wanted > 0) ? status.total_wanted : total_size;
     std::int64_t downloaded = (status.has_metadata && status.total_wanted > 0) ? status.total_wanted_done : status.total_done;
 
-    std::int64_t remaining = (std::max)(std::int64_t(0), wanted - status.total_wanted_done);
+    // When the user deselects every file ("Nessuno", total_wanted == 0) on an
+    // incomplete torrent, libtorrent transitions to `is_finished = true`
+    // (`state_t::finished`) because 0 wanted pieces remain. Do not report that
+    // as a 100% completed download unless all torrent bytes are actually on disk.
+    bool const has_all_data = total_size > 0 && status.total_done >= total_size;
+    bool const all_skipped_incomplete = status.has_metadata && status.total_wanted == 0 && !has_all_data;
+    bool const reported_finished = !all_skipped_incomplete && (status.is_finished || status.is_seeding);
+    bool const reported_seeding = !all_skipped_incomplete && status.is_seeding;
+    double const progress = sanitize_unit_interval(all_skipped_incomplete ? 0.0 : double(status.progress));
+
+    std::int64_t remaining = (std::max)(std::int64_t(0), size - downloaded);
     std::int64_t eta = -1;
-    if (status.is_finished || status.is_seeding)
+    if (reported_finished || reported_seeding)
         eta = 0;
     else if (status.download_payload_rate > 0)
         eta = remaining / status.download_payload_rate;
 
+    std::int64_t const uploaded_bytes = (std::max)(
+        std::int64_t(0),
+        status.all_time_upload > 0 ? status.all_time_upload : status.total_payload_upload);
+
+    // Never divide by status.total_download (which includes handshake/request
+    // protocol chatter and resets on pause, causing pure seeders to jump past
+    // seedRatioLimit on the very first uploaded block).
     double ratio = 0.0;
     if (status.all_time_download > 0)
-        ratio = double(status.all_time_upload) / double(status.all_time_download);
-    else if (status.total_download > 0)
-        ratio = double(status.total_upload) / double(status.total_download);
+        ratio = double(uploaded_bytes) / double(status.all_time_download);
+    else if (has_all_data)
+        ratio = double(uploaded_bytes) / double(total_size);
+    if (!std::isfinite(ratio) || ratio < 0.0)
+        ratio = 0.0;
 
     out << "{";
     out << "\"id\":\"" << torrent_id(status) << "\",";
     out << "\"name\":\"" << json_escape(status.name) << "\",";
     out << "\"state_code\":" << static_cast<int>(status.state) << ",";
-    out << "\"progress\":" << std::fixed << std::setprecision(5) << double(status.progress) << ",";
+    out << "\"progress\":" << std::fixed << std::setprecision(5) << progress << ",";
     out << "\"size\":" << size << ",";
     out << "\"downloaded\":" << downloaded << ",";
-    out << "\"uploaded\":" << (status.all_time_upload > 0 ? status.all_time_upload : status.total_upload) << ",";
+    out << "\"uploaded\":" << uploaded_bytes << ",";
     out << "\"download_rate\":" << status.download_payload_rate << ",";
     out << "\"upload_rate\":" << status.upload_payload_rate << ",";
     out << "\"peers\":" << status.num_peers << ",";
     out << "\"seeds\":" << status.num_seeds << ",";
     out << "\"eta\":" << eta << ",";
-    out << "\"finished\":" << ((status.is_finished || status.is_seeding) ? "true" : "false") << ",";
-    out << "\"seeding\":" << (status.is_seeding ? "true" : "false") << ",";
+    out << "\"finished\":" << (reported_finished ? "true" : "false") << ",";
+    out << "\"seeding\":" << (reported_seeding ? "true" : "false") << ",";
     out << "\"paused\":" << (has_flag(status.flags, lt::torrent_flags::paused) ? "true" : "false") << ",";
     // paused + auto_managed is the queued state: libtorrent's auto-manager pauses
     // the torrents that do not fit in `active_limit`.
@@ -860,6 +1106,8 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
     std::string error_message;
     if (status.errc)
         error_message = status.errc.message();
+    else if (!fallback_disk_error.empty())
+        error_message = fallback_disk_error;
     out << "\"error\":\"" << json_escape(error_message) << "\"";
     out << "}";
 }
@@ -868,33 +1116,42 @@ void append_torrent_json(std::ostringstream& out, lt::torrent_status const& stat
 
 extern "C" {
 
-vt_session* vt_session_create_configured(const char* download_dir,
-                                         const char* resume_dir,
-                                         int listen_port,
-                                         int download_limit_bytes,
-                                         int upload_limit_bytes,
-                                         int enable_dht,
-                                         int enable_pex,
-                                         int enable_lsd,
-                                         int enable_upnp,
-                                         const char* bind_address,
-                                         int proxy_type,
-                                         const char* proxy_host,
-                                         int proxy_port,
-                                         const char* proxy_user,
-                                         const char* proxy_password,
-                                         const char* app_version,
-                                         char** error_message)
+vt_session* vt_session_create_configured_ex(const char* download_dir,
+                                            const char* resume_dir,
+                                            int listen_port,
+                                            int download_limit_bytes,
+                                            int upload_limit_bytes,
+                                            int enable_dht,
+                                            int enable_pex,
+                                            int enable_lsd,
+                                            int enable_upnp,
+                                            const char* bind_address,
+                                            int proxy_type,
+                                            const char* proxy_host,
+                                            int proxy_port,
+                                            const char* proxy_user,
+                                            const char* proxy_password,
+                                            int max_active,
+                                            const char* app_version,
+                                            char** error_message)
 {
     if (error_message)
         *error_message = nullptr;
 
     try
     {
+        if (proxy_type != 0 && proxy_type != 1)
+        {
+            if (error_message)
+                *error_message = ::strdup("Parametri non validi");
+            return nullptr;
+        }
+
         auto session = std::make_unique<vt_session>();
         session->default_save_path = download_dir ? download_dir : "";
         session->resume_dir = resume_dir ? resume_dir : "";
         session->listen_port = (listen_port > 0 && listen_port <= 65535) ? listen_port : 6881;
+        session->max_active = max_active > 0 ? max_active : 0;
         if (!normalize_bind_address_c(bind_address, session->bind_address))
         {
             if (error_message)
@@ -913,17 +1170,37 @@ vt_session* vt_session_create_configured(const char* download_dir,
                     *error_message = ::strdup((path + ": " + ec.message()).c_str());
                 return false;
             }
+            if (!fs::is_directory(path, ec) || ec)
+            {
+                if (error_message)
+                    *error_message = ::strdup((path + ": Not a directory").c_str());
+                return false;
+            }
+            if (::access(path.c_str(), W_OK | X_OK) != 0)
+            {
+                int const err = errno;
+                if (error_message)
+                    *error_message = ::strdup((path + ": " + std::strerror(err)).c_str());
+                return false;
+            }
             return true;
         };
 
         if (!session->default_save_path.empty()
             && !ensure_directory(session->default_save_path))
             return nullptr;
-        if (!session->resume_dir.empty()
-            && !ensure_directory(session->resume_dir))
-            return nullptr;
+        if (!session->resume_dir.empty())
+        {
+            std::string resume_err;
+            if (!ensure_private_resume_dir(session->resume_dir, &resume_err))
+            {
+                if (error_message)
+                    *error_message = ::strdup(resume_err.c_str());
+                return nullptr;
+            }
+        }
 
-        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.13";
+        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.14";
         lt::settings_pack settings;
         settings.set_str(lt::settings_pack::user_agent,
                          "Vertex/" + version_str + " libtorrent/" LIBTORRENT_VERSION);
@@ -946,13 +1223,17 @@ vt_session* vt_session_create_configured(const char* download_dir,
         {
             // Configure SOCKS5 and anonymous_mode in the initial settings_pack
             // BEFORE starting lt::session and loading resume files, so no packet
-            // can leave over clearnet during startup. A missing host is an error,
-            // not a reason to start in clearnet.
+            // can leave over clearnet during startup. A missing host or invalid
+            // port is an error, not a reason to start in clearnet or on :1080.
+            const char* proxy_config_error = nullptr;
             if (!configure_proxy_pack(session.get(), settings, proxy_type, proxy_host,
-                                      proxy_port, proxy_user, proxy_password))
+                                      proxy_port, proxy_user, proxy_password, &proxy_config_error))
             {
                 if (error_message)
-                    *error_message = ::strdup("Host proxy non valido");
+                {
+                    *error_message = ::strdup(
+                        proxy_config_error ? proxy_config_error : "Host proxy non valido");
+                }
                 return nullptr;
             }
         }
@@ -960,9 +1241,10 @@ vt_session* vt_session_create_configured(const char* download_dir,
                          "router.bittorrent.com:6881,dht.libtorrent.org:25401,"
                          "dht.transmissionbt.com:6881,router.utorrent.com:6881");
         settings.set_int(lt::settings_pack::connections_limit, 400);
-        settings.set_int(lt::settings_pack::active_limit, -1);
-        settings.set_int(lt::settings_pack::active_downloads, -1);
-        settings.set_int(lt::settings_pack::active_seeds, -1);
+        int const active_limit_value = max_active > 0 ? max_active : -1;
+        settings.set_int(lt::settings_pack::active_limit, active_limit_value);
+        settings.set_int(lt::settings_pack::active_downloads, active_limit_value);
+        settings.set_int(lt::settings_pack::active_seeds, active_limit_value);
         settings.set_bool(lt::settings_pack::dont_count_slow_torrents, false);
         settings.set_int(lt::settings_pack::alert_queue_size, 4096);
         settings.set_int(lt::settings_pack::stop_tracker_timeout, 1);
@@ -1010,23 +1292,24 @@ vt_session* vt_session_create_configured(const char* download_dir,
 
                 try
                 {
-                    // Open no-follow and bound the read on the file descriptor
-                    // itself so neither a swapped symlink nor a file growing past
-                    // MAX_RESUME_FILE can be read into memory.
+                    // Open no-follow with an RAII descriptor guard and bound
+                    // the read on the file descriptor itself so neither a
+                    // swapped symlink, a growing file, nor an allocation
+                    // exception can leak an fd or exceed MAX_RESUME_FILE.
                     constexpr std::size_t MAX_RESUME_FILE = 10 * 1024 * 1024; // 10 MiB
-                    int const fd = ::open(entry_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-                    if (fd < 0)
+                    unique_fd fd(::open(entry_path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
+                    if (!fd)
                         continue;
 
                     struct stat st{};
-                    if (::fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)
+                    if (::fstat(fd.get(), &st) != 0 || !S_ISREG(st.st_mode)
                         || st.st_size <= 0
                         || static_cast<std::uintmax_t>(st.st_size) > MAX_RESUME_FILE)
                     {
                         bool const bad_size = S_ISREG(st.st_mode)
                             && (st.st_size <= 0
                                 || static_cast<std::uintmax_t>(st.st_size) > MAX_RESUME_FILE);
-                        ::close(fd);
+                        fd.reset();
                         if (bad_size)
                             quarantine(entry_path);
                         continue;
@@ -1038,7 +1321,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
                     bool read_failed = false;
                     while (true)
                     {
-                        ssize_t const n = ::read(fd, chunk, sizeof(chunk));
+                        ssize_t const n = ::read(fd.get(), chunk, sizeof(chunk));
                         if (n < 0)
                         {
                             if (errno == EINTR)
@@ -1055,7 +1338,7 @@ vt_session* vt_session_create_configured(const char* download_dir,
                         }
                         data.insert(data.end(), chunk, chunk + n);
                     }
-                    ::close(fd);
+                    fd.reset();
 
                     if (read_failed || data.empty() || data.size() > MAX_RESUME_FILE)
                     {
@@ -1101,6 +1384,46 @@ vt_session* vt_session_create_configured(const char* download_dir,
             *error_message = ::strdup("Errore sconosciuto");
         return nullptr;
     }
+}
+
+vt_session* vt_session_create_configured(const char* download_dir,
+                                         const char* resume_dir,
+                                         int listen_port,
+                                         int download_limit_bytes,
+                                         int upload_limit_bytes,
+                                         int enable_dht,
+                                         int enable_pex,
+                                         int enable_lsd,
+                                         int enable_upnp,
+                                         const char* bind_address,
+                                         int proxy_type,
+                                         const char* proxy_host,
+                                         int proxy_port,
+                                         const char* proxy_user,
+                                         const char* proxy_password,
+                                         const char* app_version,
+                                         char** error_message)
+{
+    return vt_session_create_configured_ex(
+        download_dir,
+        resume_dir,
+        listen_port,
+        download_limit_bytes,
+        upload_limit_bytes,
+        enable_dht,
+        enable_pex,
+        enable_lsd,
+        enable_upnp,
+        bind_address,
+        proxy_type,
+        proxy_host,
+        proxy_port,
+        proxy_user,
+        proxy_password,
+        0,
+        app_version,
+        error_message
+    );
 }
 
 vt_session* vt_session_create_full(const char* download_dir,
@@ -1154,10 +1477,11 @@ void vt_session_destroy(vt_session* session)
         // (for instance by vt_set_file_priority, vt_set_trackers, vt_control or
         // the periodic timer). libtorrent clears need_save_resume_data() as soon
         // as the alert is posted, so skipping this drain would lose updates made
-        // right before Cmd-Q. If file_prio_alert or storage_moved_alert arrives
-        // here, request a fresh save and track its id in requested_ids so the
-        // loop below waits for the updated resume buffer.
-        {
+        // right before Cmd-Q. Run the same drain again right after inspecting
+        // get_torrents() to close the micro-race where libtorrent posts an
+        // in-flight save_resume_data_alert between the initial pop_alerts() and
+        // handle.need_save_resume_data() while pending == 0.
+        auto drain_ready_resume_alerts = [&](int* pending_counter) {
             std::vector<lt::alert*> pre_alerts;
             session->session->pop_alerts(&pre_alerts);
             for (auto* alert : pre_alerts)
@@ -1167,6 +1491,29 @@ void vt_session_destroy(vt_session* session)
                     auto const id = to_hex(saved->params.info_hashes.get_best());
                     if (!id.empty() && !is_removed(session, id) && saved->handle.is_valid())
                         write_resume_impl(session->resume_dir, saved->params);
+                    if (requested_ids.erase(id) > 0 && pending_counter)
+                        --(*pending_counter);
+                }
+                else if (auto* meta = lt::alert_cast<lt::metadata_received_alert>(alert))
+                {
+                    if (meta->handle.is_valid())
+                    {
+                        try
+                        {
+                            auto const hashes = meta->handle.info_hashes();
+                            unmark_removed_hashes(session, hashes);
+                            auto const id = to_hex(hashes.get_best());
+                            if (!id.empty() && !is_removed(session, id))
+                            {
+                                meta->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                                if (requested_ids.insert(id).second && pending_counter)
+                                    ++(*pending_counter);
+                            }
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
                 }
                 else if (auto* prio = lt::alert_cast<lt::file_prio_alert>(alert))
                 {
@@ -1178,7 +1525,8 @@ void vt_session_destroy(vt_session* session)
                             if (!id.empty() && !is_removed(session, id))
                             {
                                 prio->handle.save_resume_data(lt::torrent_handle::save_info_dict);
-                                requested_ids.insert(id);
+                                if (requested_ids.insert(id).second && pending_counter)
+                                    ++(*pending_counter);
                             }
                         }
                         catch (...)
@@ -1196,7 +1544,8 @@ void vt_session_destroy(vt_session* session)
                             if (!id.empty() && !is_removed(session, id))
                             {
                                 moved->handle.save_resume_data(lt::torrent_handle::save_info_dict);
-                                requested_ids.insert(id);
+                                if (requested_ids.insert(id).second && pending_counter)
+                                    ++(*pending_counter);
                             }
                         }
                         catch (...)
@@ -1205,7 +1554,9 @@ void vt_session_destroy(vt_session* session)
                     }
                 }
             }
-        }
+        };
+
+        drain_ready_resume_alerts(nullptr);
 
         for (auto const& handle : session->session->get_torrents())
         {
@@ -1222,8 +1573,9 @@ void vt_session_destroy(vt_session* session)
                 if (!session->resume_dir.empty())
                 {
                     std::error_code ec;
-                    resume_exists = fs::is_regular_file(
+                    auto const st = fs::symlink_status(
                         fs::path(session->resume_dir) / (id + ".resume"), ec);
+                    resume_exists = !ec && fs::is_regular_file(st);
                 }
                 if (!handle.need_save_resume_data() && resume_exists)
                     continue;
@@ -1237,6 +1589,7 @@ void vt_session_destroy(vt_session* session)
         }
 
         int pending = int(requested_ids.size());
+        drain_ready_resume_alerts(&pending);
         auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
         while (pending > 0)
         {
@@ -1316,6 +1669,7 @@ void vt_session_destroy(vt_session* session)
                 }
             }
         }
+        drain_ready_resume_alerts(nullptr);
     }
     catch (...)
     {
@@ -1396,6 +1750,22 @@ void vt_session_poll(vt_session* session)
                     }
                 }
             }
+            else if (auto* meta = lt::alert_cast<lt::metadata_received_alert>(alert))
+            {
+                if (meta->handle.is_valid())
+                {
+                    try
+                    {
+                        auto const hashes = meta->handle.info_hashes();
+                        unmark_removed_hashes(session, hashes);
+                        invalidate_status_cache(session, meta->handle);
+                        meta->handle.save_resume_data(lt::torrent_handle::save_info_dict);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
             else if (auto* prio = lt::alert_cast<lt::file_prio_alert>(alert))
             {
                 if (prio->handle.is_valid())
@@ -1431,6 +1801,27 @@ void vt_session_poll(vt_session* session)
             {
                 push_alert_error(session, move_failed->error.message());
             }
+            else if (auto* file_err = lt::alert_cast<lt::file_error_alert>(alert))
+            {
+                std::string const msg = file_err->error.message();
+                push_alert_error(session, msg);
+                if (file_err->handle.is_valid() && !msg.empty())
+                {
+                    try
+                    {
+                        auto const id = to_hex(file_err->handle.info_hashes().get_best());
+                        if (!id.empty() && !is_removed(session, id))
+                            session->disk_errors[id] = msg;
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+            else if (auto* delete_failed = lt::alert_cast<lt::torrent_delete_failed_alert>(alert))
+            {
+                push_alert_error(session, delete_failed->error.message());
+            }
             else if (auto* stats = lt::alert_cast<lt::session_stats_alert>(alert))
             {
                 auto counters = stats->counters();
@@ -1459,10 +1850,12 @@ void vt_session_poll(vt_session* session)
                 if (mapped->map_protocol == lt::portmap_protocol::tcp)
                 {
                     session->tcp.mark_mapped(mapped->external_port, transport, mapped->mapping);
+                    session->portmap_error.clear();
                 }
                 else if (mapped->map_protocol == lt::portmap_protocol::udp)
                 {
                     session->udp.mark_mapped(mapped->external_port, transport, mapped->mapping);
+                    session->portmap_error.clear();
                 }
             }
             else if (auto* map_error = lt::alert_cast<lt::portmap_error_alert>(alert))
@@ -1490,13 +1883,23 @@ void vt_session_poll(vt_session* session)
                     // libtorrent registers the TCP mapping before the UDP one for
                     // each port mapper, so slots 0 and 1 identify them even when
                     // the first attempt fails before any portmap_alert arrives.
+                    // Never overwrite an active mapping established by the other
+                    // transport (for instance NAT-PMP failing after UPnP mapped).
                     int const slot = static_cast<int>(map_error->mapping);
                     if (slot == 0)
-                        session->tcp.mark_failed(message);
+                    {
+                        if (!session->tcp.mapped)
+                            session->tcp.mark_failed(message);
+                    }
                     else if (slot == 1)
-                        session->udp.mark_failed(message);
-                    else
+                    {
+                        if (!session->udp.mapped)
+                            session->udp.mark_failed(message);
+                    }
+                    else if (!session->tcp.mapped && !session->udp.mapped)
+                    {
                         session->portmap_error = message;
+                    }
                 }
             }
             else if (auto* added = lt::alert_cast<lt::add_torrent_alert>(alert))
@@ -1510,7 +1913,11 @@ void vt_session_poll(vt_session* session)
             }
             else if (auto* socks = lt::alert_cast<lt::socks5_alert>(alert))
             {
-                if (socks->error)
+                // Ignore stale SOCKS5 alerts queued before the proxy was disabled
+                // or moved into proxy_config_guard_paused (vt_fail_close_proxy),
+                // otherwise a late connection error from the previous endpoint
+                // overwrites the fail-closed configuration reason.
+                if (socks->error && session->proxy_type == 1 && !session->proxy_config_guard_paused)
                     session->proxy_error = socks->error.message();
             }
             else if (auto* update = lt::alert_cast<lt::state_update_alert>(alert))
@@ -1519,7 +1926,9 @@ void vt_session_poll(vt_session* session)
                 {
                     try
                     {
-                        session->status_cache[to_hex(status.info_hashes.get_best())] = status;
+                        auto const id = to_hex(status.info_hashes.get_best());
+                        if (session->invalidated_status_ids.count(id) == 0)
+                            session->status_cache[id] = status;
                     }
                     catch (...)
                     {
@@ -1561,7 +1970,12 @@ char* vt_snapshot_json(vt_session* session)
         // live set; the snapshot repopulates it lazily.
         if (session->status_cache.size() > handles.size() * 2 + 64)
             session->status_cache.clear();
+        if (session->invalidated_status_ids.size() > handles.size() * 2 + 64)
+            session->invalidated_status_ids.clear();
+        if (session->disk_errors.size() > handles.size() * 2 + 64)
+            session->disk_errors.clear();
 
+        static std::string const empty_disk_error;
         out << "{\"torrents\":[";
         bool first = true;
         for (auto const& handle : handles)
@@ -1576,25 +1990,30 @@ char* vt_snapshot_json(vt_session* session)
                 std::string const cache_id = to_hex(handle.info_hashes().get_best());
                 lt::torrent_status status;
                 auto cached = session->status_cache.find(cache_id);
-                if (cached != session->status_cache.end())
+                if (cached != session->status_cache.end()
+                    && session->invalidated_status_ids.count(cache_id) == 0)
                 {
                     status = cached->second;
                 }
                 else
                 {
-                    // Cold cache (first poll after a resume): one direct query,
-                    // then the state_update_alert keeps the entry fresh.
+                    // Cold cache (first poll after a resume) or explicitly invalidated:
+                    // one direct query, then the state_update_alert keeps the entry fresh.
                     status = handle.status(query);
                     session->status_cache[cache_id] = status;
+                    session->invalidated_status_ids.erase(cache_id);
                 }
 
                 // Build the whole object in its own stream: `append_torrent_json`
                 // writes dozens of fields, and an exception in the middle of it
                 // would leave the shared document truncated, invalidating the
                 // snapshot (and the poll) for every other torrent as well.
+                auto const disk_err_it = session->disk_errors.find(cache_id);
+                std::string const& fallback_disk_error =
+                    disk_err_it != session->disk_errors.end() ? disk_err_it->second : empty_disk_error;
                 std::ostringstream entry;
                 entry.imbue(std::locale::classic());
-                append_torrent_json(entry, status);
+                append_torrent_json(entry, status, fallback_disk_error);
 
                 download_rate += status.download_payload_rate;
                 upload_rate += status.upload_payload_rate;
@@ -1635,7 +2054,7 @@ char* vt_snapshot_json(vt_session* session)
 
         try
         {
-            if (session->bound_interface_down)
+            if (session->bound_interface_down || session->proxy_config_guard_paused)
             {
                 session->actual_listen_port = 0;
                 session->listening = false;
@@ -1652,13 +2071,14 @@ char* vt_snapshot_json(vt_session* session)
             session->listening = false;
         }
 
+        bool const proxy_enabled = (session->proxy_type != 0) || session->proxy_config_guard_paused;
         out << "\"listen_actual_port\":" << session->actual_listen_port << ",";
         out << "\"listening\":" << (session->listening ? "true" : "false") << ",";
         out << "\"bind_address\":\"" << json_escape(session->bind_address) << "\",";
         out << "\"listen_error\":\"" << json_escape(session->listen_error) << "\",";
         out << "\"proxy\":{";
-        out << "\"enabled\":" << (session->proxy_type != 0 ? "true" : "false") << ",";
-        out << "\"type\":\"" << (session->proxy_type == 1 ? "SOCKS5" : "None") << "\",";
+        out << "\"enabled\":" << (proxy_enabled ? "true" : "false") << ",";
+        out << "\"type\":\"" << (proxy_enabled ? "SOCKS5" : "None") << "\",";
         out << "\"hostname\":\"" << json_escape(session->proxy_host) << "\",";
         out << "\"port\":" << session->proxy_port << ",";
         out << "\"auth\":" << (session->proxy_auth ? "true" : "false") << ",";
@@ -1720,7 +2140,7 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
                     auto index = lt::file_index_t(i);
                     std::int64_t size = storage.file_size(index);
                     std::int64_t done = i < int(progress.size()) ? progress[std::size_t(i)] : 0;
-                    double fraction = size > 0 ? double(done) / double(size) : 0.0;
+                    double const fraction = sanitize_unit_interval(size > 0 ? double(done) / double(size) : 0.0);
                     int priority = i < int(priorities.size())
                                        ? int(static_cast<std::uint8_t>(priorities[std::size_t(i)]))
                                        : 4;
@@ -1747,9 +2167,54 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
             auto const has_scrape = [](lt::announce_infohash const& info) {
                 return info.scrape_complete >= 0 || info.scrape_incomplete >= 0;
             };
-            auto const has_stats = [&](lt::announce_infohash const& info) {
-                return has_scrape(info) || !info.message.empty() || info.fails > 0;
+            auto const has_error_or_msg = [](lt::announce_infohash const& info) {
+                return !info.message.empty() || bool(info.last_error) || info.fails > 0;
             };
+            auto const select_protocol_infohash =
+                [&](lt::announce_endpoint const& ep) -> lt::announce_infohash const& {
+                auto const& v1 = ep.info_hashes[lt::protocol_version::V1];
+                auto const& v2 = ep.info_hashes[lt::protocol_version::V2];
+                if (!hashes.has_v1())
+                    return v2;
+                if (!hashes.has_v2())
+                    return v1;
+                if (!has_scrape(v1) && has_scrape(v2))
+                    return v2;
+                if (v1.fails > 0 && v2.fails == 0 && (v2.start_sent || v2.updating || has_scrape(v2)))
+                    return v2;
+                if (!has_scrape(v1) && !has_error_or_msg(v1) && has_error_or_msg(v2))
+                    return v2;
+                return v1;
+            };
+            auto const infohash_rank = [&](lt::announce_infohash const& info) -> int {
+                if (info.fails == 0 && has_scrape(info))
+                    return 5;
+                if (info.fails == 0 && info.start_sent)
+                    return 4;
+                if (info.fails == 0 && info.updating)
+                    return 3;
+                if (has_scrape(info))
+                    return 2;
+                if (has_error_or_msg(info))
+                    return 1;
+                return 0;
+            };
+            auto const is_better_infohash =
+                [&](lt::announce_infohash const& candidate, lt::announce_infohash const& current) {
+                int const cand_rank = infohash_rank(candidate);
+                int const curr_rank = infohash_rank(current);
+                if (cand_rank != curr_rank)
+                    return cand_rank > curr_rank;
+                if (candidate.fails != current.fails)
+                    return candidate.fails < current.fails;
+                bool const cand_msg = !candidate.message.empty() || bool(candidate.last_error);
+                bool const curr_msg = !current.message.empty() || bool(current.last_error);
+                if (cand_msg != curr_msg)
+                    return cand_msg;
+                return (candidate.scrape_complete + candidate.scrape_incomplete)
+                       > (current.scrape_complete + current.scrape_incomplete);
+            };
+
             bool first = true;
             for (auto const& tracker : trackers)
             {
@@ -1759,20 +2224,24 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
                 int seeds = -1;
                 if (!tracker.endpoints.empty())
                 {
-                    auto const& endpoint = tracker.endpoints.front();
-                    auto const& v1 = endpoint.info_hashes[lt::protocol_version::V1];
-                    auto const& v2 = endpoint.info_hashes[lt::protocol_version::V2];
-                    auto const* infohash = &v1;
-                    if (!hashes.has_v1())
-                        infohash = &v2;
-                    else if (hashes.has_v2() && !has_scrape(v1) && has_scrape(v2))
-                        infohash = &v2;
-                    else if (hashes.has_v2() && !has_stats(v1) && has_stats(v2))
-                        infohash = &v2;
-                    message = infohash->message;
-                    fails = infohash->fails;
-                    peers = infohash->scrape_incomplete;
-                    seeds = infohash->scrape_complete;
+                    lt::announce_infohash const* best = nullptr;
+                    for (auto const& endpoint : tracker.endpoints)
+                    {
+                        if (!endpoint.enabled)
+                            continue;
+                        auto const& info = select_protocol_infohash(endpoint);
+                        if (!best || is_better_infohash(info, *best))
+                            best = &info;
+                    }
+                    if (!best)
+                        best = &select_protocol_infohash(tracker.endpoints.front());
+
+                    message = best->message;
+                    if (message.empty() && best->last_error)
+                        message = best->last_error.message();
+                    fails = best->fails;
+                    peers = best->scrape_incomplete;
+                    seeds = best->scrape_complete;
                 }
 
                 if (!first)
@@ -1780,6 +2249,7 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
                 first = false;
                 out << "{";
                 out << "\"url\":\"" << json_escape(tracker.url) << "\",";
+                out << "\"tier\":" << static_cast<int>(tracker.tier) << ",";
                 out << "\"verified\":" << (tracker.verified ? "true" : "false") << ",";
                 out << "\"fails\":" << fails << ",";
                 out << "\"message\":\"" << json_escape(message) << "\",";
@@ -1816,7 +2286,7 @@ char* vt_detail_json(vt_session* session, const char* torrent_id_value)
                         endpoint_str = addr.to_string() + ":" + std::to_string(ep.port());
                 }
 
-                double const progress = (std::min)((std::max)(double(peer.progress), 0.0), 1.0);
+                double const progress = sanitize_unit_interval(double(peer.progress));
                 std::int64_t const down_rate = (std::max)(0, peer.payload_down_speed);
                 std::int64_t const up_rate = (std::max)(0, peer.payload_up_speed);
                 std::string const flags = format_peer_flags(peer);
@@ -2097,15 +2567,19 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // manager would restart the torrent on the next recalculation.
             handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.pause();
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::resume:
         {
-            // A torrent stopped by an error stays stopped until the error is cleared.
+            // A torrent stopped by an error or placed into upload_mode by a
+            // disk write failure (ENOSPC) stays stalled until cleared.
             auto const st = handle.status(lt::status_flags_t{});
             if (st.errc)
                 handle.clear_error();
+            handle.unset_flags(lt::torrent_flags::upload_mode);
+            clear_disk_errors_for_handle(session, handle, torrent_id_value);
             // Resuming hands the torrent back to the auto-manager: when no queue
             // limit is active (max_active <= 0), unpause immediately; when a
             // positive limit is active, let the auto-manager assign a slot so a
@@ -2113,6 +2587,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             handle.set_flags(lt::torrent_flags::auto_managed);
             if (session->max_active <= 0)
                 handle.resume();
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
         }
@@ -2122,8 +2597,11 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // by disabling auto_managed and resuming.
             if (handle.status(lt::status_flags_t{}).errc)
                 handle.clear_error();
+            handle.unset_flags(lt::torrent_flags::upload_mode);
+            clear_disk_errors_for_handle(session, handle, torrent_id_value);
             handle.unset_flags(lt::torrent_flags::auto_managed);
             handle.resume();
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
@@ -2131,6 +2609,7 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             // Leave the queue without starting: the torrent stays paused but
             // stops competing for an active slot.
             handle.unset_flags(lt::torrent_flags::auto_managed);
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
@@ -2140,11 +2619,13 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
 
         case ControlAction::sequentialOn:
             handle.set_flags(lt::torrent_flags::sequential_download);
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
         case ControlAction::sequentialOff:
             handle.unset_flags(lt::torrent_flags::sequential_download);
+            invalidate_status_cache(session, handle, torrent_id_value);
             handle.save_resume_data(lt::torrent_handle::save_info_dict);
             break;
 
@@ -2158,11 +2639,15 @@ int vt_control(vt_session* session, const char* torrent_id_value, const char* ac
             {
                 mark_removed(session, best_id);
                 session->status_cache.erase(best_id);
+                session->invalidated_status_ids.erase(best_id);
+                session->disk_errors.erase(best_id);
             }
             if (!v1_id.empty() && v1_id != best_id)
             {
                 mark_removed(session, v1_id);
                 session->status_cache.erase(v1_id);
+                session->invalidated_status_ids.erase(v1_id);
+                session->disk_errors.erase(v1_id);
             }
             if (command == ControlAction::removeFiles)
                 session->session->remove_torrent(handle, lt::session::delete_files);
@@ -2219,20 +2704,19 @@ int vt_set_trackers(vt_session* session, const char* torrent_id_value, const cha
         std::string line;
         while (std::getline(stream, line))
         {
-            auto const first = line.find_first_not_of(" \t\r\n");
-            if (first == std::string::npos)
+            line = trim_ascii_whitespace(line);
+            if (line.empty())
                 continue;
-            auto const last = line.find_last_not_of(" \t\r\n");
-            line = line.substr(first, last - first + 1);
 
             if (line.size() > max_url_length)
             {
                 session->last_error = "URL del tracker troppo lungo";
                 return -1;
             }
-            // Only absolute URLs: libtorrent would ignore anything else, and the
-            // user would see the tracker disappear after a restart.
-            if (line.find("://") == std::string::npos)
+            // Require a valid RFC 3986 scheme and a non-empty host: libtorrent
+            // would ignore malformed entries such as "://foo" and the user would
+            // see the tracker disappear after a restart.
+            if (!is_valid_tracker_url_syntax(line))
             {
                 session->last_error = "URL del tracker non valido";
                 return -1;
@@ -2284,6 +2768,7 @@ int vt_set_file_priority(vt_session* session, const char* torrent_id_value, int 
         }
         handle.file_priority(lt::file_index_t(file_index),
                              lt::download_priority_t(std::uint8_t(priority)));
+        invalidate_status_cache(session, handle, torrent_id_value);
         handle.save_resume_data(lt::torrent_handle::save_info_dict);
         return 0;
     }
@@ -2320,6 +2805,7 @@ int vt_set_all_file_priorities(vt_session* session, const char* torrent_id_value
             std::size_t((std::max)(0, count)),
             lt::download_priority_t(std::uint8_t(priority)));
         handle.prioritize_files(priorities);
+        invalidate_status_cache(session, handle, torrent_id_value);
         handle.save_resume_data(lt::torrent_handle::save_info_dict);
         return 0;
     }
@@ -2432,10 +2918,26 @@ int vt_apply_settings_ex(vt_session* session,
             session->upnp_enabled = enable_upnp != 0;
             reset_portmap_state(session);
         }
-        bool const effective_dht = session->dht_enabled && (session->proxy_type == 0);
-        bool const effective_upnp = (enable_upnp != 0) && (session->proxy_type == 0);
+        bool const effective_dht = session->dht_enabled
+            && (session->proxy_type == 0)
+            && !session->proxy_config_guard_paused;
+        bool const effective_upnp = (enable_upnp != 0)
+            && (session->proxy_type == 0)
+            && !session->proxy_config_guard_paused;
+        if (!effective_dht)
+            session->dht_nodes = 0;
         apply_link_settings(settings, download_limit_bytes, upload_limit_bytes,
                             effective_dht ? 1 : 0, effective_upnp ? 1 : 0, enable_lsd);
+
+        // Enforce fail-closed pause BEFORE applying settings when pinned to an
+        // absent local interface with a proxy active, closing the race window
+        // before session->pause() takes effect.
+        if (((session->proxy_type == 1) || session->proxy_config_guard_paused)
+            && !session->bind_address.empty()
+            && !is_local_address_present(session->bind_address))
+        {
+            enforce_bound_proxy_guard(session);
+        }
         session->session->apply_settings(settings);
         if (bind_changed)
             drop_all_peer_connections(session);
@@ -2458,6 +2960,7 @@ int vt_set_active_limit(vt_session* session, int max_active)
         // One positive value caps downloads, seeds and the total at the same
         // number: min(active_downloads + active_seeds, active_limit) == N.
         int const value = max_active > 0 ? max_active : -1;
+        int const normalized_limit = max_active > 0 ? max_active : 0;
 
         lt::settings_pack settings;
         settings.set_int(lt::settings_pack::active_limit, value);
@@ -2468,7 +2971,26 @@ int vt_set_active_limit(vt_session* session, int max_active)
         settings.set_bool(lt::settings_pack::dont_count_slow_torrents, false);
         session->session->apply_settings(settings);
 
-        session->max_active = max_active;
+        if (normalized_limit != session->max_active)
+        {
+            session->status_cache.clear();
+            for (auto const& h : session->session->get_torrents())
+            {
+                try
+                {
+                    if (h.is_valid())
+                    {
+                        auto const id = to_hex(h.info_hashes().get_best());
+                        if (!id.empty())
+                            session->invalidated_status_ids.insert(id);
+                    }
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+        session->max_active = normalized_limit;
         return 0;
     }
     VT_CATCH_ALL(session, -1)
@@ -2487,7 +3009,14 @@ int vt_apply_proxy_settings(vt_session* session,
 
     try
     {
+        if (proxy_type != 0 && proxy_type != 1)
+        {
+            session->last_error = "Parametri non validi";
+            return -1;
+        }
+
         bool const was_active = session->proxy_type == 1;
+        bool const was_guard_paused = session->proxy_config_guard_paused;
         std::string const previous_host = session->proxy_host;
         int const previous_port = session->proxy_port;
         bool const previous_auth = session->proxy_auth;
@@ -2495,15 +3024,27 @@ int vt_apply_proxy_settings(vt_session* session,
         std::string const previous_password = session->proxy_password;
 
         lt::settings_pack settings;
-        if (!configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password))
+        const char* proxy_config_error = nullptr;
+        if (!configure_proxy_pack(session, settings, proxy_type, hostname, port, username, password,
+                                  &proxy_config_error))
         {
-            session->last_error = "Host proxy non valido";
+            session->last_error = proxy_config_error ? proxy_config_error : "Host proxy non valido";
             return -1;
+        }
+
+        // Pause BEFORE applying proxy settings if the session is pinned to a
+        // local address that is currently absent, preventing any packet over
+        // libtorrent's 0.0.0.0 proxy listener before the guard runs.
+        if (session->proxy_type == 1 && !session->bind_address.empty()
+            && !is_local_address_present(session->bind_address))
+        {
+            enforce_bound_proxy_guard(session);
         }
         session->session->apply_settings(settings);
 
         bool const now_active = session->proxy_type == 1;
         bool const endpoint_changed = was_active != now_active
+            || was_guard_paused
             || (now_active
                 && (previous_host != session->proxy_host
                     || previous_port != session->proxy_port
@@ -2523,7 +3064,49 @@ void vt_clear_proxy_error(vt_session* session)
     if (!session)
         return;
     VT_LOCK_SESSION(session);
-    session->proxy_error.clear();
+    if (!session->proxy_config_guard_paused)
+        session->proxy_error.clear();
+}
+
+void vt_fail_close_proxy(vt_session* session, const char* error_reason)
+{
+    if (!session || !session->session)
+        return;
+    VT_LOCK_SESSION(session);
+
+    try
+    {
+        session->proxy_type = 0;
+        session->proxy_config_guard_paused = true;
+        session->proxy_auth = false;
+        session->proxy_host.clear();
+        session->proxy_port = 0;
+        session->proxy_user.clear();
+        session->proxy_password.clear();
+        session->proxy_error = (error_reason && *error_reason)
+            ? error_reason
+            : "Host proxy non valido";
+        session->dht_nodes = 0;
+        reset_portmap_state(session);
+
+        enforce_bound_proxy_guard(session);
+
+        lt::settings_pack settings;
+        settings.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+        settings.set_str(lt::settings_pack::proxy_hostname, "");
+        settings.set_int(lt::settings_pack::proxy_port, 0);
+        settings.set_str(lt::settings_pack::proxy_username, "");
+        settings.set_str(lt::settings_pack::proxy_password, "");
+        settings.set_bool(lt::settings_pack::anonymous_mode, true);
+        settings.set_bool(lt::settings_pack::enable_dht, false);
+        settings.set_bool(lt::settings_pack::enable_upnp, false);
+        settings.set_bool(lt::settings_pack::enable_natpmp, false);
+        session->session->apply_settings(settings);
+        drop_all_peer_connections(session);
+    }
+    catch (...)
+    {
+    }
 }
 
 char* vt_normalize_save_path(const char* requested, const char* fallback)
@@ -2554,7 +3137,38 @@ int vt_set_default_save_path(vt_session* session, const char* path)
 
     try
     {
-        fs::path target(path);
+        std::string const trimmed = trim_ascii_whitespace(path);
+        if (trimmed.empty())
+        {
+            session->last_error = "Parametri non validi";
+            return -1;
+        }
+
+        std::string pre_check = trimmed;
+        if (pre_check == "~" || pre_check.rfind("~/", 0) == 0)
+        {
+            char const* home = std::getenv("HOME");
+            if (home && *home)
+                pre_check = std::string(home) + pre_check.substr(1);
+        }
+        {
+            std::error_code pre_ec;
+            auto const pre_st = fs::status(fs::path(pre_check), pre_ec);
+            if (!pre_ec && !fs::is_directory(pre_st))
+            {
+                session->last_error = "La destinazione non è una cartella.";
+                return -1;
+            }
+        }
+
+        std::string const normalized = normalized_save_path(trimmed, "");
+        if (normalized.empty())
+        {
+            session->last_error = "Parametri non validi";
+            return -1;
+        }
+
+        fs::path target(normalized);
         std::error_code ec;
         fs::create_directories(target, ec);
         if (ec)

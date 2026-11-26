@@ -57,7 +57,11 @@ detach_image() {
     if diskutil eject "$1" >/dev/null 2>&1; then
         return 0
     fi
-    hdiutil detach "$1" >/dev/null 2>&1 || true
+    if hdiutil detach "$1" >/dev/null 2>&1; then
+        return 0
+    fi
+    sleep 1
+    hdiutil detach -force "$1" >/dev/null 2>&1 || true
 }
 
 MOUNT="$(mktemp -d "${TMPDIR:-/tmp}/vertex-notarize.XXXXXX")"

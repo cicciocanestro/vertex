@@ -27,64 +27,126 @@ extension TorrentEngine {
     func applySettings() {
         guard !isShuttingDown, !isRestartingSession, hasSession else { return }
 
+        let fallback = lastAppliedConfiguration
+        var proxyFailCloseReason: String?
         let configuration: SessionConfiguration
         if let configurationOverride {
             configuration = configurationOverride
-        } else {
-            let defaults = UserDefaults.standard
-            let rawPort = defaults.integer(forKey: PrefKey.listenPort)
-            guard Preferences.isValidPort(rawPort) else {
-                showToast(
-                    L("Porta non valida"),
-                    kind: .error,
-                    detail: L("Inserisci un valore tra 1 e 65535.")
-                )
-                return
-            }
-            guard Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.downloadLimitKB)),
-                Preferences.isValidLimitKB(defaults.integer(forKey: PrefKey.uploadLimitKB))
-            else {
-                showToast(
-                    L("Limite non valido"),
-                    kind: .error,
-                    detail: L("Inserisci 0 o un valore positivo entro il massimo consentito.")
-                )
-                return
-            }
-            guard Preferences.isValidActiveLimit(defaults.integer(forKey: PrefKey.maxActiveTorrents)) else {
-                showToast(
-                    L("Numero di torrent attivi non valido"),
-                    kind: .error,
-                    detail: L("Inserisci 0 (illimitato) o un valore tra 1 e 1000.")
-                )
-                return
-            }
-            guard Preferences.isValidSeedRatio(defaults.double(forKey: PrefKey.seedRatioLimit)) else {
-                showToast(
-                    L("Limite rapporto non valido"),
-                    kind: .error,
-                    detail: L("Inserisci 0 (illimitato) o un valore positivo fino a 100.")
-                )
-                return
-            }
-            if defaults.bool(forKey: PrefKey.proxyEnabled) {
-                let rawProxyHost =
-                    (defaults.string(forKey: PrefKey.proxyHost) ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !rawProxyHost.isEmpty else {
+            if configuration.proxyEnabled {
+                let trimmedHost = configuration.proxyHost.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedHost.isEmpty {
+                    proxyFailCloseReason = "Host proxy non valido"
                     showToast(L("Host proxy non valido"), kind: .error)
-                    return
-                }
-                let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
-                guard Preferences.isValidPort(rawProxyPort) else {
+                } else if !Preferences.isValidPort(Int(configuration.proxyPort)) {
+                    proxyFailCloseReason = "Porta proxy fuori intervallo (1–65535)."
                     showToast(
                         L("Porta proxy non valida"),
                         kind: .error,
                         detail: L("Inserisci un valore tra 1 e 65535.")
                     )
-                    return
                 }
             }
+        } else {
+            let defaults = Preferences.userDefaults
+
+            let rawPort = defaults.integer(forKey: PrefKey.listenPort)
+            let port: Int32
+            if Preferences.isValidPort(rawPort) {
+                port = Int32(rawPort)
+            } else {
+                showToast(
+                    L("Porta non valida"),
+                    kind: .error,
+                    detail: L("Inserisci un valore tra 1 e 65535.")
+                )
+                port = fallback?.port ?? Int32(PrefDefault.listenPort)
+            }
+
+            let rawDownloadKB = defaults.integer(forKey: PrefKey.downloadLimitKB)
+            let rawUploadKB = defaults.integer(forKey: PrefKey.uploadLimitKB)
+            let validDownloadKB = Preferences.isValidLimitKB(rawDownloadKB)
+            let validUploadKB = Preferences.isValidLimitKB(rawUploadKB)
+            if !validDownloadKB || !validUploadKB {
+                showToast(
+                    L("Limite non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 o un valore positivo entro il massimo consentito.")
+                )
+            }
+            let downloadLimit =
+                validDownloadKB
+                ? Preferences.limitBytes(fromKB: rawDownloadKB)
+                : (fallback?.downloadLimit ?? Preferences.limitBytes(fromKB: PrefDefault.downloadLimitKB))
+            let uploadLimit =
+                validUploadKB
+                ? Preferences.limitBytes(fromKB: rawUploadKB)
+                : (fallback?.uploadLimit ?? Preferences.limitBytes(fromKB: PrefDefault.uploadLimitKB))
+
+            let rawMaxActive = defaults.integer(forKey: PrefKey.maxActiveTorrents)
+            let maxActive: Int32
+            if Preferences.isValidActiveLimit(rawMaxActive) {
+                maxActive = Int32(rawMaxActive)
+            } else {
+                showToast(
+                    L("Numero di torrent attivi non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 (illimitato) o un valore tra 1 e 1000.")
+                )
+                maxActive = fallback?.maxActive ?? Int32(PrefDefault.maxActiveTorrents)
+            }
+
+            let rawSeedRatio = defaults.double(forKey: PrefKey.seedRatioLimit)
+            let seedRatioLimit: Double
+            if Preferences.isValidSeedRatio(rawSeedRatio) {
+                seedRatioLimit = Preferences.clampedSeedRatio(rawSeedRatio)
+            } else {
+                showToast(
+                    L("Limite rapporto non valido"),
+                    kind: .error,
+                    detail: L("Inserisci 0 (illimitato) o un valore positivo fino a 100.")
+                )
+                seedRatioLimit = fallback?.seedRatioLimit ?? PrefDefault.seedRatioLimit
+            }
+
+            let rawBind = (defaults.string(forKey: PrefKey.bindAddress) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let bindAddress: String
+            if rawBind.isEmpty {
+                bindAddress = ""
+            } else if Preferences.isValidIPv4(rawBind) {
+                bindAddress = rawBind
+            } else {
+                showToast(L("Parametri non validi."), kind: .error)
+                bindAddress = fallback?.bindAddress ?? PrefDefault.bindAddress
+            }
+
+            let proxyEnabled = defaults.bool(forKey: PrefKey.proxyEnabled)
+            let rawProxyHost = (defaults.string(forKey: PrefKey.proxyHost) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let rawProxyPort = defaults.integer(forKey: PrefKey.proxyPort)
+            if proxyEnabled {
+                if rawProxyHost.isEmpty {
+                    proxyFailCloseReason = "Host proxy non valido"
+                    showToast(L("Host proxy non valido"), kind: .error)
+                } else if !Preferences.isValidPort(rawProxyPort) {
+                    proxyFailCloseReason = "Porta proxy fuori intervallo (1–65535)."
+                    showToast(
+                        L("Porta proxy non valida"),
+                        kind: .error,
+                        detail: L("Inserisci un valore tra 1 e 65535.")
+                    )
+                }
+            }
+            let proxyHost = proxyEnabled ? rawProxyHost : (rawProxyHost.isEmpty ? PrefDefault.proxyHost : rawProxyHost)
+            let proxyPort: Int32
+            if Preferences.isValidPort(rawProxyPort) {
+                proxyPort = Int32(rawProxyPort)
+            } else if proxyEnabled {
+                proxyPort = Int32(clamping: rawProxyPort)
+            } else {
+                proxyPort = Int32(PrefDefault.proxyPort)
+            }
+
             let rawDownload = defaults.string(forKey: PrefKey.downloadPath)
             let resolvedDownload: String
             if rawDownload == cachedRawDownloadPath, let cachedResolvedDownloadPath {
@@ -94,10 +156,29 @@ extension TorrentEngine {
                 cachedRawDownloadPath = rawDownload
                 cachedResolvedDownloadPath = resolvedDownload
             }
-            configuration = Self.currentConfiguration(resolvedDownloadPathOverride: resolvedDownload)
+
+            configuration = SessionConfiguration(
+                downloadPath: resolvedDownload,
+                resumePath: Preferences.resumeDirectory.path,
+                port: port,
+                maxActive: maxActive,
+                downloadLimit: downloadLimit,
+                uploadLimit: uploadLimit,
+                seedRatioLimit: seedRatioLimit,
+                dht: defaults.bool(forKey: PrefKey.dhtEnabled),
+                pex: defaults.bool(forKey: PrefKey.pexEnabled),
+                lsd: defaults.bool(forKey: PrefKey.lsdEnabled),
+                upnp: defaults.bool(forKey: PrefKey.upnpEnabled),
+                bindAddress: bindAddress,
+                proxyEnabled: proxyEnabled,
+                proxyHost: proxyHost,
+                proxyPort: proxyPort,
+                proxyUser: defaults.string(forKey: PrefKey.proxyUser) ?? "",
+                proxyPassword: proxyEnabled ? Preferences.proxyPassword : ""
+            )
         }
 
-        if configuration.pex != sessionPexEnabled {
+        if configuration.pex != sessionPexEnabled, proxyFailCloseReason == nil {
             restartSessionForPeerExchange(configuration: configuration, oldPex: sessionPexEnabled)
             return
         }
@@ -114,7 +195,8 @@ extension TorrentEngine {
         // This keeps a debounced settings edit from touching the filesystem or
         // rebinding the listening port when the value is unchanged.
         let previous = lastAppliedConfiguration
-        if configuration == previous { return }
+        let previousFailClose = lastAppliedProxyFailCloseReason
+        if configuration == previous, proxyFailCloseReason == previousFailClose { return }
 
         let downloadPathChanged: Bool
         let networkChanged: Bool
@@ -132,7 +214,8 @@ extension TorrentEngine {
                 || previous.lsd != configuration.lsd
                 || previous.bindAddress != configuration.bindAddress
             proxyChanged =
-                previous.proxyEnabled != configuration.proxyEnabled
+                proxyFailCloseReason != previousFailClose
+                || previous.proxyEnabled != configuration.proxyEnabled
                 || previous.proxyHost != configuration.proxyHost
                 || previous.proxyPort != configuration.proxyPort
                 || previous.proxyUser != configuration.proxyUser
@@ -146,6 +229,7 @@ extension TorrentEngine {
 
         guard downloadPathChanged || networkChanged || queueChanged || proxyChanged else {
             lastAppliedConfiguration = configuration
+            lastAppliedProxyFailCloseReason = proxyFailCloseReason
             if configuration.seedRatioLimit > 0 {
                 poll()
             }
@@ -154,11 +238,13 @@ extension TorrentEngine {
 
         if proxyChanged || networkChanged {
             proxyProbeGeneration += 1
-            if !configuration.proxyEnabled {
-                proxyHealthError = nil
-            }
+            isProxyProbeInFlight = false
+            proxyHealthError = nil
+            proxyCheckTick = 9
         }
 
+        let applyGeneration = sessionGeneration
+        let failCloseReason = proxyFailCloseReason
         isApplyingSettings = true
         needsSettingsReapply = false
         let queued = enqueueSessionOperation(
@@ -195,6 +281,12 @@ extension TorrentEngine {
                         return netResult
                     }
                 }
+                if let failReason = failCloseReason {
+                    failReason.withCString { reasonPointer in
+                        vt_fail_close_proxy(session, reasonPointer)
+                    }
+                    return 0
+                }
                 if proxyChanged {
                     return configuration.proxyHost.withCString { hostPointer in
                         configuration.proxyUser.withCString { userPointer in
@@ -214,9 +306,10 @@ extension TorrentEngine {
                 return 0
             },
             onSuccess: { [weak self] in
-                guard let self else { return }
+                guard let self, self.sessionGeneration == applyGeneration, !self.isShuttingDown else { return }
                 self.isApplyingSettings = false
                 self.lastAppliedConfiguration = configuration
+                self.lastAppliedProxyFailCloseReason = failCloseReason
                 self.poll()
                 if self.needsSettingsReapply {
                     self.needsSettingsReapply = false
@@ -224,7 +317,7 @@ extension TorrentEngine {
                 }
             },
             onFailure: { [weak self] message in
-                guard let self else { return }
+                guard let self, self.sessionGeneration == applyGeneration, !self.isShuttingDown else { return }
                 self.isApplyingSettings = false
                 self.showToast(L("Impostazioni non applicate"), kind: .error, detail: message)
                 if self.needsSettingsReapply {
@@ -258,7 +351,12 @@ extension TorrentEngine {
             action: action
         )
         toast = message
-        if kind == .error { recordErrorToast(text) }
+        if kind == .error {
+            recordErrorToast(text)
+            if let detail, !detail.isEmpty {
+                recordErrorToast(detail)
+            }
+        }
         // VoiceOver cannot see the toast overlay: post it as an announcement so
         // errors and completions are not silent for screen-reader users.
         if kind != .info { announce(text) }
@@ -283,9 +381,17 @@ extension TorrentEngine {
         // thread and hops back through DispatchQueue.main (Swift 6.1 rejects
         // capturing a task-isolated self in `Task.detached` + MainActor.run).
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            Preferences.migrateProxyPasswordStorage(toFile: inFile, value: value)
+            let migrated = Preferences.migrateProxyPasswordStorage(toFile: inFile, value: value)
             DispatchQueue.main.async {
-                self?.applySettingsNow()
+                guard let self else { return }
+                if !migrated {
+                    Preferences.userDefaults.set(!inFile, forKey: PrefKey.proxyPasswordInFile)
+                    self.showToast(
+                        L(inFile ? "Operazione non riuscita." : "Impossibile salvare la password nel Portachiavi"),
+                        kind: .error
+                    )
+                }
+                self.applySettingsNow()
             }
         }
     }
@@ -324,9 +430,12 @@ extension TorrentEngine {
         }
     }
 
-    nonisolated static func preparedDestination(_ requested: String?) -> (path: String?, error: String?) {
-        let raw = requested ?? UserDefaults.standard.string(forKey: PrefKey.downloadPath)
-        let path = Preferences.resolvedDownloadPath(raw)
+    nonisolated static func preparedDestination(
+        _ requested: String?,
+        fallbackDownloadPath: String? = nil
+    ) -> (path: String?, error: String?) {
+        let raw = requested ?? fallbackDownloadPath ?? Preferences.userDefaults.string(forKey: PrefKey.downloadPath)
+        let path = Preferences.resolvedDownloadPath(raw, fallback: fallbackDownloadPath)
         let fileManager = FileManager.default
 
         do {
@@ -363,6 +472,8 @@ extension TorrentEngine {
         // The bridge reports a proxy request without a host in Italian: without
         // this branch the English UI would show the raw C++ string.
         if lower.contains("host proxy non valido") { return L("Host proxy non valido") }
+        if lower.contains("porta proxy") { return L("Porta proxy non valida") }
+        if lower.contains("cross-device") { return L("Errore di lettura o scrittura sul disco.") }
         if lower.contains("invalid argument") { return L("Parametri non validi.") }
         if lower.contains("invalid")
             || lower.contains("parse")
@@ -404,6 +515,8 @@ extension TorrentEngine {
         case "URL del tracker troppo lungo": return L("URL del tracker troppo lungo")
         case "URL del tracker non valido": return L("URL del tracker non valido")
         case "Troppi tracker": return L("Troppi tracker")
+        case "Host proxy non valido": return L("Host proxy non valido")
+        case "Porta proxy fuori intervallo (1–65535).": return L("Porta proxy non valida")
         case "Errore sconosciuto": return L("Errore sconosciuto")
         default: return RuntimeErrorLocalizer.torrent(value)
         }

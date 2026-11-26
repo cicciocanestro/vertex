@@ -21,13 +21,18 @@ struct StatusBarView: View {
 
         HStack(spacing: 13) {
             HStack(spacing: 7) {
-                PulsingDot(color: dhtEnabled ? Theme.green : palette.tertiary)
+                PulsingDot(color: isDHTActive ? Theme.green : palette.tertiary, active: isDHTActive)
                 Text(dhtLabel)
                     .font(Typography.smallMediumText)
                     .foregroundStyle(palette.secondary)
                     .lineLimit(1)
             }
             .fixedSize(horizontal: true, vertical: false)
+            .help(
+                engine.stats.isProxyActive && dhtEnabled
+                    ? L("Disattivato dal proxy SOCKS5 per prevenire leak.")
+                    : ""
+            )
 
             Hairline(palette: palette, axis: .vertical).frame(height: 14)
 
@@ -151,8 +156,12 @@ struct StatusBarView: View {
         }
     }
 
+    private var isDHTActive: Bool {
+        dhtEnabled && !engine.stats.isProxyActive
+    }
+
     private var dhtLabel: String {
-        if !dhtEnabled { return L("DHT disattivato") }
+        if !isDHTActive { return L("DHT disattivato") }
         if engine.stats.dhtNodes > 0 {
             return engine.stats.dhtNodes == 1
                 ? LF("DHT · %ld nodo", engine.stats.dhtNodes)

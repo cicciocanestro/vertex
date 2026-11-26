@@ -56,7 +56,9 @@ struct NetworkDiagnosticsView: View {
                     listenErrorCard(palette)
                     mappingCard(palette)
                     reachabilityCard(palette)
-                    instructions(palette)
+                    if !engine.stats.isProxyActive {
+                        instructions(palette)
+                    }
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 4)
@@ -177,14 +179,16 @@ struct NetworkDiagnosticsView: View {
                 palette: palette
             )
 
+            let dhtDisabled = DiagnosticsPresentation.dhtDisabledReason(
+                isProxyActive: engine.stats.isProxyActive,
+                dhtEnabled: dhtEnabled
+            )
             statusCard(
                 title: "Nodi DHT",
-                value: dhtEnabled ? "\(engine.stats.dhtNodes)" : "—",
-                detail: L(
-                    !dhtEnabled
-                        ? "DHT disattivato"
-                        : (engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione")),
-                color: dhtEnabled
+                value: dhtDisabled == nil ? "\(engine.stats.dhtNodes)" : "—",
+                detail: dhtDisabled
+                    ?? L(engine.stats.dhtNodes > 0 ? "rete DHT attiva" : "in connessione"),
+                color: dhtDisabled == nil
                     ? (engine.stats.dhtNodes > 0 ? Theme.blue : Theme.amber)
                     : palette.tertiary,
                 palette: palette

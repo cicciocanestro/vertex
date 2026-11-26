@@ -34,14 +34,28 @@ package enum GeoIP {
     /// `[2001:db8::1]:6881`. Returns nil for private/LAN addresses and unknown
     /// ranges.
     package static func countryCode(forEndpoint endpoint: String) -> String? {
+        countryCode(forEndpoint: endpoint, v4Table: table, v6Table: tableV6)
+    }
+
+    package static func countryCode(
+        forEndpoint endpoint: String,
+        v4Table: GeoIPTable?,
+        v6Table: GeoIPv6Table?
+    ) -> String? {
+        let resolved: String?
         if let address = ipv4Address(fromEndpoint: endpoint) {
-            return isPrivate(address) ? nil : table?.countryCode(for: address)
+            resolved = isPrivate(address) ? nil : v4Table?.countryCode(for: address)
+        } else if let address = ipv6Address(fromEndpoint: endpoint) {
+            if let mapped = mappedIPv4(address) {
+                resolved = isPrivate(mapped) ? nil : v4Table?.countryCode(for: mapped)
+            } else {
+                resolved = isPrivate(address) ? nil : v6Table?.countryCode(for: address)
+            }
+        } else {
+            return nil
         }
-        guard let address = ipv6Address(fromEndpoint: endpoint) else { return nil }
-        if let mapped = mappedIPv4(address) {
-            return isPrivate(mapped) ? nil : table?.countryCode(for: mapped)
-        }
-        return isPrivate(address) ? nil : tableV6?.countryCode(for: address)
+        guard let code = resolved, code.uppercased() != "ZZ" else { return nil }
+        return code
     }
 
     package static func isLocalEndpoint(_ endpoint: String) -> Bool {
@@ -99,12 +113,17 @@ package enum GeoIP {
     /// libtorrent uses when a port is present) and a bare address are accepted;
     /// `inet_pton` rejects anything malformed.
     package static func ipv6Address(fromEndpoint endpoint: String) -> IPv6Address? {
-        let host: String
+        var host: String
         if endpoint.hasPrefix("[") {
             guard let close = endpoint.firstIndex(of: "]") else { return nil }
             host = String(endpoint[endpoint.index(after: endpoint.startIndex)..<close])
         } else {
             host = endpoint
+        }
+        if let zoneIndex = host.firstIndex(of: "%") {
+            let zone = host[host.index(after: zoneIndex)...]
+            guard !zone.isEmpty else { return nil }
+            host = String(host[..<zoneIndex])
         }
         guard host.contains(":") else { return nil }
 

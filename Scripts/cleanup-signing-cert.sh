@@ -21,4 +21,7 @@ if command -v security >/dev/null 2>&1; then
     fi
     security delete-keychain "$VERTEX_SIGNING_KEYCHAIN" >/dev/null 2>&1 || true
 fi
+if [ -n "${VERTEX_SIGNING_WORK:-}" ] && [ -d "$VERTEX_SIGNING_WORK" ]; then
+    rm -rf "$VERTEX_SIGNING_WORK"
+fi
 echo "· Keychain di firma temporaneo rimosso."

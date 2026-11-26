@@ -128,6 +128,28 @@
         ) -> [String: Int] {
             _ = NSApplication.shared
 
+            let defaults = Preferences.userDefaults
+            let savedFilter = defaults.object(forKey: PrefKey.uiFilter)
+            let savedSort = defaults.object(forKey: PrefKey.uiSort)
+            let savedSortAscending = defaults.object(forKey: PrefKey.uiSortAscending)
+            defer {
+                if let savedFilter {
+                    defaults.set(savedFilter, forKey: PrefKey.uiFilter)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.uiFilter)
+                }
+                if let savedSort {
+                    defaults.set(savedSort, forKey: PrefKey.uiSort)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.uiSort)
+                }
+                if let savedSortAscending {
+                    defaults.set(savedSortAscending, forKey: PrefKey.uiSortAscending)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.uiSortAscending)
+                }
+            }
+
             var results: [String: Int] = [
                 "RootViewSettings": render(
                     RootView(engine: engine, showSettings: true),
@@ -232,8 +254,8 @@
                     height: 760
                 )
 
-                let previousDensity = UserDefaults.standard.string(forKey: PrefKey.uiDensity)
-                UserDefaults.standard.set(
+                let previousDensity = defaults.string(forKey: PrefKey.uiDensity)
+                defaults.set(
                     ListDensity.compact.rawValue,
                     forKey: PrefKey.uiDensity
                 )
@@ -243,9 +265,9 @@
                     height: 760
                 )
                 if let previousDensity {
-                    UserDefaults.standard.set(previousDensity, forKey: PrefKey.uiDensity)
+                    defaults.set(previousDensity, forKey: PrefKey.uiDensity)
                 } else {
-                    UserDefaults.standard.removeObject(forKey: PrefKey.uiDensity)
+                    defaults.removeObject(forKey: PrefKey.uiDensity)
                 }
 
                 state.torrents = torrents
@@ -373,7 +395,7 @@
                 )
             }
 
-            let defaults = UserDefaults.standard
+            let defaults = Preferences.userDefaults
             let savedProxyEnabled = defaults.object(forKey: PrefKey.proxyEnabled)
             let savedBindAddress = defaults.object(forKey: PrefKey.bindAddress)
             defer {
@@ -651,7 +673,7 @@
             height: CGFloat
         ) -> Int {
             let renderer = ImageRenderer(
-                content: view.frame(width: width, height: height)
+                content: view.defaultAppStorage(Preferences.userDefaults).frame(width: width, height: height)
             )
             renderer.scale = 1
             guard let image = renderer.cgImage else { return 0 }

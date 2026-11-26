@@ -127,6 +127,22 @@
                 )
                 try TestRunner.assertEqual(checks[1].status, .warning)
                 try TestRunner.assertEqual(checks[3].status, .ok)
+
+                // With an active SOCKS5 proxy and dhtEnabled == true, the bridge
+                // disables DHT to avoid leaks: the checklist must report .info
+                // rather than a misleading .warning ("In attesa").
+                stats.proxy = ProxyInfo(enabled: true, hostname: "127.0.0.1", port: 1080)
+                stats.dhtNodes = 0
+                checks = DiagnosticsChecklist.checks(
+                    stats: stats,
+                    upnpEnabled: true,
+                    dhtEnabled: true
+                )
+                try TestRunner.assertEqual(checks[3].status, .info)
+                try TestRunner.assertEqual(
+                    checks[3].detail,
+                    L("Disattivato dal proxy SOCKS5 per prevenire leak.")
+                )
             }
 
             TestRunner.run("Presentation: diagnostica rete") {
@@ -141,6 +157,18 @@
                 )
                 try TestRunner.assertNil(
                     DiagnosticsPresentation.upnpDisabledReason(isProxyActive: false, upnpEnabled: true)
+                )
+
+                try TestRunner.assertEqual(
+                    DiagnosticsPresentation.dhtDisabledReason(isProxyActive: true, dhtEnabled: true),
+                    L("Disattivato dal proxy SOCKS5 per prevenire leak.")
+                )
+                try TestRunner.assertEqual(
+                    DiagnosticsPresentation.dhtDisabledReason(isProxyActive: false, dhtEnabled: false),
+                    L("DHT disattivato")
+                )
+                try TestRunner.assertNil(
+                    DiagnosticsPresentation.dhtDisabledReason(isProxyActive: false, dhtEnabled: true)
                 )
 
                 let mapped = PortMapInfo(mapped: true, externalPort: 49_152, transport: "UPnP")
@@ -162,6 +190,172 @@
                         tcp: PortMapInfo(), effectivePort: 6882
                     ),
                     6882
+                )
+            }
+
+            TestRunner.run("Presentation: navigazione tastiera e clic riga torrent") {
+                // Single-item list after deselection: navigationHeadID must not
+                // block ↑/↓ from re-selecting the sole row.
+                try TestRunner.assertEqual(
+                    TorrentRowKeyboardNavigation.targetIndex(
+                        visibleIDs: ["a"],
+                        selectedIDs: [],
+                        selectedID: nil,
+                        navigationHeadID: "a",
+                        delta: 1,
+                        shift: false
+                    ),
+                    0
+                )
+                try TestRunner.assertEqual(
+                    TorrentRowKeyboardNavigation.targetIndex(
+                        visibleIDs: ["a", "b", "c"],
+                        selectedIDs: [],
+                        selectedID: nil,
+                        navigationHeadID: "c",
+                        delta: 1,
+                        shift: false
+                    ),
+                    0,
+                    "Dopo la deselezione le frecce devono ripartire dalla prima riga"
+                )
+                // Multi-selection extended to the bottom edge: plain ↓ collapses
+                // onto the boundary row instead of returning nil.
+                try TestRunner.assertEqual(
+                    TorrentRowKeyboardNavigation.targetIndex(
+                        visibleIDs: ["a", "b", "c"],
+                        selectedIDs: ["a", "b", "c"],
+                        selectedID: nil,
+                        navigationHeadID: "c",
+                        delta: 1,
+                        shift: false
+                    ),
+                    2
+                )
+                try TestRunner.assertNil(
+                    TorrentRowKeyboardNavigation.targetIndex(
+                        visibleIDs: ["a", "b", "c"],
+                        selectedIDs: ["c"],
+                        selectedID: "c",
+                        navigationHeadID: "c",
+                        delta: 1,
+                        shift: false
+                    )
+                )
+
+                // Immediate click resolution preserves ⌘/⇧ and never triggers
+                // Finder reveal on rapid ⌘-clicks.
+                let cmdFirst = TorrentRowClickBehavior.resolve(
+                    clickCount: 1,
+                    command: true,
+                    shift: false,
+                    now: 10.0,
+                    lastPlainClickTime: 0,
+                    doubleClickInterval: 0.5
+                )
+                try TestRunner.assertEqual(cmdFirst.action, .select(command: true, shift: false))
+                let cmdSecond = TorrentRowClickBehavior.resolve(
+                    clickCount: 2,
+                    command: true,
+                    shift: false,
+                    now: 10.1,
+                    lastPlainClickTime: cmdFirst.nextLastPlainClickTime,
+                    doubleClickInterval: 0.5
+                )
+                try TestRunner.assertEqual(cmdSecond.action, .select(command: true, shift: false))
+
+                let plainFirst = TorrentRowClickBehavior.resolve(
+                    clickCount: 1,
+                    command: false,
+                    shift: false,
+                    now: 20.0,
+                    lastPlainClickTime: 0,
+                    doubleClickInterval: 0.5
+                )
+                try TestRunner.assertEqual(plainFirst.action, .select(command: false, shift: false))
+                let plainDouble = TorrentRowClickBehavior.resolve(
+                    clickCount: 2,
+                    command: false,
+                    shift: false,
+                    now: 20.15,
+                    lastPlainClickTime: plainFirst.nextLastPlainClickTime,
+                    doubleClickInterval: 0.5
+                )
+                try TestRunner.assertEqual(plainDouble.action, .reveal)
+            }
+
+            TestRunner.run("Presentation: guardie RootActions e validazione impostazioni UI") {
+                try TestRunner.assertTrue(
+                    RootActionFactory.canPresentAdd(
+                        modalOpen: false,
+                        isReady: true,
+                        isRestartingSession: false
+                    )
+                )
+                try TestRunner.assertFalse(
+                    RootActionFactory.canPresentAdd(
+                        modalOpen: true,
+                        isReady: true,
+                        isRestartingSession: false
+                    )
+                )
+                try TestRunner.assertFalse(
+                    RootActionFactory.canPresentAdd(
+                        modalOpen: false,
+                        isReady: false,
+                        isRestartingSession: false
+                    )
+                )
+                try TestRunner.assertFalse(
+                    RootActionFactory.acceptsDrop(
+                        modalOpen: false,
+                        isReady: true,
+                        isRestartingSession: true
+                    )
+                )
+
+                try TestRunner.assertFalse(
+                    SettingsFieldValidation.isProxyHostValid("   ", proxyEnabled: true)
+                )
+                try TestRunner.assertTrue(
+                    SettingsFieldValidation.isProxyHostValid("", proxyEnabled: false)
+                )
+                try TestRunner.assertFalse(
+                    SettingsFieldValidation.isProxyPortValid(0, proxyEnabled: true)
+                )
+                try TestRunner.assertEqual(
+                    SettingsFieldValidation.proxyIssueMessage(
+                        host: "",
+                        port: 1080,
+                        proxyEnabled: true
+                    ),
+                    L("Host proxy non valido")
+                )
+                try TestRunner.assertTrue(
+                    SettingsFieldValidation.hasSectionIssue(
+                        .performance,
+                        downloadLimitKB: 0,
+                        uploadLimitKB: 0,
+                        listenPort: 70_000,
+                        maxActiveTorrents: 0,
+                        seedRatioLimit: 0,
+                        proxyEnabled: false,
+                        proxyHost: "127.0.0.1",
+                        proxyPort: 1080
+                    )
+                )
+                try TestRunner.assertFalse(
+                    SettingsFieldValidation.hasSectionIssue(
+                        .network,
+                        downloadLimitKB: 0,
+                        uploadLimitKB: 0,
+                        listenPort: 70_000,
+                        maxActiveTorrents: 0,
+                        seedRatioLimit: 0,
+                        proxyEnabled: false,
+                        proxyHost: "",
+                        proxyPort: 0
+                    )
                 )
             }
         }

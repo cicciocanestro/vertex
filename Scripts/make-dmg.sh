@@ -6,7 +6,26 @@ cd "$(dirname "$0")/.."
 # shellcheck source=Scripts/app.env
 source Scripts/app.env
 
-if [ "${1:-}" != "--no-build" ]; then
+NO_BUILD=0
+for arg in "$@"; do
+    case "$arg" in
+        --no-build)
+            NO_BUILD=1
+            ;;
+        -h|--help)
+            echo "Uso: $0 [--no-build]"
+            echo "  --no-build  usa dist/Vertex.app esistente senza rilanciare ./build.sh"
+            exit 0
+            ;;
+        *)
+            echo "✗ Opzione sconosciuta: $arg" >&2
+            echo "Uso: $0 [--no-build]" >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ "$NO_BUILD" -eq 0 ]; then
     ./build.sh
 fi
 
@@ -55,7 +74,11 @@ detach_image() {
     if diskutil eject "$1" >/dev/null 2>&1; then
         return 0
     fi
-    hdiutil detach "$1" >/dev/null 2>&1 || true
+    if hdiutil detach "$1" >/dev/null 2>&1; then
+        return 0
+    fi
+    sleep 1
+    hdiutil detach -force "$1" >/dev/null 2>&1 || true
 }
 
 # The runner occasionally reports "Resource busy" from hdiutil while another
@@ -104,14 +127,22 @@ create_image_once() {
 }
 
 MOUNT=""
+CLEANED_UP=0
 cleanup() {
+    if [ "$CLEANED_UP" -eq 1 ]; then
+        return 0
+    fi
+    CLEANED_UP=1
     if [ -n "$MOUNT" ]; then
         detach_image "$MOUNT"
         rmdir "$MOUNT" 2>/dev/null || true
+        MOUNT=""
     fi
     rm -rf "$STAGE"
 }
 trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 echo "→ Preparazione della DMG ($ARCH_LABEL, macOS $MIN_OS)…"
 rm -rf "$STAGE"
@@ -189,6 +220,17 @@ rm -f "$DMG" "$DMG_SHA"
 create_image
 
 hdiutil verify "$DMG" >/dev/null
+
+# Sign the outer DMG container when building with a Developer ID identity so
+# Gatekeeper's primary-signature check (`spctl --type open`) in notarize.sh succeeds.
+case "${VERTEX_SIGN_IDENTITY:-}" in
+    "Developer ID Application"*)
+        echo "→ Firma del contenitore DMG con Developer ID…"
+        codesign --force --sign "$VERTEX_SIGN_IDENTITY" --timestamp "$DMG"
+        codesign --verify --verbose=2 "$DMG"
+        ;;
+esac
+
 (
     cd "$(dirname "$DMG")"
     shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256"

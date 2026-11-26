@@ -1,5 +1,15 @@
 import Foundation
 
+private func clampedUnit(_ value: Double) -> Double {
+    guard value.isFinite else { return 0 }
+    return min(max(value, 0), 1)
+}
+
+private func clampedNonNegative(_ value: Double) -> Double {
+    guard value.isFinite else { return 0 }
+    return max(value, 0)
+}
+
 /// Phase of a torrent as shown by the row pill and by the filters.
 package enum TorrentPhase: Equatable {
     case downloading
@@ -96,7 +106,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.id = id
         self.name = name
         self.stateCode = stateCode
-        self.progress = progress
+        self.progress = progress.isFinite ? progress : 0
         self.size = size
         self.downloaded = downloaded
         self.uploaded = uploaded
@@ -112,7 +122,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.sequential = sequential
         self.hasMetadata = hasMetadata
         self.savePath = savePath
-        self.ratio = ratio
+        self.ratio = clampedNonNegative(ratio)
         self.added = added
         self.error = error
     }
@@ -125,7 +135,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         id = try c.decode(String.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         stateCode = max(try c.decode(Int.self, forKey: .stateCode), 0)
-        progress = min(max(try c.decode(Double.self, forKey: .progress), 0), 1)
+        progress = clampedUnit(try c.decode(Double.self, forKey: .progress))
         size = max(try c.decode(Int64.self, forKey: .size), 0)
         downloaded = max(try c.decode(Int64.self, forKey: .downloaded), 0)
         uploaded = max(try c.decode(Int64.self, forKey: .uploaded), 0)
@@ -145,7 +155,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         sequential = try c.decode(Bool.self, forKey: .sequential)
         hasMetadata = try c.decode(Bool.self, forKey: .hasMetadata)
         savePath = try c.decode(String.self, forKey: .savePath)
-        ratio = max(try c.decode(Double.self, forKey: .ratio), 0)
+        ratio = clampedNonNegative(try c.decode(Double.self, forKey: .ratio))
         added = max(try c.decode(Int64.self, forKey: .added), 0)
         error = try c.decodeIfPresent(String.self, forKey: .error) ?? ""
     }
@@ -163,7 +173,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
     }
 
     package var displayProgress: Double {
-        min(max(finished ? 1 : progress, 0), 1)
+        clampedUnit(finished ? 1 : progress)
     }
 
     package var phase: TorrentPhase {
@@ -173,9 +183,9 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         if paused {
             if autoManaged { return .queued }
             // A torrent that finished downloading and was paused by the user is completed (paused).
-            if finished || stateCode == LibtorrentStateCode.finished.rawValue
-                || stateCode == LibtorrentStateCode.seeding.rawValue
-            {
+            // State 4 (`finished` with skipped files) counts as completed only when `finished` is true,
+            // so setting all files to Skip (0 wanted bytes, `finished == false`) does not report completed.
+            if finished || (seeding && stateCode == LibtorrentStateCode.seeding.rawValue) {
                 return .completedPaused
             }
             return .paused
@@ -193,7 +203,6 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         // if finished with uploadRate == 0 show completed (green ✓).
         let isFullyDownloaded =
             finished
-            || stateCode == LibtorrentStateCode.finished.rawValue
             || (seeding && stateCode == LibtorrentStateCode.seeding.rawValue)
         if isFullyDownloaded {
             return uploadRate > 0 ? .seeding : .completed
@@ -236,7 +245,7 @@ package struct TorrentFile: Decodable, Identifiable, Equatable {
         self.index = max(index, 0)
         self.path = path
         self.size = max(size, 0)
-        self.progress = min(max(progress, 0), 1)
+        self.progress = clampedUnit(progress)
         self.priority = min(max(priority, 0), 7)
     }
 
@@ -249,7 +258,7 @@ package struct TorrentFile: Decodable, Identifiable, Equatable {
         index = max(try c.decode(Int.self, forKey: .index), 0)
         path = try c.decode(String.self, forKey: .path)
         size = max(try c.decode(Int64.self, forKey: .size), 0)
-        progress = min(max(try c.decode(Double.self, forKey: .progress), 0), 1)
+        progress = clampedUnit(try c.decode(Double.self, forKey: .progress))
         priority = min(max(try c.decode(Int.self, forKey: .priority), 0), 7)
     }
 
@@ -268,8 +277,42 @@ package struct TorrentTracker: Decodable, Identifiable, Equatable {
     package let message: String
     package let peers: Int
     package let seeds: Int
+    package let tier: Int
 
-    package var id: String { url }
+    package var id: String { "\(tier):\(url)" }
+
+    package init(
+        url: String,
+        verified: Bool,
+        fails: Int,
+        message: String,
+        peers: Int,
+        seeds: Int,
+        tier: Int = 0
+    ) {
+        self.url = url
+        self.verified = verified
+        self.fails = max(fails, 0)
+        self.message = message
+        self.peers = peers
+        self.seeds = seeds
+        self.tier = max(tier, 0)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case url, verified, fails, message, peers, seeds, tier
+    }
+
+    package init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        url = try c.decode(String.self, forKey: .url)
+        verified = try c.decode(Bool.self, forKey: .verified)
+        fails = max(try c.decode(Int.self, forKey: .fails), 0)
+        message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+        peers = try c.decode(Int.self, forKey: .peers)
+        seeds = try c.decode(Int.self, forKey: .seeds)
+        tier = max(try c.decodeIfPresent(Int.self, forKey: .tier) ?? 0, 0)
+    }
 }
 
 package struct TorrentPeer: Decodable, Identifiable, Equatable {
@@ -294,7 +337,7 @@ package struct TorrentPeer: Decodable, Identifiable, Equatable {
     ) {
         self.endpoint = endpoint
         self.client = client
-        self.progress = min(max(progress, 0), 1)
+        self.progress = clampedUnit(progress)
         self.downloadRate = max(downloadRate, 0)
         self.uploadRate = max(uploadRate, 0)
         self.flags = flags
@@ -311,7 +354,7 @@ package struct TorrentPeer: Decodable, Identifiable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         endpoint = try c.decode(String.self, forKey: .endpoint)
         client = try c.decodeIfPresent(String.self, forKey: .client) ?? ""
-        progress = min(max(try c.decodeIfPresent(Double.self, forKey: .progress) ?? 0, 0), 1)
+        progress = clampedUnit(try c.decodeIfPresent(Double.self, forKey: .progress) ?? 0)
         downloadRate = max(try c.decodeIfPresent(Int64.self, forKey: .downloadRate) ?? 0, 0)
         uploadRate = max(try c.decodeIfPresent(Int64.self, forKey: .uploadRate) ?? 0, 0)
         flags = try c.decodeIfPresent(String.self, forKey: .flags) ?? ""
@@ -332,7 +375,7 @@ package struct TorrentDetail: Decodable, Equatable {
         metadata: Bool
     ) {
         self.files = files
-        self.trackers = trackers
+        self.trackers = Self.disambiguatedTrackers(trackers)
         self.peers = peers
         self.metadata = metadata
     }
@@ -344,8 +387,29 @@ package struct TorrentDetail: Decodable, Equatable {
     package init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         files = try c.decode([TorrentFile].self, forKey: .files)
-        trackers = try c.decode([TorrentTracker].self, forKey: .trackers)
+        let decodedTrackers = try c.decode([TorrentTracker].self, forKey: .trackers)
+        trackers = Self.disambiguatedTrackers(decodedTrackers)
         peers = try c.decodeIfPresent([TorrentPeer].self, forKey: .peers) ?? []
         metadata = try c.decode(Bool.self, forKey: .metadata)
+    }
+
+    private static func disambiguatedTrackers(_ trackers: [TorrentTracker]) -> [TorrentTracker] {
+        var seen: Set<String> = []
+        seen.reserveCapacity(trackers.count)
+        return trackers.map { tracker in
+            var candidate = tracker
+            while !seen.insert(candidate.id).inserted {
+                candidate = TorrentTracker(
+                    url: tracker.url,
+                    verified: tracker.verified,
+                    fails: tracker.fails,
+                    message: tracker.message,
+                    peers: tracker.peers,
+                    seeds: tracker.seeds,
+                    tier: candidate.tier + 1
+                )
+            }
+            return candidate
+        }
     }
 }

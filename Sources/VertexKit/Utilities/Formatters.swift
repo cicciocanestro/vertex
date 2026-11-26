@@ -11,12 +11,12 @@ package enum Fmt {
 
         var scaled = magnitude
         var unitIndex = 0
-        while scaled >= 1000 && unitIndex < units.count - 1 {
+        while scaled >= 999.5 && unitIndex < units.count - 1 {
             scaled /= 1000
             unitIndex += 1
         }
 
-        let decimals = scaled < 100 ? 1 : 0
+        let decimals = scaled < 99.95 ? 1 : 0
         let format = "%.\(decimals)f"
         let number = String(format: format, locale: Locale.current, scaled)
         let sign = value < 0 ? "-" : ""
@@ -47,10 +47,18 @@ package enum Fmt {
     }
 
     package static func percent(_ fraction: Double) -> String {
-        String(format: "%.0f%%", locale: Locale.current, min(max(fraction, 0), 1) * 100)
+        guard fraction.isFinite else { return "0%" }
+        if fraction <= 0 { return "0%" }
+        if fraction >= 1 { return "100%" }
+        if fraction >= 0.995 {
+            let capped = min((fraction * 1000).rounded() / 10, 99.9)
+            return String(format: "%.1f%%", locale: Locale.current, capped)
+        }
+        return String(format: "%.0f%%", locale: Locale.current, fraction * 100)
     }
 
     package static func ratio(_ value: Double) -> String {
-        String(format: "%.2f", locale: Locale.current, value)
+        let safe = value.isFinite ? max(value, 0) : 0
+        return String(format: "%.2f", locale: Locale.current, safe)
     }
 }

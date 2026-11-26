@@ -134,6 +134,70 @@ inline std::string json_escape(std::string const& input)
     return out;
 }
 
+/// Trims leading and trailing ASCII whitespace (` `, `\t`, `\n`, `\r`).
+inline std::string trim_ascii_whitespace(std::string_view input)
+{
+    auto const first = input.find_first_not_of(" \t\n\r");
+    if (first == std::string_view::npos)
+        return {};
+    auto const last = input.find_last_not_of(" \t\n\r");
+    return std::string(input.substr(first, last - first + 1));
+}
+
+/// Validates a tracker URL syntax: RFC 3986 scheme `[A-Za-z][A-Za-z0-9+.-]*://`
+/// followed by a non-empty host without ASCII whitespace or control bytes.
+inline bool is_valid_tracker_url_syntax(std::string_view url) noexcept
+{
+    for (unsigned char const c : url)
+    {
+        if (c <= 0x20 || c == 0x7f)
+            return false;
+    }
+    auto const pos = url.find("://");
+    if (pos == std::string_view::npos || pos == 0)
+        return false;
+
+    auto const is_alpha = [](char c) noexcept {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+    };
+    auto const is_scheme_char = [&](char c) noexcept {
+        return is_alpha(c) || (c >= '0' && c <= '9') || c == '+' || c == '.' || c == '-';
+    };
+
+    if (!is_alpha(url[0]))
+        return false;
+    for (std::size_t i = 1; i < pos; ++i)
+    {
+        if (!is_scheme_char(url[i]))
+            return false;
+    }
+
+    std::string_view rest = url.substr(pos + 3);
+    auto const slash = rest.find_first_of("/?#");
+    std::string_view authority = slash == std::string_view::npos ? rest : rest.substr(0, slash);
+    if (authority.empty())
+        return false;
+
+    auto const at = authority.rfind('@');
+    std::string_view hostport = at == std::string_view::npos ? authority : authority.substr(at + 1);
+    if (hostport.empty())
+        return false;
+
+    if (hostport.front() == '[')
+    {
+        auto const close = hostport.find(']');
+        if (close == std::string_view::npos || close <= 1)
+            return false;
+        if (close + 1 < hostport.size() && hostport[close + 1] != ':')
+            return false;
+        return true;
+    }
+
+    auto const colon = hostport.find(':');
+    std::string_view const host = colon == std::string_view::npos ? hostport : hostport.substr(0, colon);
+    return !host.empty();
+}
+
 /// Trims whitespace, expands a leading `~`, and turns a file destination (for
 /// example a dropped `.torrent`) into its folder. Kept here so the fuzz harness
 /// can exercise it without linking libtorrent.
@@ -142,13 +206,6 @@ inline std::string normalized_save_path(
     std::string const& fallback)
 {
     namespace fs = std::filesystem;
-    auto trim = [](std::string s) {
-        auto first = s.find_first_not_of(" \t\n\r");
-        if (first == std::string::npos)
-            return std::string{};
-        auto last = s.find_last_not_of(" \t\n\r");
-        return s.substr(first, last - first + 1);
-    };
     auto expand_tilde = [](std::string& s) {
         // Expand only standalone "~" or "~/...": "~alice" refers to another user
         // or a literal directory name and must not be concatenated onto $HOME.
@@ -160,10 +217,10 @@ inline std::string normalized_save_path(
         }
     };
 
-    std::string trimmed_fallback = trim(fallback);
+    std::string trimmed_fallback = trim_ascii_whitespace(fallback);
     expand_tilde(trimmed_fallback);
 
-    std::string candidate = trim(requested);
+    std::string candidate = trim_ascii_whitespace(requested);
     if (candidate.empty())
         candidate = trimmed_fallback;
     else

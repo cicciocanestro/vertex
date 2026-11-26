@@ -203,7 +203,7 @@ package actor SessionController {
                         configuration.proxyUser.withCString { userPointer in
                             configuration.proxyPassword.withCString { passPointer in
                                 version.withCString { versionPointer in
-                                    vt_session_create_configured(
+                                    vt_session_create_configured_ex(
                                         downloadPath,
                                         resumePath,
                                         configuration.port,
@@ -219,6 +219,7 @@ package actor SessionController {
                                         configuration.proxyPort,
                                         userPointer,
                                         passPointer,
+                                        configuration.maxActive,
                                         versionPointer,
                                         &errorPointer
                                     )
@@ -233,13 +234,6 @@ package actor SessionController {
         let error = errorPointer.map { String(cString: $0) }
         if let errorPointer {
             vt_free_string(errorPointer)
-        }
-
-        if let pointer {
-            // Always apply the limit, including "unlimited": libtorrent's default
-            // is 3 downloads + 5 seeds, which would silently queue the torrents of
-            // a user who never asked for a queue.
-            _ = vt_set_active_limit(pointer, configuration.maxActive)
         }
 
         return (pointer, error)

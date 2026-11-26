@@ -4,6 +4,8 @@ import VertexKit
 
 enum GeoIPTests {
     static func runAll() {
+        print("\n\u{001B}[1m[Suite: GeoIPTests]\u{001B}[0m")
+
         TestRunner.run("GeoIP: bandiera da codice paese") {
             try TestRunner.assertEqual(GeoIP.flag(for: "IT"), "🇮🇹")
             try TestRunner.assertEqual(GeoIP.flag(for: "it"), "🇮🇹")
@@ -189,6 +191,55 @@ enum GeoIPTests {
             var overflowStartV6 = clampedEndV6
             overflowStartV6 += [1, 0, 0]  // second entry delta = 1 -> start overflows 128 bits
             try TestRunner.assertNil(compressPayload(overflowStartV6).flatMap(GeoIPv6Table.init(compressed:)))
+        }
+
+        TestRunner.run("GeoIP: Zone ID IPv6 e filtro codice riservato ZZ") {
+            let scopedBracketed = GeoIP.ipv6Address(fromEndpoint: "[fe80::1%en0]:6881")
+            try TestRunner.assertEqual(scopedBracketed?.high, 0xFE80_0000_0000_0000)
+            try TestRunner.assertEqual(scopedBracketed?.low, 1)
+            try TestRunner.assertTrue(GeoIP.isLocalEndpoint("[fe80::1%en0]:6881"))
+
+            let scopedBare = GeoIP.ipv6Address(fromEndpoint: "fe80::1%utun3")
+            try TestRunner.assertEqual(scopedBare?.high, 0xFE80_0000_0000_0000)
+            try TestRunner.assertEqual(scopedBare?.low, 1)
+
+            try TestRunner.assertNil(
+                GeoIP.ipv6Address(fromEndpoint: "[fe80::1%]:6881"),
+                "Un Zone ID vuoto dopo % deve essere rifiutato"
+            )
+
+            let root = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            let v4URL = root.appendingPathComponent("Resources/GeoIP/country-v4.bin.z")
+            let v6URL = root.appendingPathComponent("Resources/GeoIP/country-v6.bin.z")
+            guard let v4Table = GeoIPTable.load(from: v4URL),
+                let v6Table = GeoIPv6Table.load(from: v6URL)
+            else {
+                try TestRunner.assertTrue(false, "Tabelle GeoIP non caricate")
+                return
+            }
+
+            try TestRunner.assertEqual(
+                GeoIP.countryCode(forEndpoint: "8.8.8.8:6881", v4Table: v4Table, v6Table: v6Table),
+                "US"
+            )
+            try TestRunner.assertEqual(
+                GeoIP.countryCode(
+                    forEndpoint: "[2001:4860:1c00::1%en0]:6881",
+                    v4Table: v4Table,
+                    v6Table: v6Table
+                ),
+                "US"
+            )
+            try TestRunner.assertNil(
+                GeoIP.countryCode(forEndpoint: "[2001:db8::1]:6881", v4Table: v4Table, v6Table: v6Table),
+                "Il codice riservato ZZ deve produrre nil in countryCode(forEndpoint:)"
+            )
+            try TestRunner.assertNil(
+                GeoIP.countryCode(forEndpoint: "192.168.1.10:6881", v4Table: v4Table, v6Table: v6Table)
+            )
         }
     }
 

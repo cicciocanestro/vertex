@@ -28,6 +28,11 @@ struct ProgressRing: View {
             icon
         }
         .frame(width: size, height: size)
+        .onChange(of: phase) { _, newPhase in
+            if newPhase != .checking && spin.value {
+                spin.value = false
+            }
+        }
     }
 
     private var ringGradient: LinearGradient {
@@ -101,6 +106,9 @@ struct ProgressRing: View {
                 )
                 .onAppear {
                     if !reduceMotion { spin.value = true }
+                }
+                .onDisappear {
+                    spin.value = false
                 }
         case .downloading:
             Text(Fmt.percent(progress))
@@ -336,16 +344,21 @@ struct Sparkline: View {
 
 struct PulsingDot: View {
     let color: Color
+    var active = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var pulse = UIState(false)
 
+    private var shouldAnimate: Bool { active && !reduceMotion }
+
     var body: some View {
         ZStack {
-            Circle()
-                .fill(color.opacity(0.3))
-                .frame(width: 10, height: 10)
-                .scaleEffect(pulse.value ? 1.7 : 0.6)
-                .opacity(pulse.value ? 0 : 1)
+            if shouldAnimate {
+                Circle()
+                    .fill(color.opacity(0.3))
+                    .frame(width: 10, height: 10)
+                    .scaleEffect(pulse.value ? 1.7 : 0.6)
+                    .opacity(pulse.value ? 0 : 1)
+            }
 
             Circle()
                 .fill(color)
@@ -353,9 +366,24 @@ struct PulsingDot: View {
         }
         .frame(width: 12, height: 12)
         .onAppear {
-            guard !reduceMotion else { return }
+            updateAnimation()
+        }
+        .onChange(of: shouldAnimate) { _, _ in
+            updateAnimation()
+        }
+    }
+
+    private func updateAnimation() {
+        if shouldAnimate {
+            pulse.value = false
             withAnimation(.easeOut(duration: 1.9).repeatForever(autoreverses: false)) {
                 pulse.value = true
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                pulse.value = false
             }
         }
     }

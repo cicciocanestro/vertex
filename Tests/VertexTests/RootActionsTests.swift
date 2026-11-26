@@ -71,6 +71,7 @@
                     port: Int32(try TestsSupport.freeTCPPort())
                 )
                 let engine = TorrentEngine(configuration: configuration)
+                defer { shutdown(engine) }
 
                 var modal: ActiveModal?
                 var focused = 0
@@ -248,6 +249,16 @@
                 InspectorResize.stepped(510, direction: .increment), 520)
             try TestRunner.assertEqual(
                 InspectorResize.stepped(325, direction: .decrement), 320)
+        }
+
+        @MainActor
+        private static func shutdown(_ engine: TorrentEngine) {
+            var completed = false
+            engine.shutdown { completed = true }
+            let deadline = Date().addingTimeInterval(5)
+            while !completed && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            }
         }
     }
 #endif

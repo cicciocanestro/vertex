@@ -32,7 +32,7 @@ package enum RuntimeErrorLocalizer {
         if lower.contains("read-only file system") {
             return L("Disco in sola lettura.")
         }
-        if lower.contains("input/output error") {
+        if lower.contains("input/output error") || lower.contains("cross-device") {
             return L("Errore di lettura o scrittura sul disco.")
         }
         if lower.contains("collides with file from another torrent") {
@@ -51,6 +51,12 @@ package enum RuntimeErrorLocalizer {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return "" }
         let lower = value.lowercased()
+        if lower.contains("host proxy non valido") {
+            return L("Host proxy non valido")
+        }
+        if lower.contains("porta proxy") {
+            return L("Porta proxy non valida")
+        }
         if lower.contains("authentication") || lower.contains("username required") {
             return L("Autenticazione SOCKS5 rifiutata")
         }
