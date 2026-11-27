@@ -106,7 +106,7 @@ package struct Torrent: Decodable, Identifiable, Equatable {
         self.id = id
         self.name = name
         self.stateCode = stateCode
-        self.progress = progress.isFinite ? progress : 0
+        self.progress = clampedUnit(progress)
         self.size = size
         self.downloaded = downloaded
         self.uploaded = uploaded
@@ -316,6 +316,7 @@ package struct TorrentTracker: Decodable, Identifiable, Equatable {
 }
 
 package struct TorrentPeer: Decodable, Identifiable, Equatable {
+    package let id: String
     package let endpoint: String
     package let client: String
     package let progress: Double
@@ -324,9 +325,8 @@ package struct TorrentPeer: Decodable, Identifiable, Equatable {
     package let flags: String
     package let source: String
 
-    package var id: String { endpoint }
-
     package init(
+        id: String? = nil,
         endpoint: String,
         client: String,
         progress: Double,
@@ -335,6 +335,7 @@ package struct TorrentPeer: Decodable, Identifiable, Equatable {
         flags: String,
         source: String
     ) {
+        self.id = id ?? endpoint
         self.endpoint = endpoint
         self.client = client
         self.progress = clampedUnit(progress)
@@ -352,7 +353,9 @@ package struct TorrentPeer: Decodable, Identifiable, Equatable {
 
     package init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        endpoint = try c.decode(String.self, forKey: .endpoint)
+        let decodedEndpoint = try c.decode(String.self, forKey: .endpoint)
+        id = decodedEndpoint
+        endpoint = decodedEndpoint
         client = try c.decodeIfPresent(String.self, forKey: .client) ?? ""
         progress = clampedUnit(try c.decodeIfPresent(Double.self, forKey: .progress) ?? 0)
         downloadRate = max(try c.decodeIfPresent(Int64.self, forKey: .downloadRate) ?? 0, 0)
@@ -376,7 +379,7 @@ package struct TorrentDetail: Decodable, Equatable {
     ) {
         self.files = files
         self.trackers = Self.disambiguatedTrackers(trackers)
-        self.peers = peers
+        self.peers = Self.disambiguatedPeers(peers)
         self.metadata = metadata
     }
 
@@ -389,7 +392,8 @@ package struct TorrentDetail: Decodable, Equatable {
         files = try c.decode([TorrentFile].self, forKey: .files)
         let decodedTrackers = try c.decode([TorrentTracker].self, forKey: .trackers)
         trackers = Self.disambiguatedTrackers(decodedTrackers)
-        peers = try c.decodeIfPresent([TorrentPeer].self, forKey: .peers) ?? []
+        let decodedPeers = try c.decodeIfPresent([TorrentPeer].self, forKey: .peers) ?? []
+        peers = Self.disambiguatedPeers(decodedPeers)
         metadata = try c.decode(Bool.self, forKey: .metadata)
     }
 
@@ -410,6 +414,34 @@ package struct TorrentDetail: Decodable, Equatable {
                 )
             }
             return candidate
+        }
+    }
+
+    private static func disambiguatedPeers(_ peers: [TorrentPeer]) -> [TorrentPeer] {
+        var counts: [String: Int] = [:]
+        counts.reserveCapacity(peers.count)
+        var usedIDs: Set<String> = []
+        usedIDs.reserveCapacity(peers.count)
+        return peers.map { peer in
+            let occurrence = (counts[peer.endpoint] ?? 0) + 1
+            counts[peer.endpoint] = occurrence
+            var candidateID = occurrence == 1 ? peer.endpoint : "\(peer.endpoint)#\(occurrence)"
+            var suffix = occurrence
+            while !usedIDs.insert(candidateID).inserted {
+                suffix += 1
+                candidateID = "\(peer.endpoint)#\(suffix)"
+            }
+            guard candidateID != peer.id else { return peer }
+            return TorrentPeer(
+                id: candidateID,
+                endpoint: peer.endpoint,
+                client: peer.client,
+                progress: peer.progress,
+                downloadRate: peer.downloadRate,
+                uploadRate: peer.uploadRate,
+                flags: peer.flags,
+                source: peer.source
+            )
         }
     }
 }

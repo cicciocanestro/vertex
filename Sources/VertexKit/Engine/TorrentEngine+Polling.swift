@@ -83,10 +83,10 @@ extension TorrentEngine {
     }
 
     func finishPoll(_ snapshot: VertexSnapshot?, generation: Int) {
-        isPollInFlight = false
         guard generation == sessionGeneration, !isShuttingDown else {
             return
         }
+        isPollInFlight = false
         guard let snapshot else { return }
 
         // Perform an active TCP health-check probe on the configured proxy:

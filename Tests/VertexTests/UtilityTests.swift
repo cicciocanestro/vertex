@@ -1,5 +1,6 @@
 #if DEBUG
     import Foundation
+    import UniformTypeIdentifiers
     @testable import VertexKit
 
     private final class DropBox<T>: @unchecked Sendable {
@@ -29,6 +30,21 @@
                     TorrentInput.isTorrentFile(URL(string: "https://example.com/a.torrent")!),
                     "Un URL remoto non è un file locale"
                 )
+
+                // #17: Tracker URL validation parity with vertex_strings.hpp
+                try TestRunner.assertTrue(TorrentInput.isValidTrackerURL("https://[::1]/announce"))
+                try TestRunner.assertTrue(TorrentInput.isValidTrackerURL("https://[::1]:8443/announce"))
+                try TestRunner.assertTrue(TorrentInput.isValidTrackerURL("http://user@tracker.example:8080/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://[::1]evil.example/x"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://[::1]:0/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://[::1]:70000/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://[::1]:abc/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://user@/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://user@:8080/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://tracker.example:/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://tracker.example:99999/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://tracker\u{07}.example/announce"))
+                try TestRunner.assertFalse(TorrentInput.isValidTrackerURL("http://tracker\u{7F}.example/announce"))
             }
 
             TestRunner.run("Utility: drag and drop di magnet e file rifiutati") {
@@ -74,6 +90,32 @@
                     }
                 }
                 try TestRunner.assertEqual(onMain { rejected.value }, "nessun nome")
+
+                // #20: provider conforming to fileURL whose loadObject fails with nil must invoke onRejected(nil).
+                onMain { rejected.value = nil }
+                let brokenFileProvider = NSItemProvider()
+                brokenFileProvider.registerDataRepresentation(
+                    forTypeIdentifier: UTType.fileURL.identifier,
+                    visibility: .all
+                ) { completion in
+                    completion(nil, NSError(domain: "VertexTest", code: 1))
+                    return nil
+                }
+                let handledBroken = onMain {
+                    TorrentDropHandler.handle(
+                        [brokenFileProvider],
+                        onItem: { _ in },
+                        onRejected: { rejected.value = $0 ?? "caricamento-fallito" }
+                    )
+                }
+                try TestRunner.assertTrue(handledBroken)
+                try TestsSupport.waitFor("drop con coercizione URL fallita") {
+                    onMain {
+                        RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+                        return rejected.value != nil
+                    }
+                }
+                try TestRunner.assertEqual(onMain { rejected.value }, "caricamento-fallito")
             }
         }
     }

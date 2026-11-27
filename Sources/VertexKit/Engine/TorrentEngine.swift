@@ -132,6 +132,7 @@ package final class TorrentEngine: ObservableObject {
     private func startSession(configuration: SessionConfiguration? = nil) {
         isStarting = true
         startupError = nil
+        SystemNotifications.prewarmSignatureCheck()
         Task { [weak self] in
             guard let self else { return }
             let outcome = await self.sessionController.create(configuration: configuration)
@@ -182,7 +183,7 @@ package final class TorrentEngine: ObservableObject {
     /// error view calls this; it is a no-op while a session or a startup is in
     /// flight.
     package func retryStartup() {
-        guard !isStarting, !isShuttingDown, !hasSession else { return }
+        guard !isStarting, !isRestartingSession, !isShuttingDown, !hasSession else { return }
         startSession(configuration: configurationOverride)
     }
 
@@ -447,6 +448,7 @@ package final class TorrentEngine: ObservableObject {
     /// Keychain does not prompt on every poll.
     func retryProxyPasswordWarmIfNeeded() {
         guard !Preferences.isProxyPasswordCacheLoaded,
+            !Preferences.hasUserProxyPasswordOverride,
             !isWarmingProxyPassword,
             !isShuttingDown,
             hasSession,

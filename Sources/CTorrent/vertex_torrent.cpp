@@ -1200,7 +1200,7 @@ vt_session* vt_session_create_configured_ex(const char* download_dir,
             }
         }
 
-        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.14";
+        std::string const version_str = (app_version && *app_version) ? app_version : "1.17.15";
         lt::settings_pack settings;
         settings.set_str(lt::settings_pack::user_agent,
                          "Vertex/" + version_str + " libtorrent/" LIBTORRENT_VERSION);

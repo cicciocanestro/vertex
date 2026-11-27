@@ -1,5 +1,82 @@
 import SwiftUI
 
+package struct ProxyPasswordSaveTracker: Equatable {
+    package private(set) var editGeneration = 0
+    package private(set) var flushedGeneration = 0
+
+    package init() {}
+
+    package var hasUnflushedEdits: Bool {
+        editGeneration > flushedGeneration
+    }
+
+    @discardableResult
+    package mutating func recordEdit() -> Int {
+        editGeneration &+= 1
+        return editGeneration
+    }
+
+    package mutating func completeDebounceSave(generation: Int, succeeded: Bool) {
+        guard succeeded, generation > flushedGeneration else { return }
+        flushedGeneration = generation
+    }
+
+    @discardableResult
+    package mutating func consumePendingFlush() -> Int? {
+        guard hasUnflushedEdits else { return nil }
+        flushedGeneration = editGeneration
+        return editGeneration
+    }
+}
+
+@MainActor
+private enum ProxyPasswordSaveRegistry {
+    private static var trackers: [ObjectIdentifier: ProxyPasswordSaveTracker] = [:]
+
+    @discardableResult
+    static func recordEdit(for dirty: UIState<Bool>) -> Int {
+        let key = ObjectIdentifier(dirty)
+        var tracker = trackers[key, default: ProxyPasswordSaveTracker()]
+        let generation = tracker.recordEdit()
+        trackers[key] = tracker
+        dirty.value = tracker.hasUnflushedEdits
+        return generation
+    }
+
+    static func currentEditGeneration(for dirty: UIState<Bool>) -> Int {
+        trackers[ObjectIdentifier(dirty)]?.editGeneration ?? (dirty.value ? 1 : 0)
+    }
+
+    static func completeDebounceSave(for dirty: UIState<Bool>, generation: Int, succeeded: Bool) {
+        let key = ObjectIdentifier(dirty)
+        guard var tracker = trackers[key] else {
+            if succeeded { dirty.value = false }
+            return
+        }
+        tracker.completeDebounceSave(generation: generation, succeeded: succeeded)
+        trackers[key] = tracker
+        dirty.value = tracker.hasUnflushedEdits
+    }
+
+    @discardableResult
+    static func consumePendingFlush(for dirty: UIState<Bool>) -> Int? {
+        let key = ObjectIdentifier(dirty)
+        if var tracker = trackers[key] {
+            let generation = tracker.consumePendingFlush()
+            trackers[key] = tracker
+            dirty.value = tracker.hasUnflushedEdits
+            return generation
+        }
+        guard dirty.value else { return nil }
+        dirty.value = false
+        return 1
+    }
+
+    static func clear(for dirty: UIState<Bool>) {
+        trackers.removeValue(forKey: ObjectIdentifier(dirty))
+    }
+}
+
 extension SettingsSheet {
     var body: some View {
         let palette = Palette(scheme: scheme)
@@ -49,6 +126,7 @@ extension SettingsSheet {
 
     func handleOnDisappear() {
         flushProxyPassword()
+        ProxyPasswordSaveRegistry.clear(for: proxyPasswordDirty)
         engine.applySettingsNow()
     }
 
@@ -123,7 +201,7 @@ extension SettingsSheet {
 
     /// Coalesces keychain writes while the user types.
     func scheduleProxyPasswordSave() {
-        proxyPasswordDirty.value = true
+        ProxyPasswordSaveRegistry.recordEdit(for: proxyPasswordDirty)
         proxyPasswordSaveTask.value?.cancel()
 
         let password = proxyPasswordValue
@@ -138,10 +216,15 @@ extension SettingsSheet {
             // `SecItemUpdate` can block and may show an access prompt: keep it
             // off the main thread so typing in the field never freezes the UI.
             let value = password.value
+            let savedGeneration = ProxyPasswordSaveRegistry.currentEditGeneration(for: dirty)
             let saved = await Task.detached(priority: .userInitiated) {
                 Preferences.setProxyPassword(value)
             }.value
-            if saved { dirty.value = false }
+            ProxyPasswordSaveRegistry.completeDebounceSave(
+                for: dirty,
+                generation: savedGeneration,
+                succeeded: saved
+            )
             engine.applySettingsNow()
             if !saved {
                 engine.showToast(
@@ -160,8 +243,7 @@ extension SettingsSheet {
     func flushProxyPassword() {
         proxyPasswordSaveTask.value?.cancel()
         proxyPasswordSaveTask.value = nil
-        guard proxyPasswordDirty.value else { return }
-        proxyPasswordDirty.value = false
+        guard ProxyPasswordSaveRegistry.consumePendingFlush(for: proxyPasswordDirty) != nil else { return }
         let value = proxyPasswordValue.value
         let inFile = proxyPasswordInFile
         Preferences.updateCachedProxyPassword(value)
@@ -307,10 +389,9 @@ extension SettingsSheet {
                         isOn: Binding(
                             get: { proxyPasswordInFile },
                             set: { newValue in
-                                if proxyPasswordDirty.value {
+                                if ProxyPasswordSaveRegistry.consumePendingFlush(for: proxyPasswordDirty) != nil {
                                     proxyPasswordSaveTask.value?.cancel()
                                     proxyPasswordSaveTask.value = nil
-                                    proxyPasswordDirty.value = false
                                     Preferences.updateCachedProxyPassword(proxyPasswordValue.value)
                                 }
                                 proxyPasswordInFile = newValue

@@ -221,6 +221,19 @@ enum PreferencesTests {
                 defaults.integer(forKey: PrefKey.maxActiveTorrents),
                 PrefDefault.maxActiveTorrents
             )
+            defaults.set(-10, forKey: PrefKey.maxActiveTorrents)
+            TorrentEngine.validateAllPreferences()
+            try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.maxActiveTorrents), 0)
+
+            defaults.set(5_000, forKey: PrefKey.maxActiveTorrents)
+            TorrentEngine.validateAllPreferences()
+            try TestRunner.assertEqual(
+                defaults.integer(forKey: PrefKey.maxActiveTorrents),
+                Preferences.maximumActiveTorrents,
+                "Un maxActiveTorrents sopra il limite deve essere clampato a 1000 anziché azzerato"
+            )
+            defaults.set(PrefDefault.maxActiveTorrents, forKey: PrefKey.maxActiveTorrents)
+
             try TestRunner.assertEqual(defaults.double(forKey: PrefKey.seedRatioLimit), 0.0)
             try TestRunner.assertEqual(defaults.integer(forKey: PrefKey.proxyPort), 1080)
             try TestRunner.assertEqual(defaults.string(forKey: PrefKey.proxyHost), "proxy.local")
@@ -323,5 +336,72 @@ enum PreferencesTests {
                 dataDir.appendingPathComponent("resume", isDirectory: true).standardizedFileURL.path
             )
         }
+
+        #if DEBUG
+            TestRunner.run("ProxyPassword cache: migrazione su file vuoto e separazione override utente") {
+                let workspace = try IntegrationWorkspace()
+                let defaults = Preferences.userDefaults
+                let savedInFile = defaults.object(forKey: PrefKey.proxyPasswordInFile)
+                let savedLegacy = defaults.object(forKey: PrefKey.proxyPassword)
+                let prevPasswordFile = getenv("VERTEX_PROXY_PASSWORD_FILE").map { String(cString: $0) }
+                defer {
+                    Preferences.resetProxyPasswordCacheForTesting()
+                    if let prevPasswordFile {
+                        prevPasswordFile.withCString { _ = setenv("VERTEX_PROXY_PASSWORD_FILE", $0, 1) }
+                    } else {
+                        unsetenv("VERTEX_PROXY_PASSWORD_FILE")
+                    }
+                    if let savedInFile {
+                        defaults.set(savedInFile, forKey: PrefKey.proxyPasswordInFile)
+                    } else {
+                        defaults.removeObject(forKey: PrefKey.proxyPasswordInFile)
+                    }
+                    if let savedLegacy {
+                        defaults.set(savedLegacy, forKey: PrefKey.proxyPassword)
+                    } else {
+                        defaults.removeObject(forKey: PrefKey.proxyPassword)
+                    }
+                    workspace.cleanup()
+                }
+
+                // #2: an empty (0-byte) backend entry must not discard a non-empty legacy password.
+                let emptyFile = workspace.root.appendingPathComponent("empty-proxy-pass")
+                try Data().write(to: emptyFile)
+                emptyFile.path.withCString { _ = setenv("VERTEX_PROXY_PASSWORD_FILE", $0, 1) }
+                defaults.set(true, forKey: PrefKey.proxyPasswordInFile)
+                defaults.set("legacy-secret", forKey: PrefKey.proxyPassword)
+                Preferences.resetProxyPasswordCacheForTesting()
+
+                Preferences.warmProxyPasswordCache()
+                try TestRunner.assertTrue(Preferences.isProxyPasswordCacheLoaded)
+                try TestRunner.assertEqual(Preferences.proxyPassword, "legacy-secret")
+                try TestRunner.assertNil(defaults.string(forKey: PrefKey.proxyPassword))
+                try TestRunner.assertEqual(
+                    try String(contentsOf: emptyFile, encoding: .utf8),
+                    "legacy-secret"
+                )
+
+                // #3: clearing an unloaded cache leaves isProxyPasswordCacheLoaded == false so
+                // background Keychain retries stay armed, whereas a non-empty user override
+                // preserves the user's input against late warm calls.
+                Preferences.resetProxyPasswordCacheForTesting()
+                Preferences.updateCachedProxyPassword("")
+                try TestRunner.assertFalse(
+                    Preferences.isProxyPasswordCacheLoaded,
+                    "Uno svuotamento con cache fredda non deve marcare il Keychain come caricato"
+                )
+                try TestRunner.assertFalse(Preferences.hasUserProxyPasswordOverride)
+
+                Preferences.updateCachedProxyPassword("typed-override")
+                try TestRunner.assertFalse(Preferences.isProxyPasswordCacheLoaded)
+                try TestRunner.assertTrue(Preferences.hasUserProxyPasswordOverride)
+                try TestRunner.assertEqual(Preferences.proxyPassword, "typed-override")
+
+                // Even though emptyFile holds "legacy-secret", warmProxyPasswordCache must not
+                // clobber the active user override in memory.
+                Preferences.warmProxyPasswordCache()
+                try TestRunner.assertEqual(Preferences.proxyPassword, "typed-override")
+            }
+        #endif
     }
 }

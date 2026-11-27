@@ -109,7 +109,7 @@ package struct SessionStats: Equatable {
     }
 
     package var isBoundToAddress: Bool { !bindAddress.isEmpty }
-    package var isProxyActive: Bool { proxy.enabled && !proxy.hostname.isEmpty && proxy.port > 0 }
+    package var isProxyActive: Bool { proxy.enabled }
 
     package init(
         downloadRate: Int64 = 0,

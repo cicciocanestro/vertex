@@ -13,6 +13,19 @@ enum InspectorBadge {
     }
 }
 
+package enum InspectorTrackerMutation {
+    package static func reconcile(
+        added: [String],
+        removed: Set<String>,
+        with detailTrackers: [TorrentTracker]
+    ) -> (added: [String], removed: Set<String>) {
+        let presentLower = Set(detailTrackers.map { $0.url.lowercased() })
+        let remainingAdded = added.filter { !presentLower.contains($0.lowercased()) }
+        let remainingRemoved = removed.intersection(presentLower)
+        return (remainingAdded, remainingRemoved)
+    }
+}
+
 enum DetailTab: String, CaseIterable, Identifiable {
     case files = "files"
     case peers = "peers"
@@ -40,6 +53,8 @@ struct InspectorView: View {
     @StateObject private var newTracker = UIState("")
     @StateObject private var pendingAddedTrackers = UIState<[String]>([])
     @StateObject private var pendingRemovedTrackers = UIState<Set<String>>([])
+    @StateObject private var pendingTrackerMutations = UIState(0)
+    @StateObject private var trackerSessionID = UIState(0)
     @StateObject private var isUpdatingTrackers = UIState(false)
     @StateObject private var trackerUnlockTask = UIState<Task<Void, Never>?>(nil)
 
@@ -110,7 +125,7 @@ struct InspectorView: View {
             resetTrackerEditState()
         }
         .onChange(of: engine.detail) { _, _ in
-            clearPendingTrackerMutation()
+            reconcilePendingTrackerMutation()
         }
         .onDisappear {
             trackerUnlockTask.value?.cancel()
@@ -645,8 +660,9 @@ struct InspectorView: View {
         guard TrackerInput.canAdd(candidate, existing: existing) else { return }
         let urls = existing + [candidate]
         pendingAddedTrackers.value.append(candidate)
-        beginTrackerMutation()
-        engine.setTrackers(urls, torrentID: torrent.id)
+        let token = beginTrackerMutation()
+        let completionHandler = makeTrackerMutationCompletion(token: token)
+        engine.setTrackers(urls, torrentID: torrent.id, completion: completionHandler)
         newTracker.value = ""
     }
 
@@ -656,36 +672,102 @@ struct InspectorView: View {
         let urls = effectiveTrackerURLs(from: detail).filter { $0.lowercased() != lower }
         pendingRemovedTrackers.value.insert(lower)
         pendingAddedTrackers.value.removeAll { $0.lowercased() == lower }
-        beginTrackerMutation()
-        engine.setTrackers(urls, torrentID: torrent.id)
+        let token = beginTrackerMutation()
+        let completionHandler = makeTrackerMutationCompletion(token: token)
+        engine.setTrackers(urls, torrentID: torrent.id, completion: completionHandler)
     }
 
-    private func beginTrackerMutation() {
+    private func beginTrackerMutation() -> Int {
+        pendingTrackerMutations.value += 1
         isUpdatingTrackers.value = true
         trackerUnlockTask.value?.cancel()
+        let token = trackerSessionID.value
+        let sessionState = trackerSessionID
+        let mutationsState = pendingTrackerMutations
         let unlockTaskState = trackerUnlockTask
         let updatingState = isUpdatingTrackers
         let addedState = pendingAddedTrackers
         let removedState = pendingRemovedTrackers
         unlockTaskState.value = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard !Task.isCancelled else { return }
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled, sessionState.value == token else { return }
             unlockTaskState.value = nil
+            mutationsState.value = 0
             updatingState.value = false
             addedState.value = []
             removedState.value = []
+        }
+        return token
+    }
+
+    private func makeTrackerMutationCompletion(token: Int) -> @MainActor (Bool) -> Void {
+        let sessionState = trackerSessionID
+        let mutationsState = pendingTrackerMutations
+        let unlockTaskState = trackerUnlockTask
+        let updatingState = isUpdatingTrackers
+        let addedState = pendingAddedTrackers
+        let removedState = pendingRemovedTrackers
+        let engineRef = engine
+        let targetTorrentID = torrent.id
+        return { succeeded in
+            guard sessionState.value == token else { return }
+            mutationsState.value = max(0, mutationsState.value - 1)
+            if !succeeded {
+                addedState.value = []
+                removedState.value = []
+            } else if engineRef.selectedID == targetTorrentID, let detail = engineRef.detail {
+                let reconciled = InspectorTrackerMutation.reconcile(
+                    added: addedState.value,
+                    removed: removedState.value,
+                    with: detail.trackers
+                )
+                addedState.value = reconciled.added
+                removedState.value = reconciled.removed
+            }
+            if mutationsState.value == 0 {
+                unlockTaskState.value?.cancel()
+                unlockTaskState.value = nil
+                updatingState.value = false
+                addedState.value = []
+                removedState.value = []
+            }
+        }
+    }
+
+    private func reconcilePendingTrackerMutation() {
+        guard let detail = currentDetail else { return }
+        let reconciled = InspectorTrackerMutation.reconcile(
+            added: pendingAddedTrackers.value,
+            removed: pendingRemovedTrackers.value,
+            with: detail.trackers
+        )
+        if pendingAddedTrackers.value != reconciled.added {
+            pendingAddedTrackers.value = reconciled.added
+        }
+        if pendingRemovedTrackers.value != reconciled.removed {
+            pendingRemovedTrackers.value = reconciled.removed
+        }
+        if pendingTrackerMutations.value == 0,
+            reconciled.added.isEmpty,
+            reconciled.removed.isEmpty
+        {
+            trackerUnlockTask.value?.cancel()
+            trackerUnlockTask.value = nil
+            isUpdatingTrackers.value = false
         }
     }
 
     private func clearPendingTrackerMutation() {
         trackerUnlockTask.value?.cancel()
         trackerUnlockTask.value = nil
+        pendingTrackerMutations.value = 0
         isUpdatingTrackers.value = false
         pendingAddedTrackers.value = []
         pendingRemovedTrackers.value = []
     }
 
     private func resetTrackerEditState() {
+        trackerSessionID.value &+= 1
         newTracker.value = ""
         clearPendingTrackerMutation()
     }

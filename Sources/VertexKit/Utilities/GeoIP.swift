@@ -255,6 +255,9 @@ package struct GeoIPTable {
             var shift: UInt64 = 0
             while true {
                 guard let byte = readByte(), shift < 64 else { return nil }
+                if shift == 63 && (byte & 0x7E) != 0 {
+                    return nil
+                }
                 value |= UInt64(byte & 0x7F) << shift
                 if byte & 0x80 == 0 { return value }
                 shift += 7
@@ -281,7 +284,6 @@ package struct GeoIPTable {
         var ends: [UInt32] = []
         var indices: [UInt8] = []
         var previous: UInt64 = 0
-        var hasFirst = false
         while cursor < payload.count {
             guard let delta = readVarint(),
                 let length = readVarint(),
@@ -290,8 +292,6 @@ package struct GeoIPTable {
             else { return nil }
             let (nextStart, startOverflow) = previous.addingReportingOverflow(delta)
             guard !startOverflow, nextStart <= UInt64(UInt32.max) else { return nil }
-            if hasFirst && nextStart < previous { return nil }
-            hasFirst = true
             previous = nextStart
             starts.append(UInt32(previous))
             let (rawEnd, endOverflow) = previous.addingReportingOverflow(length)

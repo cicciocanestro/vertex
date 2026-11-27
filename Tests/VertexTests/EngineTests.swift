@@ -865,6 +865,70 @@
                             && engine.stats.proxy.port == 0
                     }
                 }
+
+                // #1: an unwritable downloadPath must NEVER prevent vt_fail_close_proxy or
+                // vt_apply_proxy_settings from running first and updating the proxy baseline.
+                defaults.set(false, forKey: PrefKey.proxyEnabled)
+                defaults.set("127.0.0.1", forKey: PrefKey.proxyHost)
+                defaults.set(1080, forKey: PrefKey.proxyPort)
+                onMain { engine.applySettings() }
+                try waitFor(engine) {
+                    onMain { !engine.isApplyingSettings && !engine.stats.proxy.enabled }
+                }
+
+                let readonlyParent = try workspace.directory("c1-readonly-parent")
+                try FileManager.default.setAttributes(
+                    [.posixPermissions: 0o555],
+                    ofItemAtPath: readonlyParent.path
+                )
+                defer {
+                    try? FileManager.default.setAttributes(
+                        [.posixPermissions: 0o755],
+                        ofItemAtPath: readonlyParent.path
+                    )
+                }
+                let unwritableTarget = readonlyParent.appendingPathComponent("blocked-downloads", isDirectory: true)
+                defaults.set(unwritableTarget.path, forKey: PrefKey.downloadPath)
+                defaults.set(true, forKey: PrefKey.proxyEnabled)
+                defaults.set("   ", forKey: PrefKey.proxyHost)
+                defaults.set(1080, forKey: PrefKey.proxyPort)
+                onMain { engine.applySettings() }
+                try waitFor(engine) {
+                    onMain {
+                        !engine.isApplyingSettings
+                            && engine.stats.proxy.enabled
+                            && engine.stats.proxy.hasError
+                            && !engine.stats.isListening
+                    }
+                }
+
+                // Fixing proxyHost/proxyPort while downloadPath is STILL unwritable must also
+                // apply the SOCKS5 endpoint instead of aborting early on vt_set_default_save_path.
+                defaults.set("127.0.0.1", forKey: PrefKey.proxyHost)
+                defaults.set(1080, forKey: PrefKey.proxyPort)
+                onMain { engine.applySettings() }
+                try waitFor(engine) {
+                    onMain {
+                        !engine.isApplyingSettings
+                            && engine.stats.proxy.enabled
+                            && engine.stats.proxy.hostname == "127.0.0.1"
+                            && engine.stats.proxy.port == 1080
+                    }
+                }
+
+                // #5: finishPoll with a stale generation must not clear isPollInFlight.
+                onMain {
+                    engine.isPollInFlight = true
+                    engine.finishPoll(nil, generation: engine.sessionGeneration &- 1)
+                }
+                try TestRunner.assertTrue(
+                    onMain { engine.isPollInFlight },
+                    "Un poll di una generazione precedente non deve azzerare isPollInFlight"
+                )
+                onMain {
+                    engine.finishPoll(nil, generation: engine.sessionGeneration)
+                }
+                try TestRunner.assertFalse(onMain { engine.isPollInFlight })
             }
         }
 

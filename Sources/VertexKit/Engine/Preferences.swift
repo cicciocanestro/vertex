@@ -212,6 +212,11 @@ package enum Preferences {
     /// failed read leaves it false, so the engine can retry instead of serving
     /// an empty password for the whole process.
     nonisolated(unsafe) private static var proxyPasswordLoaded = false
+    /// True while an explicit non-empty user edit lives in memory before (or
+    /// despite) backend persistence, preventing background Keychain retries
+    /// from overwriting the user's input without falsely marking a cold
+    /// Keychain cache as loaded when the field is empty.
+    nonisolated(unsafe) private static var userProxyPasswordOverride = false
 
     /// The SOCKS5 password for the current configuration. Never touches the
     /// Keychain: it returns the cached value, or the not-yet-migrated plaintext
@@ -232,15 +237,15 @@ package enum Preferences {
     /// snapshot already contains the password.
     package static func warmProxyPasswordCache() {
         proxyPasswordLock.lock()
-        let alreadyLoaded = proxyPasswordLoaded
+        let alreadySatisfied = proxyPasswordLoaded || userProxyPasswordOverride
         proxyPasswordLock.unlock()
-        if alreadyLoaded { return }
+        if alreadySatisfied { return }
 
         ProxyPasswordStore.withIOQueue {
             proxyPasswordLock.lock()
-            let loadedInsideQueue = proxyPasswordLoaded
+            let satisfiedInsideQueue = proxyPasswordLoaded || userProxyPasswordOverride
             proxyPasswordLock.unlock()
-            if loadedInsideQueue { return }
+            if satisfiedInsideQueue { return }
 
             let defaults = userDefaults
             let legacy = defaults.string(forKey: PrefKey.proxyPassword) ?? ""
@@ -257,20 +262,22 @@ package enum Preferences {
             }
 
             var value = resolved
-            if value == nil, !legacy.isEmpty {
+            if (value ?? "").isEmpty, !legacy.isEmpty {
                 // One-time migration through ProxyPasswordStore (serialized on
                 // ioQueue and honoring proxyPasswordInFile). A failed write must
                 // not lose the value, so the plaintext stays until persisted.
                 guard ProxyPasswordStore.writeUnlocked(legacy) else { return }
                 value = legacy
             }
-            if value != nil, !legacy.isEmpty {
+            if !legacy.isEmpty {
                 defaults.removeObject(forKey: PrefKey.proxyPassword)
             }
 
             proxyPasswordLock.lock()
-            cachedProxyPassword = value ?? ""
-            proxyPasswordLoaded = true
+            if !userProxyPasswordOverride {
+                cachedProxyPassword = value ?? ""
+                proxyPasswordLoaded = true
+            }
             proxyPasswordLock.unlock()
         }
     }
@@ -280,8 +287,16 @@ package enum Preferences {
     /// a background thread.
     package static func updateCachedProxyPassword(_ value: String) {
         proxyPasswordLock.lock()
-        cachedProxyPassword = value
-        proxyPasswordLoaded = true
+        if !value.isEmpty {
+            cachedProxyPassword = value
+            userProxyPasswordOverride = true
+        } else if proxyPasswordLoaded {
+            cachedProxyPassword = ""
+            userProxyPasswordOverride = false
+        } else {
+            cachedProxyPassword = nil
+            userProxyPasswordOverride = false
+        }
         proxyPasswordLock.unlock()
     }
 
@@ -290,6 +305,7 @@ package enum Preferences {
         proxyPasswordLock.lock()
         cachedProxyPassword = value
         proxyPasswordLoaded = true
+        userProxyPasswordOverride = false
         proxyPasswordLock.unlock()
     }
 
@@ -298,6 +314,7 @@ package enum Preferences {
             proxyPasswordLock.lock()
             cachedProxyPassword = nil
             proxyPasswordLoaded = false
+            userProxyPasswordOverride = false
             proxyPasswordLock.unlock()
         }
     #endif
@@ -307,6 +324,14 @@ package enum Preferences {
         proxyPasswordLock.lock()
         defer { proxyPasswordLock.unlock() }
         return proxyPasswordLoaded
+    }
+
+    /// Whether the user has set a non-empty in-memory password override in the
+    /// current session that must not be overwritten by a late Keychain warm.
+    package static var hasUserProxyPasswordOverride: Bool {
+        proxyPasswordLock.lock()
+        defer { proxyPasswordLock.unlock() }
+        return userProxyPasswordOverride
     }
 
     /// One-time migration of the old plaintext password, kept for callers that
@@ -324,6 +349,13 @@ package enum Preferences {
                 // Clearing or replacing the password must not leave the legacy
                 // plaintext value behind: proxyPassword would fall back to it.
                 commitCachedProxyPasswordFromIOQueue(value)
+            } else if value.isEmpty {
+                proxyPasswordLock.lock()
+                if !proxyPasswordLoaded {
+                    cachedProxyPassword = nil
+                    userProxyPasswordOverride = false
+                }
+                proxyPasswordLock.unlock()
             }
             return saved
         }
@@ -492,7 +524,8 @@ extension TorrentEngine {
         // active-torrent limit
         let rawMaxActive = defaults.integer(forKey: PrefKey.maxActiveTorrents)
         if !Preferences.isValidActiveLimit(rawMaxActive) {
-            defaults.set(PrefDefault.maxActiveTorrents, forKey: PrefKey.maxActiveTorrents)
+            let clampedMaxActive = min(max(rawMaxActive, 0), Preferences.maximumActiveTorrents)
+            defaults.set(clampedMaxActive, forKey: PrefKey.maxActiveTorrents)
         }
 
         // seed ratio limit

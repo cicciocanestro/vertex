@@ -1096,7 +1096,7 @@ enum CTorrentBridgeTests {
                 "127.0.0.1".withCString { host in
                     vt_session_create_configured_ex(
                         dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil,
-                        2, host, 1080, nil, nil, 1, "1.17.14", &badProxyTypeError
+                        2, host, 1080, nil, nil, 1, "1.17.15", &badProxyTypeError
                     )
                 }
             }
@@ -1111,7 +1111,7 @@ enum CTorrentBridgeTests {
                 "127.0.0.1".withCString { host in
                     vt_session_create_configured_ex(
                         dlPath, resPath, port, 0, 0, 0, 0, 0, 0, nil,
-                        1, host, 70_000, nil, nil, 1, "1.17.14", &badProxyPortError
+                        1, host, 70_000, nil, nil, 1, "1.17.15", &badProxyPortError
                     )
                 }
             }
@@ -1129,7 +1129,7 @@ enum CTorrentBridgeTests {
             resume.path.withCString { resPath in
                 vt_session_create_configured_ex(
                     dlPath, resPath, port, 0, 0, 1, 0, 0, 0, nil,
-                    0, nil, 0, nil, nil, 1, "1.17.14", nil
+                    0, nil, 0, nil, nil, 1, "1.17.15", nil
                 )
             }
         }

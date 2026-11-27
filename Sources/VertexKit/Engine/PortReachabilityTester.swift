@@ -2,6 +2,14 @@ import Combine
 import Darwin
 import Foundation
 
+private struct ReachabilityTestError: LocalizedError, Sendable {
+    let errorDescription: String?
+
+    init(_ message: String) {
+        errorDescription = message
+    }
+}
+
 @MainActor
 final class PortReachabilityTester: ObservableObject {
     enum State: Equatable {
@@ -17,8 +25,9 @@ final class PortReachabilityTester: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var publicIP: String?
 
-    private static let maxResponseBytes = 65_536
-    private static let ephemeralSession = URLSession(configuration: .ephemeral)
+    nonisolated static let maxResponseBytes = 65_536
+    nonisolated static let defaultMaxPollDuration: UInt64 = 30_000_000_000
+    nonisolated private static let ephemeralSession = URLSession(configuration: .ephemeral)
     private static let userAgent: String = {
         let version = AppInfo.version
         return "Vertex/\(version == "—" ? "1.0" : version)"
@@ -26,14 +35,17 @@ final class PortReachabilityTester: ObservableObject {
 
     private let load: Loader
     private let pollInterval: UInt64
+    private let maxPollDuration: UInt64
     private var task: Task<Void, Never>?
 
     init(
-        load: @escaping Loader = { try await PortReachabilityTester.ephemeralSession.data(for: $0) },
-        pollInterval: UInt64 = 1_500_000_000
+        load: @escaping Loader = { try await PortReachabilityTester.loadBounded($0) },
+        pollInterval: UInt64 = 1_500_000_000,
+        maxPollDuration: UInt64 = PortReachabilityTester.defaultMaxPollDuration
     ) {
         self.load = load
         self.pollInterval = pollInterval
+        self.maxPollDuration = maxPollDuration
     }
 
     func start(port: Int) {
@@ -78,22 +90,37 @@ final class PortReachabilityTester: ObservableObject {
             guard !Task.isCancelled else { return }
             let expectedNodes = Set(check.nodes.keys)
             guard !expectedNodes.isEmpty else {
-                throw TestError(L("Il servizio di test non ha restituito nodi."))
+                throw ReachabilityTestError(L("Il servizio di test non ha restituito nodi."))
             }
 
             var lastOpen = 0
             var lastCompleted = 0
             var stablePolls = 0
+            let pollStart = DispatchTime.now().uptimeNanoseconds
+            let pollDeadline = pollStart &+ maxPollDuration
 
             for _ in 0..<15 {
+                let nowBeforeSleep = DispatchTime.now().uptimeNanoseconds
+                if nowBeforeSleep >= pollDeadline {
+                    break
+                }
+                let sleepDuration = min(pollInterval, pollDeadline - nowBeforeSleep)
                 do {
-                    try await Task.sleep(nanoseconds: pollInterval)
+                    try await Task.sleep(nanoseconds: sleepDuration)
                 } catch {
                     return
                 }
                 guard !Task.isCancelled else { return }
 
-                let result = try await fetchCheckResult(requestID: check.requestID)
+                let nowBeforeFetch = DispatchTime.now().uptimeNanoseconds
+                if nowBeforeFetch >= pollDeadline {
+                    break
+                }
+                let remainingSeconds = Double(pollDeadline - nowBeforeFetch) / 1_000_000_000
+                let result = try await fetchCheckResult(
+                    requestID: check.requestID,
+                    timeoutSeconds: min(15, max(0.1, remainingSeconds))
+                )
                 guard !Task.isCancelled else { return }
                 var completed = 0
                 var open = 0
@@ -135,6 +162,9 @@ final class PortReachabilityTester: ObservableObject {
 
                 lastOpen = open
                 lastCompleted = completed
+                if DispatchTime.now().uptimeNanoseconds >= pollDeadline {
+                    break
+                }
             }
 
             if lastCompleted > 0 {
@@ -151,9 +181,42 @@ final class PortReachabilityTester: ObservableObject {
         }
     }
 
+    nonisolated static func loadBounded(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let (bytes, response) = try await ephemeralSession.bytes(for: request)
+        return try await collectBounded(from: bytes, response: response, maxBytes: maxResponseBytes)
+    }
+
+    nonisolated static func collectBounded<S: AsyncSequence>(
+        from bytes: S,
+        response: URLResponse,
+        maxBytes: Int = maxResponseBytes
+    ) async throws -> (Data, URLResponse) where S.Element == UInt8 {
+        guard let http = response as? HTTPURLResponse,
+            (200..<300).contains(http.statusCode)
+        else {
+            throw ReachabilityTestError(L("Il servizio di test non è raggiungibile."))
+        }
+        if http.expectedContentLength > Int64(maxBytes) {
+            throw ReachabilityTestError(L("Il servizio di test ha restituito una risposta non valida."))
+        }
+        let initialCapacity =
+            http.expectedContentLength > 0
+            ? min(Int(http.expectedContentLength), maxBytes)
+            : 1024
+        var data = Data()
+        data.reserveCapacity(initialCapacity)
+        for try await byte in bytes {
+            if data.count >= maxBytes {
+                throw ReachabilityTestError(L("Il servizio di test ha restituito una risposta non valida."))
+            }
+            data.append(byte)
+        }
+        return (data, response)
+    }
+
     private func fetchPublicIP() async throws -> String {
         guard let url = URL(string: "https://api.ipify.org?format=json") else {
-            throw TestError(L("Indirizzo del servizio IP pubblico non valido."))
+            throw ReachabilityTestError(L("Indirizzo del servizio IP pubblico non valido."))
         }
 
         var request = URLRequest(url: url)
@@ -170,7 +233,7 @@ final class PortReachabilityTester: ObservableObject {
         let decoded = try JSONDecoder().decode(IPResponse.self, from: data)
         let candidate = decoded.ip.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.isLiteralIPAddress(candidate) else {
-            throw TestError(L("IP pubblico non disponibile."))
+            throw ReachabilityTestError(L("IP pubblico non disponibile."))
         }
         return candidate
     }
@@ -183,7 +246,7 @@ final class PortReachabilityTester: ObservableObject {
             URLQueryItem(name: "max_nodes", value: "3"),
         ]
         guard let url = components?.url else {
-            throw TestError(L("Impossibile preparare il test esterno."))
+            throw ReachabilityTestError(L("Impossibile preparare il test esterno."))
         }
 
         var request = URLRequest(url: url)
@@ -199,7 +262,7 @@ final class PortReachabilityTester: ObservableObject {
             let requestID = root["request_id"] as? String,
             let nodes = root["nodes"] as? [String: Any]
         else {
-            throw TestError(L("Il servizio di test ha restituito una risposta non valida."))
+            throw ReachabilityTestError(L("Il servizio di test ha restituito una risposta non valida."))
         }
 
         return ExternalCheck(requestID: requestID, nodes: nodes)
@@ -213,16 +276,19 @@ final class PortReachabilityTester: ObservableObject {
             let encoded = requestID.addingPercentEncoding(withAllowedCharacters: allowed),
             let url = URL(string: "https://check-host.net/check-result/\(encoded)")
         else {
-            throw TestError(L("Risposta del test non valida."))
+            throw ReachabilityTestError(L("Risposta del test non valida."))
         }
         return url
     }
 
-    private func fetchCheckResult(requestID: String) async throws -> [String: Any] {
+    private func fetchCheckResult(
+        requestID: String,
+        timeoutSeconds: TimeInterval = 15
+    ) async throws -> [String: Any] {
         let url = try Self.checkResultURL(for: requestID)
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 15
+        request.timeoutInterval = timeoutSeconds
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
@@ -230,7 +296,7 @@ final class PortReachabilityTester: ObservableObject {
         try validate(response, data: data)
 
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw TestError(L("Risposta del test non valida."))
+            throw ReachabilityTestError(L("Risposta del test non valida."))
         }
         return root
     }
@@ -239,10 +305,10 @@ final class PortReachabilityTester: ObservableObject {
         guard let http = response as? HTTPURLResponse,
             (200..<300).contains(http.statusCode)
         else {
-            throw TestError(L("Il servizio di test non è raggiungibile."))
+            throw ReachabilityTestError(L("Il servizio di test non è raggiungibile."))
         }
         guard data.count <= Self.maxResponseBytes else {
-            throw TestError(L("Il servizio di test ha restituito una risposta non valida."))
+            throw ReachabilityTestError(L("Il servizio di test ha restituito una risposta non valida."))
         }
     }
 
@@ -259,13 +325,5 @@ final class PortReachabilityTester: ObservableObject {
     private struct ExternalCheck {
         let requestID: String
         let nodes: [String: Any]
-    }
-
-    private struct TestError: LocalizedError {
-        let errorDescription: String?
-
-        init(_ message: String) {
-            errorDescription = message
-        }
     }
 }

@@ -28,7 +28,10 @@ enum TorrentDropHandler {
             if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
                 handled = true
                 _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }
+                    guard let url else {
+                        Task { @MainActor in onRejected?(nil) }
+                        return
+                    }
                     guard TorrentInput.isTorrentFile(url) else {
                         let name = url.lastPathComponent
                         Task { @MainActor in onRejected?(name) }
@@ -39,7 +42,10 @@ enum TorrentDropHandler {
             } else if provider.canLoadObject(ofClass: NSString.self) {
                 handled = true
                 _ = provider.loadObject(ofClass: NSString.self) { object, _ in
-                    guard let text = object as? String else { return }
+                    guard let text = object as? String else {
+                        Task { @MainActor in onRejected?(nil) }
+                        return
+                    }
                     guard TorrentInput.isMagnet(text) else {
                         Task { @MainActor in onRejected?(nil) }
                         return

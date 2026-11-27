@@ -24,6 +24,12 @@ enum OpenPanelFactory {
         return panel
     }
 
+    nonisolated static func directoryURL(for path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        let expanded = (path as NSString).expandingTildeInPath
+        return URL(fileURLWithPath: expanded)
+    }
+
     static func directory(
         startingAt path: String?,
         prompt: String = L("Scegli"),
@@ -38,8 +44,8 @@ enum OpenPanelFactory {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = prompt
-        if let path, !path.isEmpty {
-            panel.directoryURL = URL(fileURLWithPath: path)
+        if let directoryURL = directoryURL(for: path) {
+            panel.directoryURL = directoryURL
         }
         return panel
     }

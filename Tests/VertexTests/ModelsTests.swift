@@ -781,5 +781,96 @@ enum ModelsTests {
                 L("Errore di lettura o scrittura sul disco.")
             )
         }
+
+        TestRunner.run("Modelli v1.17.15: proxy fail-closed attivo, peer I2P duplicati, clamp init e selezione") {
+            // #14: fail-closed proxy clears hostname/port while keeping enabled == true.
+            let failClosedStats = SessionStats(
+                proxy: ProxyInfo(
+                    enabled: true,
+                    type: "SOCKS5",
+                    hostname: "",
+                    port: 0,
+                    error: "Host proxy non valido"
+                )
+            )
+            try TestRunner.assertTrue(
+                failClosedStats.isProxyActive,
+                "isProxyActive deve restare true quando il proxy è in guardia fail-closed"
+            )
+            try TestRunner.assertFalse(SessionStats().isProxyActive)
+
+            // P3 #6: direct Torrent.init clamps progress to [0, 1] and non-negative finite ratio.
+            let overTorrent = Torrent.test(id: "over", name: "Over", progress: 1.75, ratio: -3.5)
+            try TestRunner.assertEqual(overTorrent.progress, 1.0)
+            try TestRunner.assertEqual(overTorrent.ratio, 0.0)
+            let underTorrent = Torrent.test(id: "under", name: "Under", progress: -0.25, ratio: .infinity)
+            try TestRunner.assertEqual(underTorrent.progress, 0.0)
+            try TestRunner.assertEqual(underTorrent.ratio, 0.0)
+
+            // #15: duplicate peer endpoints (e.g. multiple "i2p" peers) receive distinct IDs,
+            // while unique endpoints keep id == endpoint.
+            let peersJSON = """
+                {
+                    "files": [],
+                    "trackers": [],
+                    "peers": [
+                        {"endpoint": "i2p", "client": "I2PSnark", "progress": 0.5},
+                        {"endpoint": "i2p", "client": "BiglyBT", "progress": 0.8},
+                        {"endpoint": "198.51.100.4:6881", "client": "Transmission", "progress": 1.0}
+                    ],
+                    "metadata": true
+                }
+                """
+            let peerDetail = try JSONDecoder().decode(TorrentDetail.self, from: Data(peersJSON.utf8))
+            try TestRunner.assertEqual(peerDetail.peers.count, 3)
+            try TestRunner.assertEqual(peerDetail.peers[0].id, "i2p")
+            try TestRunner.assertEqual(peerDetail.peers[1].id, "i2p#2")
+            try TestRunner.assertEqual(peerDetail.peers[1].endpoint, "i2p")
+            try TestRunner.assertEqual(peerDetail.peers[2].id, "198.51.100.4:6881")
+            try TestRunner.assertEqual(Set(peerDetail.peers.map(\.id)).count, 3)
+
+            // P3 #3: ⌘-deselecting the anchor selects the first remaining visible ID deterministically.
+            let visible = (0..<12).map { "row-\($0)" }
+            let selectedSet = Set(["row-9", "row-3", "row-7", "row-5"])
+            let afterCmdDeselect = TorrentListSelection.handleClick(
+                on: "row-5",
+                in: visible,
+                current: selectedSet,
+                anchor: "row-5",
+                command: true,
+                shift: false
+            )
+            try TestRunner.assertEqual(afterCmdDeselect.selectedIDs, ["row-3", "row-7", "row-9"])
+            try TestRunner.assertEqual(
+                afterCmdDeselect.anchorID,
+                "row-3",
+                "L'anchor sostitutivo deve seguire l'ordine visibile e non Set.first"
+            )
+
+            // #9: pruning selection against filtered/searched visible IDs removes hidden rows.
+            let prunedHiddenAnchor = TorrentListSelection.pruned(
+                current: ["a", "b", "c"],
+                anchor: "a",
+                visibleIDs: ["b", "c", "d"]
+            )
+            try TestRunner.assertEqual(prunedHiddenAnchor.selectedIDs, ["b", "c"])
+            try TestRunner.assertEqual(prunedHiddenAnchor.anchorID, "b")
+
+            let prunedKeptAnchor = TorrentListSelection.pruned(
+                current: ["a", "b", "c"],
+                anchor: "c",
+                visibleIDs: ["b", "c"]
+            )
+            try TestRunner.assertEqual(prunedKeptAnchor.selectedIDs, ["b", "c"])
+            try TestRunner.assertEqual(prunedKeptAnchor.anchorID, "c")
+
+            let prunedAllHidden = TorrentListSelection.pruned(
+                current: ["a", "b"],
+                anchor: "a",
+                visibleIDs: ["x", "y"]
+            )
+            try TestRunner.assertTrue(prunedAllHidden.selectedIDs.isEmpty)
+            try TestRunner.assertNil(prunedAllHidden.anchorID)
+        }
     }
 }

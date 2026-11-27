@@ -51,6 +51,9 @@
             TestRunner.run("PortReachability: cancel riporta a idle e ignora risposte in volo") {
                 try cancelResetsAndGuardsResult()
             }
+            TestRunner.run("PortReachability: cap streaming a 64 KB e deadline complessiva di poll") {
+                try boundedStreamAndOverallDeadline()
+            }
         }
 
         // MARK: - Cases
@@ -411,6 +414,119 @@
             try TestRunner.assertEqual(onMain { tester.state }, .idle)
         }
 
+        private static func boundedStreamAndOverallDeadline() throws {
+            let defaults = Preferences.userDefaults
+            let savedProxy = defaults.object(forKey: PrefKey.proxyEnabled)
+            defaults.set(false, forKey: PrefKey.proxyEnabled)
+            defer {
+                if let savedProxy {
+                    defaults.set(savedProxy, forKey: PrefKey.proxyEnabled)
+                } else {
+                    defaults.removeObject(forKey: PrefKey.proxyEnabled)
+                }
+            }
+
+            // #18: collectBounded must stop reading as soon as maxResponseBytes is exceeded,
+            // without pulling the rest of a huge body into memory.
+            let url = URL(string: "https://check-host.net/check-result/test")!
+            let okResponse = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil
+            )!
+            let counter = StreamCounter()
+            let oversizedStream = CountingByteSequence(total: 250_000, counter: counter)
+            let streamResult = try runAsync {
+                do {
+                    _ = try await PortReachabilityTester.collectBounded(
+                        from: oversizedStream,
+                        response: okResponse,
+                        maxBytes: PortReachabilityTester.maxResponseBytes
+                    )
+                    return false
+                } catch {
+                    return true
+                }
+            }
+            try TestRunner.assertTrue(streamResult, "Un body oltre 64 KB deve fallire durante lo streaming")
+            try TestRunner.assertEqual(
+                counter.emitted,
+                PortReachabilityTester.maxResponseBytes + 1,
+                "Lo stream deve interrompersi al primo byte oltre il limite"
+            )
+
+            // Declared Content-Length above maxResponseBytes must abort before reading 1 byte.
+            let declaredHuge = HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Length": "200000"]
+            )!
+            let zeroCounter = StreamCounter()
+            let rejectedBeforeRead = try runAsync {
+                do {
+                    _ = try await PortReachabilityTester.collectBounded(
+                        from: CountingByteSequence(total: 100, counter: zeroCounter),
+                        response: declaredHuge,
+                        maxBytes: PortReachabilityTester.maxResponseBytes
+                    )
+                    return false
+                } catch {
+                    return true
+                }
+            }
+            try TestRunner.assertTrue(rejectedBeforeRead)
+            try TestRunner.assertEqual(zeroCounter.emitted, 0)
+
+            // Valid small stream succeeds cleanly.
+            let smallPayload = Array(#"{"ok":1}"#.utf8)
+            let validCounter = StreamCounter()
+            let collected = try runAsync {
+                try await PortReachabilityTester.collectBounded(
+                    from: FixedByteSequence(bytes: smallPayload, counter: validCounter),
+                    response: okResponse,
+                    maxBytes: PortReachabilityTester.maxResponseBytes
+                ).0
+            }
+            try TestRunner.assertEqual(Array(collected), smallPayload)
+
+            // #19: overall poll deadline caps total check-host.net polling duration well before 15 iterations.
+            let stub = onMain {
+                HTTPStub { request in
+                    if request.url?.host == "api.ipify.org" {
+                        return (200, Data(#"{"ip":"203.0.113.5"}"#.utf8))
+                    }
+                    if request.url?.path == "/check-tcp" {
+                        return (200, Data(#"{"ok":1,"request_id":"req-dl","nodes":{"node-1":{}}}"#.utf8))
+                    }
+                    return (200, Data(#"{}"#.utf8))
+                }
+            }
+            let deadlineTester = onMain {
+                PortReachabilityTester(
+                    load: stub.load,
+                    pollInterval: 15_000_000,
+                    maxPollDuration: 40_000_000
+                )
+            }
+            defer { onMain { deadlineTester.reset() } }
+
+            onMain { deadlineTester.start(port: 6881) }
+            let deadlineState = try onMain { try waitForState(deadlineTester, timeout: 5) }
+            try TestRunner.assertEqual(
+                deadlineState,
+                .failed(L("Il servizio di test non ha risposto in tempo."))
+            )
+            let pollCount = onMain {
+                stub.requests.filter { $0.url?.path == "/check-result/req-dl" }.count
+            }
+            try TestRunner.assertTrue(
+                pollCount < 15,
+                "La deadline complessiva deve interrompere il loop prima delle 15 iterazioni (eseguite: \(pollCount))"
+            )
+        }
+
         // MARK: - Helpers
 
         private static func failureMessage(
@@ -517,5 +633,87 @@
     @MainActor
     private final class TesterBox {
         weak var tester: PortReachabilityTester?
+    }
+
+    private final class StreamCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func increment() {
+            lock.lock()
+            count += 1
+            lock.unlock()
+        }
+
+        var emitted: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return count
+        }
+    }
+
+    private struct CountingByteSequence: AsyncSequence, Sendable {
+        typealias Element = UInt8
+        let total: Int
+        let counter: StreamCounter
+
+        struct AsyncIterator: AsyncIteratorProtocol {
+            let total: Int
+            let counter: StreamCounter
+            var index = 0
+
+            mutating func next() async throws -> UInt8? {
+                guard index < total else { return nil }
+                index += 1
+                counter.increment()
+                return 0x61
+            }
+        }
+
+        func makeAsyncIterator() -> AsyncIterator {
+            AsyncIterator(total: total, counter: counter)
+        }
+    }
+
+    private struct FixedByteSequence: AsyncSequence, Sendable {
+        typealias Element = UInt8
+        let bytes: [UInt8]
+        let counter: StreamCounter
+
+        struct AsyncIterator: AsyncIteratorProtocol {
+            let bytes: [UInt8]
+            let counter: StreamCounter
+            var index = 0
+
+            mutating func next() async throws -> UInt8? {
+                guard index < bytes.count else { return nil }
+                defer { index += 1 }
+                counter.increment()
+                return bytes[index]
+            }
+        }
+
+        func makeAsyncIterator() -> AsyncIterator {
+            AsyncIterator(bytes: bytes, counter: counter)
+        }
+    }
+
+    private final class AsyncResultBox<T>: @unchecked Sendable {
+        var result: Result<T, Error>?
+        let semaphore = DispatchSemaphore(value: 0)
+    }
+
+    private func runAsync<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) throws -> T {
+        let box = AsyncResultBox<T>()
+        Task.detached {
+            do {
+                box.result = .success(try await operation())
+            } catch {
+                box.result = .failure(error)
+            }
+            box.semaphore.signal()
+        }
+        box.semaphore.wait()
+        return try box.result!.get()
     }
 #endif

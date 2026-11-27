@@ -247,9 +247,11 @@ struct NetworkDiagnosticsView: View {
                             Text(L(hasError ? "Proxy non raggiungibile" : "Proxy attivo"))
                                 .font(Typography.bodyLargeMediumText)
                                 .foregroundStyle(palette.text)
-                            Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
-                                .font(Typography.captionMonoText)
-                                .foregroundStyle(hasError ? palette.coralText : palette.mintText)
+                            if !engine.stats.proxy.hostname.isEmpty, engine.stats.proxy.port > 0 {
+                                Text(verbatim: "\(engine.stats.proxy.hostname):\(engine.stats.proxy.port)")
+                                    .font(Typography.captionMonoText)
+                                    .foregroundStyle(hasError ? palette.coralText : palette.mintText)
+                            }
                             if engine.stats.proxy.auth {
                                 Text(verbatim: "RFC 1929")
                                     .font(Typography.captionMicroSemiboldText)

@@ -191,7 +191,10 @@ package enum TorrentListSelection {
             var next = current
             if next.contains(clickedID) {
                 next.remove(clickedID)
-                let nextAnchor = (anchor == clickedID) ? next.first : anchor
+                let nextAnchor =
+                    (anchor == clickedID)
+                    ? (visibleIDs.first { next.contains($0) } ?? next.sorted().first)
+                    : anchor
                 return State(selectedIDs: next, anchorID: nextAnchor)
             } else {
                 next.insert(clickedID)
@@ -200,6 +203,22 @@ package enum TorrentListSelection {
         }
 
         return State(selectedIDs: [clickedID], anchorID: clickedID)
+    }
+
+    package static func pruned(
+        current: Set<String>,
+        anchor: String?,
+        visibleIDs: [String]
+    ) -> State {
+        guard !current.isEmpty else { return State() }
+        let visibleSet = Set(visibleIDs)
+        let kept = current.intersection(visibleSet)
+        guard !kept.isEmpty else { return State() }
+        let nextAnchor =
+            (anchor.map { kept.contains($0) } == true)
+            ? anchor
+            : visibleIDs.first { kept.contains($0) }
+        return State(selectedIDs: kept, anchorID: nextAnchor)
     }
 
     package static func selectAll(in visibleIDs: [String], currentAnchor: String?) -> State {

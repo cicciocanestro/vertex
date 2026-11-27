@@ -463,9 +463,14 @@ extension TorrentEngine {
     /// Replaces the tracker list of a torrent. The inspector always sends the
     /// whole list, so adding and removing a tracker are the same operation and
     /// the bridge never has to merge anything.
-    func setTrackers(_ urls: [String], torrentID: String) {
+    func setTrackers(
+        _ urls: [String],
+        torrentID: String,
+        completion: (@MainActor (Bool) -> Void)? = nil
+    ) {
         let list = urls.joined(separator: "\n")
-        enqueueSessionOperation(
+        let generation = sessionGeneration
+        let queued = enqueueSessionOperation(
             operation: { session in
                 torrentID.withCString { idPointer in
                     list.withCString { listPointer in
@@ -474,10 +479,56 @@ extension TorrentEngine {
                 }
             },
             onSuccess: { [weak self] in
-                self?.forceDetailRefresh = true
-                self?.poll()
+                guard let self else {
+                    completion?(false)
+                    return
+                }
+                guard !self.isShuttingDown,
+                    self.sessionGeneration == generation,
+                    self.hasSession
+                else {
+                    completion?(false)
+                    return
+                }
+                if self.selectedID == torrentID {
+                    // Cancel any pre-mutation detail fetch in flight so its stale
+                    // tracker list cannot overwrite the post-mutation detail.
+                    self.detailTask?.cancel()
+                    self.detailTask = nil
+                    self.detailRequestID &+= 1
+                    self.forceDetailRefresh = false
+                    self.poll()
+                    Task { [weak self] in
+                        guard let self else {
+                            completion?(false)
+                            return
+                        }
+                        let decoded = await self.sessionController.detail(id: torrentID)
+                        guard !self.isShuttingDown,
+                            self.sessionGeneration == generation
+                        else {
+                            completion?(false)
+                            return
+                        }
+                        if self.selectedID == torrentID {
+                            self.applyDetail(decoded, id: torrentID, generation: generation)
+                        }
+                        completion?(true)
+                    }
+                } else {
+                    self.forceDetailRefresh = true
+                    self.poll()
+                    completion?(true)
+                }
+            },
+            onFailure: { [weak self] message in
+                self?.showToast(message, kind: .error)
+                completion?(false)
             }
         )
+        if !queued {
+            completion?(false)
+        }
     }
 
     /// Reads the magnet URI off the main thread. The old synchronous variant
@@ -503,27 +554,30 @@ extension TorrentEngine {
 
     func copyMagnet(for torrent: Torrent) {
         let id = torrent.id
-        guard !isShuttingDown, hasSession else { return }
-        let generation = sessionGeneration
         let box = StringBox()
-
-        Task { [weak self] in
-            guard let self else { return }
-            let outcome = await self.sessionController.perform { session in
+        let queued = enqueueSessionOperation(
+            operation: { session in
                 let pointer = id.withCString { vt_magnet_uri(session, $0) }
                 guard let pointer else { return -1 }
                 defer { vt_free_string(pointer) }
                 box.value = String(cString: pointer)
-                return 0
+                return box.value.isEmpty ? -1 : 0
+            },
+            onSuccess: { [weak self] in
+                guard !box.value.isEmpty else {
+                    self?.showToast(L("Operazione non riuscita."), kind: .error)
+                    return
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(box.value, forType: .string)
+                self?.showToast(L("Link magnet copiato"), kind: .info)
+            },
+            onFailure: { [weak self] message in
+                self?.showToast(message, kind: .error)
             }
-            guard outcome.code == 0,
-                !self.isShuttingDown,
-                self.sessionGeneration == generation,
-                !box.value.isEmpty
-            else { return }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(box.value, forType: .string)
-            self.showToast(L("Link magnet copiato"), kind: .info)
+        )
+        if !queued {
+            showToast(L("Motore non disponibile."), kind: .error)
         }
     }
 

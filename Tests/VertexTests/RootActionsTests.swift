@@ -74,6 +74,7 @@
                 defer { shutdown(engine) }
 
                 var modal: ActiveModal?
+                var confirmationOpen = false
                 var focused = 0
                 var toggled = 0
                 var picked = 0
@@ -84,7 +85,8 @@
                 let actions = RootActionFactory.make(
                     engine: engine,
                     RootActionDependencies(
-                        isModalOpen: { modal != nil },
+                        isModalOpen: { modal != nil || confirmationOpen },
+                        isConfirmationOpen: { confirmationOpen },
                         selectedTorrent: { nil },
                         selectedTorrents: { [] },
                         setModal: { modal = $0 },
@@ -145,6 +147,56 @@
                 try TestRunner.assertEqual(engine.toast?.text, L("Seleziona un torrent"))
                 engine.dismissToast()
                 try TestRunner.assertEqual(deleted.count, 0)
+
+                // #8: an open deletion confirmation alert blocks list commands as well as
+                // opening Settings or Network Diagnostics behind the alert.
+                confirmationOpen = true
+                actions.onSettings()
+                actions.onDiagnostics()
+                actions.onPauseResume()
+                actions.onRemove()
+                actions.onToggleInspector()
+                try TestRunner.assertNil(modal)
+                try TestRunner.assertEqual(toggled, 1)
+                try TestRunner.assertNil(engine.toast)
+                confirmationOpen = false
+
+                // P3 #4: copyMagnet surfaces an error toast instead of failing silently
+                // when the torrent does not exist in the session or after shutdown.
+                let missingTorrent = Torrent(
+                    id: String(repeating: "f", count: 40),
+                    name: "Missing.iso",
+                    stateCode: 3,
+                    progress: 0,
+                    size: 0,
+                    downloaded: 0,
+                    uploaded: 0,
+                    downloadRate: 0,
+                    uploadRate: 0,
+                    peers: 0,
+                    seeds: 0,
+                    eta: -1,
+                    finished: false,
+                    seeding: false,
+                    paused: false,
+                    sequential: false,
+                    hasMetadata: false,
+                    savePath: download.path,
+                    ratio: 0,
+                    added: 0,
+                    error: ""
+                )
+                engine.copyMagnet(for: missingTorrent)
+                let copyDeadline = Date().addingTimeInterval(3)
+                while engine.toast == nil && Date() < copyDeadline {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+                }
+                try TestRunner.assertEqual(engine.toast?.kind, .error)
+                engine.dismissToast()
+
+                shutdown(engine)
+                engine.copyMagnet(for: missingTorrent)
+                try TestRunner.assertEqual(engine.toast?.text, L("Motore non disponibile."))
             }
         }
 
@@ -211,10 +263,51 @@
                 added: 0,
                 error: ""
             )
+            let secondTorrent = Torrent(
+                id: "root-action-id-2",
+                name: "Second.mkv",
+                stateCode: 3,
+                progress: 0.5,
+                size: 2048,
+                downloaded: 1024,
+                uploaded: 0,
+                downloadRate: 0,
+                uploadRate: 0,
+                peers: 1,
+                seeds: 1,
+                eta: 10,
+                finished: false,
+                seeding: false,
+                paused: false,
+                sequential: false,
+                hasMetadata: true,
+                savePath: "/tmp",
+                ratio: 0,
+                added: 0,
+                error: ""
+            )
             try TestRunner.assertEqual(
                 RootActionFactory.inspectorToggle(
                     selectedIDs: ["root-action-id"], visible: [torrent]),
                 .deselect
+            )
+            // #10: with 2+ selected rows (inspector closed), ⌘I opens the inspector on the
+            // visible anchor (or first visible selected row) instead of clearing selection.
+            try TestRunner.assertEqual(
+                RootActionFactory.inspectorToggle(
+                    selectedIDs: ["root-action-id", "root-action-id-2"],
+                    anchorID: "root-action-id-2",
+                    visible: [torrent, secondTorrent]
+                ),
+                .select("root-action-id-2")
+            )
+            try TestRunner.assertEqual(
+                RootActionFactory.inspectorToggle(
+                    selectedIDs: ["root-action-id", "root-action-id-2"],
+                    anchorID: nil,
+                    visible: [torrent, secondTorrent]
+                ),
+                .select("root-action-id")
             )
             try TestRunner.assertEqual(
                 RootActionFactory.inspectorToggle(selectedIDs: [], visible: [torrent]),
@@ -241,6 +334,11 @@
             try TestRunner.assertEqual(InspectorResize.clamped(100), 320)
             try TestRunner.assertEqual(InspectorResize.clamped(900), 520)
             try TestRunner.assertEqual(InspectorResize.clamped(400), 400)
+            // P3 #1: non-finite values fall back to defaultValue instead of propagating NaN.
+            try TestRunner.assertEqual(InspectorResize.clamped(.nan), 350)
+            try TestRunner.assertEqual(InspectorResize.clamped(.infinity), 350)
+            try TestRunner.assertEqual(InspectorResize.clamped(-.infinity), 350)
+            try TestRunner.assertEqual(InspectorResize.dragged(from: 400, translation: .nan), 350)
             try TestRunner.assertEqual(
                 InspectorResize.dragged(from: 400, translation: -100), 500)
             try TestRunner.assertEqual(

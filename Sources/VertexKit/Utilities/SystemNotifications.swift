@@ -52,6 +52,12 @@ package enum SystemNotifications {
         return !isAdhoc
     }()
 
+    package static func prewarmSignatureCheck() {
+        DispatchQueue.global(qos: .utility).async {
+            _ = isBundleSignedWithIdentity
+        }
+    }
+
     package static func requestAuthorizationIfNeeded() {
         guard isBundleSignedWithIdentity else { return }
         let center = UNUserNotificationCenter.current()

@@ -6,6 +6,7 @@ import Foundation
 /// selection) can be tested without driving AppKit.
 struct RootActionDependencies {
     let isModalOpen: () -> Bool
+    var isConfirmationOpen: () -> Bool = { false }
     let selectedTorrent: () -> Torrent?
     let selectedTorrents: () -> [Torrent]
     let setModal: (ActiveModal?) -> Void
@@ -83,9 +84,11 @@ enum RootActionFactory {
                 dependencies.toggleInspector()
             },
             onSettings: {
+                guard !dependencies.isConfirmationOpen() else { return }
                 dependencies.setModal(.settings)
             },
             onDiagnostics: {
+                guard !dependencies.isConfirmationOpen() else { return }
                 dependencies.setModal(.diagnostics)
             },
             onFilter: { raw in
@@ -151,9 +154,22 @@ enum InspectorToggle: Equatable {
 extension RootActionFactory {
     static func inspectorToggle(
         selectedIDs: Set<String>,
+        anchorID: String? = nil,
         visible: [Torrent]
     ) -> InspectorToggle {
-        if !selectedIDs.isEmpty { return .deselect }
+        if selectedIDs.count == 1 { return .deselect }
+        if selectedIDs.count >= 2 {
+            if let anchorID,
+                selectedIDs.contains(anchorID),
+                visible.contains(where: { $0.id == anchorID })
+            {
+                return .select(anchorID)
+            }
+            if let firstSelectedVisible = visible.first(where: { selectedIDs.contains($0.id) }) {
+                return .select(firstSelectedVisible.id)
+            }
+            return .deselect
+        }
         guard let first = visible.first else { return .none }
         return .select(first.id)
     }
@@ -193,7 +209,8 @@ enum InspectorResize {
     private static let step: CGFloat = 20
 
     static func clamped(_ width: CGFloat) -> CGFloat {
-        min(max(width, minimum), maximum)
+        guard width.isFinite else { return defaultValue }
+        return min(max(width, minimum), maximum)
     }
 
     static func dragged(from start: CGFloat, translation: CGFloat) -> CGFloat {

@@ -2,6 +2,14 @@ import AppKit
 import CTorrent
 import Foundation
 
+private final class SettingsApplyOutcomeBox: @unchecked Sendable {
+    var proxySucceeded = false
+    var networkSucceeded = false
+    var queueSucceeded = false
+    var downloadPathSucceeded = false
+    var firstErrorMessage = ""
+}
+
 extension TorrentEngine {
     /// Coalesces the edits of a settings field: applying on every keystroke
     /// rebinds the listening port (and resets the port mapping) for partial
@@ -245,50 +253,31 @@ extension TorrentEngine {
 
         let applyGeneration = sessionGeneration
         let failCloseReason = proxyFailCloseReason
+        let outcomeBox = SettingsApplyOutcomeBox()
         isApplyingSettings = true
         needsSettingsReapply = false
         let queued = enqueueSessionOperation(
             errorTitle: L("Impostazioni non applicate"),
             operation: { session in
-                if downloadPathChanged {
-                    let pathResult = configuration.downloadPath.withCString {
-                        vt_set_default_save_path(session, $0)
-                    }
-                    if pathResult != 0 {
-                        return pathResult
-                    }
-                }
-                if queueChanged {
-                    let limitResult = vt_set_active_limit(session, configuration.maxActive)
-                    if limitResult != 0 {
-                        return limitResult
+                var firstFailureCode: Int32 = 0
+                func recordFailure(_ code: Int32) {
+                    guard firstFailureCode == 0 else { return }
+                    firstFailureCode = code
+                    if let pointer = vt_last_error(session) {
+                        outcomeBox.firstErrorMessage = String(cString: pointer)
+                        vt_free_string(pointer)
                     }
                 }
-                if networkChanged {
-                    let netResult = configuration.bindAddress.withCString { bindAddress in
-                        vt_apply_settings_ex(
-                            session,
-                            configuration.port,
-                            configuration.downloadLimit,
-                            configuration.uploadLimit,
-                            configuration.dht ? 1 : 0,
-                            configuration.upnp ? 1 : 0,
-                            configuration.lsd ? 1 : 0,
-                            bindAddress
-                        )
-                    }
-                    if netResult != 0 {
-                        return netResult
-                    }
-                }
+
+                // Security-critical proxy posture runs FIRST so an unwritable or
+                // unmounted download folder can never block fail-closed / SOCKS5.
                 if let failReason = failCloseReason {
                     failReason.withCString { reasonPointer in
                         vt_fail_close_proxy(session, reasonPointer)
                     }
-                    return 0
-                }
-                if proxyChanged {
-                    return configuration.proxyHost.withCString { hostPointer in
+                    outcomeBox.proxySucceeded = true
+                } else if proxyChanged {
+                    let proxyResult = configuration.proxyHost.withCString { hostPointer in
                         configuration.proxyUser.withCString { userPointer in
                             configuration.proxyPassword.withCString { passPointer in
                                 vt_apply_proxy_settings(
@@ -302,8 +291,62 @@ extension TorrentEngine {
                             }
                         }
                     }
+                    if proxyResult == 0 {
+                        outcomeBox.proxySucceeded = true
+                    } else {
+                        recordFailure(proxyResult)
+                    }
+                } else {
+                    outcomeBox.proxySucceeded = true
                 }
-                return 0
+
+                if networkChanged {
+                    let netResult = configuration.bindAddress.withCString { bindAddress in
+                        vt_apply_settings_ex(
+                            session,
+                            configuration.port,
+                            configuration.downloadLimit,
+                            configuration.uploadLimit,
+                            configuration.dht ? 1 : 0,
+                            configuration.upnp ? 1 : 0,
+                            configuration.lsd ? 1 : 0,
+                            bindAddress
+                        )
+                    }
+                    if netResult == 0 {
+                        outcomeBox.networkSucceeded = true
+                    } else {
+                        recordFailure(netResult)
+                    }
+                } else {
+                    outcomeBox.networkSucceeded = true
+                }
+
+                if queueChanged {
+                    let limitResult = vt_set_active_limit(session, configuration.maxActive)
+                    if limitResult == 0 {
+                        outcomeBox.queueSucceeded = true
+                    } else {
+                        recordFailure(limitResult)
+                    }
+                } else {
+                    outcomeBox.queueSucceeded = true
+                }
+
+                if downloadPathChanged {
+                    let pathResult = configuration.downloadPath.withCString {
+                        vt_set_default_save_path(session, $0)
+                    }
+                    if pathResult == 0 {
+                        outcomeBox.downloadPathSucceeded = true
+                    } else {
+                        recordFailure(pathResult)
+                    }
+                } else {
+                    outcomeBox.downloadPathSucceeded = true
+                }
+
+                return firstFailureCode
             },
             onSuccess: { [weak self] in
                 guard let self, self.sessionGeneration == applyGeneration, !self.isShuttingDown else { return }
@@ -319,7 +362,50 @@ extension TorrentEngine {
             onFailure: { [weak self] message in
                 guard let self, self.sessionGeneration == applyGeneration, !self.isShuttingDown else { return }
                 self.isApplyingSettings = false
-                self.showToast(L("Impostazioni non applicate"), kind: .error, detail: message)
+                if outcomeBox.proxySucceeded {
+                    self.lastAppliedProxyFailCloseReason = failCloseReason
+                }
+                if var updated = self.lastAppliedConfiguration {
+                    updated.seedRatioLimit = configuration.seedRatioLimit
+                    if outcomeBox.proxySucceeded {
+                        updated.proxyEnabled = configuration.proxyEnabled
+                        updated.proxyHost = configuration.proxyHost
+                        updated.proxyPort = configuration.proxyPort
+                        updated.proxyUser = configuration.proxyUser
+                        updated.proxyPassword = configuration.proxyPassword
+                    }
+                    if outcomeBox.networkSucceeded {
+                        updated.port = configuration.port
+                        updated.downloadLimit = configuration.downloadLimit
+                        updated.uploadLimit = configuration.uploadLimit
+                        updated.dht = configuration.dht
+                        updated.upnp = configuration.upnp
+                        updated.lsd = configuration.lsd
+                        updated.bindAddress = configuration.bindAddress
+                    }
+                    if outcomeBox.queueSucceeded {
+                        updated.maxActive = configuration.maxActive
+                    }
+                    if outcomeBox.downloadPathSucceeded {
+                        updated.downloadPath = configuration.downloadPath
+                    }
+                    self.lastAppliedConfiguration = updated
+                }
+                let anyApplied =
+                    outcomeBox.proxySucceeded
+                    || outcomeBox.networkSucceeded
+                    || outcomeBox.queueSucceeded
+                    || outcomeBox.downloadPathSucceeded
+                if anyApplied {
+                    self.poll()
+                }
+                let detailMessage =
+                    outcomeBox.firstErrorMessage
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty
+                    ? message
+                    : self.localizedError(outcomeBox.firstErrorMessage)
+                self.showToast(L("Impostazioni non applicate"), kind: .error, detail: detailMessage)
                 if self.needsSettingsReapply {
                     self.needsSettingsReapply = false
                     self.applySettings()

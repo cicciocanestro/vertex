@@ -15,11 +15,15 @@ package enum TorrentInput {
 
     package static func isValidTrackerURL(_ raw: String) -> Bool {
         let candidate = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !candidate.isEmpty,
-            candidate.utf8.count <= 2048,
-            candidate.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
-            let delimiter = candidate.range(of: "://")
-        else {
+        guard !candidate.isEmpty, candidate.utf8.count <= 2048 else {
+            return false
+        }
+        for byte in candidate.utf8 {
+            if byte <= 0x20 || byte == 0x7F {
+                return false
+            }
+        }
+        guard let delimiter = candidate.range(of: "://") else {
             return false
         }
 
@@ -38,19 +42,60 @@ package enum TorrentInput {
             }
         }
 
-        let authority = candidate[delimiter.upperBound...]
-        guard let hostFirst = authority.first,
-            hostFirst != "/", hostFirst != ":", hostFirst != "?", hostFirst != "#"
-        else {
+        let rest = candidate[delimiter.upperBound...]
+        let slashIndex = rest.firstIndex { $0 == "/" || $0 == "?" || $0 == "#" }
+        let authority = slashIndex.map { rest[..<$0] } ?? rest
+        guard !authority.isEmpty else {
             return false
         }
+
+        let hostport: Substring
+        if let atIndex = authority.lastIndex(of: "@") {
+            hostport = authority[authority.index(after: atIndex)...]
+        } else {
+            hostport = authority
+        }
+        guard let hostFirst = hostport.first else {
+            return false
+        }
+
         if hostFirst == "[" {
-            guard let close = authority.firstIndex(of: "]"),
-                close > authority.index(after: authority.startIndex)
+            guard let close = hostport.firstIndex(of: "]"),
+                close > hostport.index(after: hostport.startIndex)
             else {
                 return false
             }
+            let afterBracket = hostport[hostport.index(after: close)...]
+            if afterBracket.isEmpty {
+                return true
+            }
+            guard afterBracket.first == ":" else {
+                return false
+            }
+            return isValidPortSlice(afterBracket.dropFirst())
+        }
+
+        if let colon = hostport.firstIndex(of: ":") {
+            let host = hostport[..<colon]
+            guard !host.isEmpty else {
+                return false
+            }
+            return isValidPortSlice(hostport[hostport.index(after: colon)...])
         }
         return true
+    }
+
+    private static func isValidPortSlice(_ slice: Substring) -> Bool {
+        guard !slice.isEmpty, slice.count <= 5 else {
+            return false
+        }
+        var value = 0
+        for byte in slice.utf8 {
+            guard byte >= 0x30, byte <= 0x39 else {
+                return false
+            }
+            value = value * 10 + Int(byte - 0x30)
+        }
+        return (1...65535).contains(value)
     }
 }

@@ -143,6 +143,39 @@
                     checks[3].detail,
                     L("Disattivato dal proxy SOCKS5 per prevenire leak.")
                 )
+
+                // #14: during vt_fail_close_proxy, hostname is "" and port is 0 while enabled == true:
+                // UPnP and DHT must still report .info (disabled by SOCKS5), and StatusBarView help text
+                // must surface the localized proxy error without formatting a broken "(:0)" endpoint.
+                stats.proxy = ProxyInfo(
+                    enabled: true,
+                    type: "SOCKS5",
+                    hostname: "",
+                    port: 0,
+                    error: "Host proxy non valido"
+                )
+                checks = DiagnosticsChecklist.checks(
+                    stats: stats,
+                    upnpEnabled: true,
+                    dhtEnabled: true
+                )
+                try TestRunner.assertEqual(checks[1].status, .info)
+                try TestRunner.assertEqual(checks[2].status, .error)
+                try TestRunner.assertEqual(checks[2].detail, L("Host proxy non valido"))
+                try TestRunner.assertEqual(checks[3].status, .info)
+                try TestRunner.assertEqual(
+                    StatusBarView.proxyHelpText(stats.proxy),
+                    L("Host proxy non valido")
+                )
+                try TestRunner.assertFalse(StatusBarView.proxyHelpText(stats.proxy).contains(":0"))
+                let reachableErr = ProxyInfo(
+                    enabled: true,
+                    type: "SOCKS5",
+                    hostname: "127.0.0.1",
+                    port: 1080,
+                    error: "Connection refused"
+                )
+                try TestRunner.assertTrue(StatusBarView.proxyHelpText(reachableErr).contains("127.0.0.1:1080"))
             }
 
             TestRunner.run("Presentation: diagnostica rete") {
@@ -357,6 +390,72 @@
                         proxyPort: 0
                     )
                 )
+            }
+
+            TestRunner.run("Presentation: riconciliazione tracker Inspector, debounce password e OpenPanel tilde") {
+                // #7: unrelated detail refresh must preserve pending added/removed trackers
+                // until they actually appear/disappear in detail.trackers.
+                let oldTracker = TorrentTracker(
+                    url: "udp://old.example:6969/announce",
+                    verified: true,
+                    fails: 0,
+                    message: "",
+                    peers: 1,
+                    seeds: 1
+                )
+                let newURL = "udp://new.example:6969/announce"
+                let staleReconcile = InspectorTrackerMutation.reconcile(
+                    added: [newURL],
+                    removed: ["udp://old.example:6969/announce"],
+                    with: [oldTracker]
+                )
+                try TestRunner.assertEqual(staleReconcile.added, [newURL])
+                try TestRunner.assertEqual(staleReconcile.removed, ["udp://old.example:6969/announce"])
+
+                let newTracker = TorrentTracker(
+                    url: newURL,
+                    verified: false,
+                    fails: 0,
+                    message: "",
+                    peers: -1,
+                    seeds: -1
+                )
+                let appliedReconcile = InspectorTrackerMutation.reconcile(
+                    added: [newURL],
+                    removed: ["udp://old.example:6969/announce"],
+                    with: [newTracker]
+                )
+                try TestRunner.assertEqual(appliedReconcile.added, [])
+                try TestRunner.assertEqual(appliedReconcile.removed, [])
+
+                // #11: an older detached save completing after a newer keystroke must leave
+                // hasUnflushedEdits == true so flushProxyPassword still writes the latest edit.
+                var saveTracker = ProxyPasswordSaveTracker()
+                try TestRunner.assertFalse(saveTracker.hasUnflushedEdits)
+                let gen1 = saveTracker.recordEdit()
+                try TestRunner.assertTrue(saveTracker.hasUnflushedEdits)
+                let gen2 = saveTracker.recordEdit()
+                saveTracker.completeDebounceSave(generation: gen1, succeeded: true)
+                try TestRunner.assertTrue(
+                    saveTracker.hasUnflushedEdits,
+                    "Il completamento di gen1 non deve cancellare la modifica successiva gen2"
+                )
+                try TestRunner.assertEqual(saveTracker.consumePendingFlush(), gen2)
+                try TestRunner.assertFalse(saveTracker.hasUnflushedEdits)
+                try TestRunner.assertNil(saveTracker.consumePendingFlush())
+
+                // #21: OpenPanelFactory.directoryURL expands a leading ~ without touching NSRemoteOpenPanel XPC.
+                let expectedExpanded = ("~/Downloads" as NSString).expandingTildeInPath
+                try TestRunner.assertEqual(
+                    OpenPanelFactory.directoryURL(for: "~/Downloads")?.standardizedFileURL.path,
+                    URL(fileURLWithPath: expectedExpanded).standardizedFileURL.path
+                )
+                try TestRunner.assertEqual(
+                    OpenPanelFactory.directoryURL(for: "/tmp")?.standardizedFileURL.path,
+                    URL(fileURLWithPath: "/tmp").standardizedFileURL.path
+                )
+                try TestRunner.assertNil(OpenPanelFactory.directoryURL(for: ""))
+                try TestRunner.assertNil(OpenPanelFactory.directoryURL(for: nil))
             }
         }
     }

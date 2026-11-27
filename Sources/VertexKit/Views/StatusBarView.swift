@@ -102,13 +102,7 @@ struct StatusBarView: View {
                         .font(Typography.badgeText)
                 }
                 .foregroundStyle(hasProxyError ? palette.coralText : palette.mintText)
-                .help(
-                    hasProxyError
-                        ? LF(
-                            "Proxy SOCKS5 non raggiungibile (%@:%ld): %@", engine.stats.proxy.hostname,
-                            engine.stats.proxy.port, engine.stats.proxy.localizedError)
-                        : LF("Proxy SOCKS5 attivo (%@:%ld)", engine.stats.proxy.hostname, engine.stats.proxy.port)
-                )
+                .help(Self.proxyHelpText(engine.stats.proxy))
                 .fixedSize(horizontal: true, vertical: false)
 
                 Text(verbatim: "·")
@@ -158,6 +152,25 @@ struct StatusBarView: View {
 
     private var isDHTActive: Bool {
         dhtEnabled && !engine.stats.isProxyActive
+    }
+
+    nonisolated static func proxyHelpText(_ proxy: ProxyInfo) -> String {
+        let hasEndpoint = !proxy.hostname.isEmpty && proxy.port > 0
+        if proxy.hasError {
+            if hasEndpoint {
+                return LF(
+                    "Proxy SOCKS5 non raggiungibile (%@:%ld): %@",
+                    proxy.hostname,
+                    proxy.port,
+                    proxy.localizedError
+                )
+            }
+            return proxy.localizedError
+        }
+        if hasEndpoint {
+            return LF("Proxy SOCKS5 attivo (%@:%ld)", proxy.hostname, proxy.port)
+        }
+        return L("Proxy attivo")
     }
 
     private var dhtLabel: String {

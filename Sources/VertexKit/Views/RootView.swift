@@ -77,6 +77,7 @@ package struct RootView: View {
     @AppStorage(PrefKey.uiSort) private var sortRaw = TorrentSort.recent.rawValue
     @AppStorage(PrefKey.uiSortAscending) private var sortAscending = TorrentSort.recent.defaultAscending
     @AppStorage(PrefKey.uiInspectorWidth) private var inspectorWidth = Double(InspectorResize.defaultValue)
+    @StateObject private var liveInspectorWidth = UIState<Double?>(nil)
     @StateObject private var search = UIState("")
     @StateObject private var activeModal = UIState<ActiveModal?>(nil)
     @StateObject private var dropTargeted = UIState(false)
@@ -101,14 +102,7 @@ package struct RootView: View {
     /// Clamped on read as well as on write: a window that was shrunk on another
     /// display must not produce a negative or oversized inspector.
     private var inspectorWidthValue: CGFloat {
-        InspectorResize.clamped(CGFloat(inspectorWidth))
-    }
-
-    private var inspectorWidthBinding: Binding<CGFloat> {
-        Binding(
-            get: { inspectorWidthValue },
-            set: { inspectorWidth = Double($0) }
-        )
+        InspectorResize.clamped(CGFloat(liveInspectorWidth.value ?? inspectorWidth))
     }
 
     package var body: some View {
@@ -117,6 +111,12 @@ package struct RootView: View {
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: engine.selectedIDs.count > 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: engine.toast?.id)
             .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: activeModal.value)
+            .onChange(of: filterRaw) { _, _ in
+                pruneSelectionToVisible()
+            }
+            .onChange(of: search.value) { _, _ in
+                pruneSelectionToVisible()
+            }
             .alert(
                 RootActionFactory.deletionTitle(count: pendingDeletions.value.count),
                 isPresented: $showDeleteConfirmation.value,
@@ -140,7 +140,11 @@ package struct RootView: View {
                 AddTorrentSheet(
                     engine: engine,
                     initialMode: addMode,
-                    onClose: { activeModal.value = nil }
+                    onClose: {
+                        if case .add = activeModal.value {
+                            activeModal.value = nil
+                        }
+                    }
                 )
                 .defaultAppStorage(Preferences.userDefaults)
             }
@@ -277,11 +281,12 @@ package struct RootView: View {
     private var mainColumn: some View {
         let result = listResult
         let visible = result.torrents
+        let visibleBatch = visibleSelectedTorrents(in: visible)
         return VStack(spacing: 0) {
             headerBar
             filterBar(counts: result.counts)
-            if engine.selectedTorrents.count > 1 {
-                multiSelectionBar
+            if visibleBatch.count > 1 {
+                multiSelectionBar(batch: visibleBatch)
             }
 
             HStack(spacing: 0) {
@@ -289,7 +294,14 @@ package struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let torrent = selectedTorrent {
-                    InspectorResizeHandle(width: inspectorWidthBinding)
+                    InspectorResizeHandle(
+                        width: inspectorWidthValue,
+                        onPreviewWidth: { liveInspectorWidth.value = Double($0) },
+                        onCommitWidth: {
+                            liveInspectorWidth.value = nil
+                            inspectorWidth = Double($0)
+                        }
+                    )
                     inspector(for: torrent)
                 }
             }
@@ -297,14 +309,16 @@ package struct RootView: View {
 
             StatusBarView(
                 engine: engine,
-                onOpenDiagnostics: { activeModal.value = .diagnostics }
+                onOpenDiagnostics: {
+                    guard !showDeleteConfirmation.value else { return }
+                    activeModal.value = .diagnostics
+                }
             )
         }
     }
 
-    private var multiSelectionBar: some View {
+    private func multiSelectionBar(batch: [Torrent]) -> some View {
         let palette = Palette(scheme: scheme)
-        let batch = engine.selectedTorrents
         return HStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
                 .font(Typography.captionMediumText)
@@ -355,7 +369,10 @@ package struct RootView: View {
             search: $search.value,
             searchFocused: $searchFocused,
             onAdd: openAddSheet,
-            onSettings: { activeModal.value = .settings }
+            onSettings: {
+                guard !showDeleteConfirmation.value else { return }
+                activeModal.value = .settings
+            }
         )
     }
 
@@ -394,7 +411,7 @@ package struct RootView: View {
             .padding(
                 .bottom,
                 RootActionFactory.toastBottomPadding(
-                    multiSelection: engine.selectedTorrents.count > 1
+                    multiSelection: visibleSelectedTorrents(in: listResult.torrents).count > 1
                 )
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -404,7 +421,13 @@ package struct RootView: View {
 
     @ViewBuilder
     private var dropLayer: some View {
-        if dropTargeted.value {
+        if dropTargeted.value,
+            RootActionFactory.acceptsDrop(
+                modalOpen: hasModalOverlay,
+                isReady: engine.isReady,
+                isRestartingSession: engine.isRestartingSession
+            )
+        {
             DropOverlay()
                 .zIndex(2)
         }
@@ -424,7 +447,10 @@ package struct RootView: View {
             EmptyStateView(
                 onAdd: openAddSheet,
                 onPasteMagnet: pasteMagnet,
-                onOpenSettings: { activeModal.value = .settings }
+                onOpenSettings: {
+                    guard !showDeleteConfirmation.value else { return }
+                    activeModal.value = .settings
+                }
             )
         } else if torrents.isEmpty {
             NoResultsView(query: search.value) {
@@ -460,10 +486,28 @@ package struct RootView: View {
         return engine.torrent(withID: id)
     }
 
-    /// Settings, diagnostics and the add sheet are app-modal: torrent shortcuts must not
-    /// act on the list behind them.
+    /// Settings, diagnostics, the add sheet and the deletion confirmation alert
+    /// are app-modal: torrent shortcuts must not act on the list behind them.
     private var hasModalOverlay: Bool {
-        activeModal.value != nil
+        activeModal.value != nil || showDeleteConfirmation.value
+    }
+
+    private func visibleSelectedTorrents(in visible: [Torrent]) -> [Torrent] {
+        guard !engine.selectedIDs.isEmpty else { return [] }
+        return visible.filter { engine.selectedIDs.contains($0.id) }
+    }
+
+    private func pruneSelectionToVisible() {
+        guard !engine.selectedIDs.isEmpty else { return }
+        let visibleIDs = listResult.torrents.map(\.id)
+        let pruned = TorrentListSelection.pruned(
+            current: engine.selectedIDs,
+            anchor: engine.selectionAnchorID,
+            visibleIDs: visibleIDs
+        )
+        if pruned.selectedIDs != engine.selectedIDs || pruned.anchorID != engine.selectionAnchorID {
+            engine.setSelection(pruned)
+        }
     }
 
     private var listResult: TorrentListResult {
@@ -515,7 +559,7 @@ package struct RootView: View {
     }
 
     private func requestDeletion(_ torrents: [Torrent]) {
-        guard !torrents.isEmpty else { return }
+        guard !showDeleteConfirmation.value, !torrents.isEmpty else { return }
         pendingDeletions.value = torrents
         showDeleteConfirmation.value = true
     }
@@ -527,9 +571,11 @@ package struct RootView: View {
             engine: engine,
             RootActionDependencies(
                 isModalOpen: { hasModalOverlay },
+                isConfirmationOpen: { showDeleteConfirmation.value },
                 selectedTorrent: { selectedTorrent },
-                selectedTorrents: { engine.selectedTorrents },
+                selectedTorrents: { visibleSelectedTorrents(in: listResult.torrents) },
                 setModal: { nextModal in
+                    guard !showDeleteConfirmation.value else { return }
                     if case .add = nextModal, hasModalOverlay {
                         return
                     }
@@ -552,6 +598,7 @@ package struct RootView: View {
     private func toggleInspector() {
         switch RootActionFactory.inspectorToggle(
             selectedIDs: engine.selectedIDs,
+            anchorID: engine.selectionAnchorID,
             visible: listResult.torrents
         ) {
         case .deselect:
@@ -665,7 +712,9 @@ package struct RootView: View {
 /// Draggable divider between the torrent list and the inspector. The drag is
 /// relative to the width at gesture start; clamping keeps both panes usable.
 private struct InspectorResizeHandle: View {
-    @Binding var width: CGFloat
+    let width: CGFloat
+    let onPreviewWidth: (CGFloat) -> Void
+    let onCommitWidth: (CGFloat) -> Void
 
     @Environment(\.colorScheme) private var scheme
     @StateObject private var hover = UIState(false)
@@ -696,27 +745,39 @@ private struct InspectorResizeHandle: View {
                 NSCursor.arrow.set()
             }
         }
-        .onDisappear { NSCursor.arrow.set() }
+        .onDisappear {
+            dragStart.value = nil
+            NSCursor.arrow.set()
+        }
         .gesture(
             DragGesture(minimumDistance: 1)
                 .onChanged { value in
                     if dragStart.value == nil { dragStart.value = width }
                     let start = dragStart.value ?? width
-                    width = InspectorResize.dragged(
+                    let next = InspectorResize.dragged(
                         from: start,
                         translation: value.translation.width
                     )
+                    onPreviewWidth(next)
                 }
-                .onEnded { _ in dragStart.value = nil }
+                .onEnded { value in
+                    let start = dragStart.value ?? width
+                    dragStart.value = nil
+                    let finalWidth = InspectorResize.dragged(
+                        from: start,
+                        translation: value.translation.width
+                    )
+                    onCommitWidth(finalWidth)
+                }
         )
         .help(L("Ridimensiona i dettagli"))
         .accessibilityLabel(Text(L("Ridimensiona i dettagli")))
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                width = InspectorResize.stepped(width, direction: .increment)
+                onCommitWidth(InspectorResize.stepped(width, direction: .increment))
             case .decrement:
-                width = InspectorResize.stepped(width, direction: .decrement)
+                onCommitWidth(InspectorResize.stepped(width, direction: .decrement))
             @unknown default:
                 break
             }

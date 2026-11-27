@@ -182,6 +182,24 @@ enum GeoIPTests {
             overflowStartV4 += [1, 0, 0]  // second entry delta = 1 -> nextStart > UInt32.max
             try TestRunner.assertNil(compressPayload(overflowStartV4).flatMap(GeoIPTable.init(compressed:)))
 
+            // 10-byte varint with high bits set in the 10th byte (>= 2^64) must be rejected with nil.
+            var tenByteOverflowDelta: [UInt8] = [1, 0] + Array("IT".utf8)
+            tenByteOverflowDelta += [UInt8](repeating: 0x80, count: 9) + [0x02]  // 2^64 -> overflow
+            tenByteOverflowDelta += [1, 0]
+            try TestRunner.assertNil(
+                compressPayload(tenByteOverflowDelta).flatMap(GeoIPTable.init(compressed:)),
+                "Un varint IPv4 a 10 byte oltre 64 bit deve restituire nil"
+            )
+
+            var tenByteOverflowLength: [UInt8] = [1, 0] + Array("IT".utf8)
+            tenByteOverflowLength += [0]
+            tenByteOverflowLength += [UInt8](repeating: 0xFF, count: 9) + [0x7F]
+            tenByteOverflowLength += [0]
+            try TestRunner.assertNil(
+                compressPayload(tenByteOverflowLength).flatMap(GeoIPTable.init(compressed:)),
+                "Una lunghezza varint IPv4 a 10 byte oltre 64 bit deve restituire nil"
+            )
+
             var clampedEndV6: [UInt8] = [1, 0] + Array("IT".utf8)
             clampedEndV6 += [UInt8](repeating: 0xFF, count: 18) + [0x03]  // start = UInt128.max
             clampedEndV6 += [1]  // length = 1 -> end clamps to UInt128.max without trapping
