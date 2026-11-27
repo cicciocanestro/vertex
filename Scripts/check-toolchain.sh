@@ -107,7 +107,7 @@ if [ -n "${ImageVersion:-}" ]; then
         # Same reasoning as CMake: the runner image is assigned by GitHub and is
         # not pinnable, so the accepted window is declared here and printed.
         case "$ImageVersion" in
-            20261104.*|20261118.*)
+            20261118.*|20261123.*)
                 printf '  ✓ %-20s %s (compatibile, non canonica)\n' "Immagine runner" "$ImageVersion"
                 ;;
             *)
